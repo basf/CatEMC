@@ -1,2 +1,2 @@
-# CatEMC-
-Evolutionary MonteCarlo for simulating catalysts under reaction condition.
+# CatEMC
+An evolutionary Monte Carlo (EMC) pacakage for simulating catalysts under reaction conditions.
