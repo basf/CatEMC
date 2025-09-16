@@ -1,6 +1,4 @@
----
-
-### CatEMC
+# CatEMC
 
 **CatEMC** is a Python package for running evolutionary Monte Carlo simulations for complex bulk/surface catalyst materials. For surface EMC, it is possible to consider a wide range of reaction conditions in a single EMC run. The repository provides tools to (1) generate populations of structures and μ-windows, (2) run GE-EMC (composition sampling) and GC-EMC (grand-canonical surface sampling) simulations, and (3) analyze simulation data to get chemical potential estimates, structural expectations, and free-energy surfaces.
 
