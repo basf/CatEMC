@@ -1,0 +1,3 @@
+ase
+acat==2.0.0
+autoadsorbate

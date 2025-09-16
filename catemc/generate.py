@@ -1,0 +1,260 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from acat.build.ordering import RandomOrderingGenerator as ROG
+from acat.build.ordering import SymmetricSlabOrderingGenerator as SSOG
+from acat.adsorption_sites import SlabAdsorptionSites
+from acat.build.adlayer import min_dist_coverage_pattern as mindcp
+from acat.build.adlayer import max_dist_coverage_pattern as maxdcp
+from ase.io import read, write
+from collections import Counter
+import numpy as np
+import random
+import pickle
+import sys
+import os
+
+
+def generate_population(
+        template,
+        pop_size,
+        input_type='slab',
+        target_metal_species=None,
+        target_metal_composition=None,
+        target_nonmetal_species=None,
+        target_nonmetal_composition=None,
+        allowed_indices=None,
+        valences=None,
+        adsorbate_species=None,
+        adsorbate_coverage=None,
+        adsorbate_adsorbate_dmin=None,
+        max_adsorbate_species=None,
+        adsorption_sites=None,
+        adsorption_dict={},
+        symmetry_constraint=False,
+        symmetry_dict={},
+        trajectory=None,
+        append_trajectory=False,
+        seed=None):
+    """
+    Generate a population of random bulk/slab configurations.
+
+    inputs:
+        structures (list): a list of structures (ase.Atoms or pymatgen.core.Structure) 
+                         as the initial GA population. Generate random structures if
+                         the structures are not provided (or complete the population 
+                         if only part of structures are provided).
+        pop_size (int): GA population size
+        target_metal_species (list or str): a list of possible metal species to present
+                         in the catalyst.
+        target_metal_composition (dict): a dictionary that maps each metal species to
+                         the corresponding concentration.
+        target_nonmetal_species (list or str): a list of possible non-metal species to 
+                         present in the catalyst.
+        target_nonmetal_composition (dict): a dictionary that maps each non-metal 
+                         species to the corresponding concentrations.
+        allowed_indices (list): a list of atom indices that are allowed to mutate.
+        valences (dict): a dictionary that maps the each species to the corresponding 
+                         charge state to ensure charge neutrality of the structures.
+        adsorbate_species (list or str): a list of possible adsorbate species to adsorb
+                         on the catalyst surface.
+        adsorbate_coverage (float): fix to this adsorbate coverage.
+        adsorbate_adsorbate_dmin (float): the radius of the sphere inside which no other 
+                         adsorbates should be found. 
+        max_adsorbate_species (int): the maximum allowed types of adsorbate species 
+                         (excluding vacancies) for a single structure. Allow all 
+                         adsorbatae species if not specified.
+        adsorption_sites (acat.adsorption_sites.Cluster/SlabAdsorptionSites object or 
+                         the corresponding pickle file path, default None): provide the 
+                         ACAT built-in adsorption sites class to accelerate the adlayer 
+                         pattern generation.
+        adsorption_dict (dict): parameters for identifying adsorption sites.
+        symmetry_constraint (bool): whether to apply symmetry constraint. Currently only
+                         support generating symmetric clusters.
+        symmetry_dict (bool): paramters for generating symmetric clusters.
+        trajectory (str): path for saving the structures in the inital population.
+        seed (int): random seed for reproducibility. 
+    """
+    if seed is None:
+        seed = random.randrange(sys.maxsize)
+    random.seed(seed)
+    images = []
+    ngen = pop_size
+
+    if target_metal_species is None:
+        target_metal_species = []
+    elif isinstance(target_metal_species, str):
+        target_metal_species = [target_metal_species]
+    if (target_nonmetal_species is not None) and isinstance(target_nonmetal_species, str):
+        target_nonmetal_species = [target_nonmetal_species]
+    if ngen <= 0:
+        gen_images = []
+    elif len(target_metal_species) > 1:
+        # Distinguish metal and non-metal atoms
+        metal_ids, nonmetal_ids = [], []
+        for i, atom in enumerate(template):
+            if atom.symbol in target_metal_species:
+                if (allowed_indices is None) or (i in allowed_indices):
+                    metal_ids.append(i)
+                else:
+                    nonmetal_ids.append(i)
+            else:
+                nonmetal_ids.append(i)
+        metal_atoms = template[metal_ids]
+        if nonmetal_ids:
+            nonmetal_atoms = template[nonmetal_ids]
+            # Prepare sorted_ids for sorting atomic indices back to original order
+            sorted_ids = [0] * len(template)
+            for k, v in enumerate(metal_ids + nonmetal_ids):
+                sorted_ids[v] = k
+        if not symmetry_constraint:
+            from acat.build.ordering import RandomOrderingGenerator as ROG
+            gen = ROG(metal_atoms, elements=target_metal_species,
+                      composition=target_metal_composition,
+                      trajectory='metal_orderings.traj')
+            gen.run(num_gen=ngen)
+        else:
+            if input_type in ['cluster']:
+                from acat.build.ordering import SymmetricClusterOrderingGenerator as SCOG
+                symmetry_dict['atoms'] = metal_atoms
+                symmetry_dict['elements'] = target_metal_species
+                symmetry_dict['composition'] = target_metal_composition
+                symmetry_dict['trajectory'] = 'metal_orderings.traj'
+                symmetry_dict['save_groups'] = True
+                gen = SCOG(**symmetry_dict)
+                gen.run(max_gen=ngen)
+            elif input_type in ['slab', 'slab+ads', 'surface']:
+                from acat.build.ordering import SymmetricSlabOrderingGenerator as SSOG
+                symmetry_dict['atoms'] = metal_atoms
+                symmetry_dict['elements'] = target_metal_species
+                symmetry_dict['composition'] = target_metal_composition
+                symmetry_dict['trajectory'] = 'metal_orderings.traj'
+                symmetry_dict['save_groups'] = True
+                gen = SSOG(**symmetry_dict)
+                gen.run(max_gen=ngen)
+            else:
+                raise NotImplementedError
+        gen_images = read('metal_orderings.traj', index=':')
+        if nonmetal_ids:
+            gen_images = [(a + nonmetal_atoms)[sorted_ids] for a in gen_images]
+        os.remove('metal_orderings.traj')
+        if (target_metal_composition is None) and (valences is not None):
+            max_anion_valence = len(nonmetal_ids) * max(abs(v) for v in valences.values() if v < 0)
+            for atoms in gen_images:
+                ctr = Counter(atoms.symbols)
+                cation_valence = sum([ctr[k]*v for k, v in valences.items() if v > 0])
+                sorted_tups = sorted([(k, v) for k, v in valences.items() if v > 0], key=lambda x: x[1])
+                while cation_valence > max_anion_valence:
+                    sorted_ids = sorted(random.sample(range(len(sorted_tups)), 2))
+                    metal_pair = [sorted_tups[i][0] for i in sorted_ids]
+                    metal1_ids = [a.index for a in atoms if a.symbol == metal_pair[1]]
+                    if allowed_indices is not None:
+                        metal1_ids = [i for i in metal1_ids if i in allowed_indices]
+                    if not metal1_ids:
+                        continue
+                    mut_id = random.choice(metal1_ids)
+                    atoms[mut_id].symbol = metal_pair[0]
+                    ctr[metal_pair[0]] += 1
+                    ctr[metal_pair[1]] -= 1
+                    cation_valence = sum([ctr[k]*v for k, v in valences.items() if v > 0])
+    else:
+        gen_images = [template for _ in range(ngen)]
+
+    if target_nonmetal_species is not None:
+        # Distinguish metal and non-metal atoms                                                
+        nonmetal_ids, metal_ids = [], []
+        for i, atom in enumerate(template):
+            if atom.symbol in target_nonmetal_species:
+                if (allowed_indices is None) or (i in allowed_indices):
+                    nonmetal_ids.append(i)
+                else:
+                    metal_ids.append(i)
+            else:
+                metal_ids.append(i)
+        nonmetal_atoms = template[nonmetal_ids]
+        if metal_ids:
+            metal_images = [atoms[metal_ids] for atoms in gen_images]
+            # Prepare sorted_ids for sorting atomic indices back to original order
+            sorted_ids = [0] * len(template)
+            for k, v in enumerate(nonmetal_ids + metal_ids):
+                sorted_ids[v] = k
+        from acat.build.ordering import RandomOrderingGenerator as ROG
+        gen = ROG(nonmetal_atoms, elements=target_nonmetal_species,
+                  composition=target_nonmetal_composition,
+                  trajectory='nonmetal_orderings.traj')
+        gen.run(num_gen=ngen)
+        nonmetal_images = read('nonmetal_orderings.traj', index=':')
+        if metal_ids:
+            gen_images = [(a + metal_images[i])[sorted_ids] for
+                          i, a in enumerate(nonmetal_images)]
+        else:
+            gen_images = nonmetal_images
+        os.remove('nonmetal_orderings.traj')
+        if valences is not None:
+            assert len([v for v in valences.values() if v < 0]) == 1
+            for atoms in gen_images:
+                ctr = Counter(atoms.symbols)
+                cation_valence = sum([ctr[k]*v for k, v in valences.items() if v > 0])
+                anion = [k for k, v in valences.items() if v < 0][0]
+                anion_valence = abs(ctr[anion] * valences[anion])
+                nadd = int((cation_valence - anion_valence) / abs(valences[anion]))
+                if nadd > 0:
+                    options = [a.index for a in atoms if a.symbol == 'X']
+                    if allowed_indices is not None:
+                        options = [i for i in options if i in allowed_indices]
+                    add_ids = np.random.choice(options, nadd, replace=False)
+                    atoms.symbols[add_ids] = anion
+                elif nadd < 0:
+                    options = [a.index for a in atoms if a.symbol == anion]
+                    if allowed_indices is not None:
+                        options = [i for i in options if i in allowed_indices]
+                    del_ids = np.random.choice(options, -nadd, replace=False)
+                    atoms.symbols[del_ids] = 'X'
+
+    if adsorbate_species is not None:
+        if adsorption_sites is None:
+            if True in template.pbc:
+                sas = SlabAdsorptionSites(template, **adsorption_dict)
+            else:
+                sas = ClusterAdsorptionSites(template, **adsorption_dict)
+        else:
+            if isinstance(adsorption_sites, str):
+                import pickle
+                with open(adsorption_sites, 'rb') as f:
+                    sas = pickle.load(f)
+            else:
+                sas = adsorption_sites
+
+        if adsorbate_adsorbate_dmin is None:
+            adsorbate_adsorbate_dmin = 2.
+
+        tmp_images = []
+        for atoms in gen_images:
+            if max_adsorbate_species is None:
+                ads_species = adsorbate_species
+            else:
+                ads_species = list(np.asarray(adsorbate_species)[np.random.choice(
+                        len(adsorbate_species), size=max_adsorbate_species, replace=False)])
+            if adsorbate_coverage is None:
+                dmin = random.uniform(adsorbate_adsorbate_dmin, 5.) 
+                pattern = mindcp(atoms, ads_species,
+                                 min_adsorbate_distance=dmin,
+                                 adsorption_sites=sas)
+            else:
+                pattern = maxdcp(atoms, ads_species,
+                                 coverage=adsorbate_coverage,
+                                 adsorption_sites=sas)
+            tmp_images.append(pattern)
+        gen_images = tmp_images
+
+    input_pop = []
+    for atoms in images + gen_images:
+        if not atoms.info.get('seed'):
+            atoms.info['seed'] = seed
+        input_pop.append(atoms)
+
+    if trajectory is not None:
+        if append_trajectory:
+            input_pop = read(trajectory, index=':') + input_pop
+        write(trajectory, input_pop)
+
+    return input_pop                
