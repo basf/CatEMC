@@ -28,7 +28,7 @@ pip install -e .
 
 A typical GC/GE-EMC campaign follows these steps:
 
-1. **Generate structures** — make a diverse set of starting replicas, choose which atoms are mutable, and assign per-replica μ-windows (the `catemc.generate` utilities do this).
+1. **Generate structures** — make a diverse set of starting replicas, choose which atoms are mutable and randomize those atoms, then assign per-replica temperature and μ-windows (the `catemc.generate` utilities do this).
 2. **Run EMC** — launch GEEMC for bulk composition sampling or GCEMC for surface grand-canonical sampling. The run will write DB backups every `trim_generation` steps.
 3. **Postprocess** — use `catemc.analysis` to (a) extract Widom / trial-swap events and energies and (b) compute MBAR reweighting and WLS-corrected chemical potential differences or structural expectations.
 4. **Visualize** — convert MBAR outputs and `*_mbar_expectations.pkl` into FES, heatmaps and lowest-grand-potential structures.
