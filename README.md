@@ -1,25 +1,14 @@
 # CatEMC
 
-**CatEMC** is a Python package for running evolutionary Monte Carlo simulations for complex bulk/surface catalyst materials. For surface EMC, it is possible to consider a wide range of reaction conditions in a single EMC run. The repository provides tools to (1) generate populations of structures and μ-windows, (2) run GE-EMC (composition sampling) and GC-EMC (grand-canonical surface sampling) simulations, and (3) analyze simulation data to get chemical potential estimates, structural expectations, and free-energy surfaces.
+**CatEMC** is a Python package for running evolutionary Monte Carlo (EMC) simulations for complex bulk/surface hetergeneous catalyst materials. The pacakge provides tools to (1) generate populations of structures and μ-windows, (2) run Gibbs ensemble evolutionary Monte Carlo (GE-EMC) bulk simulation at different temperatures, (3) run grand canonical evolutionary Monte Carlo (GC-EMC) simultions under different temperatures and reaction conditions, (4) analyze GE-EMC simulation data to estimate metal chemical potential differences, (5) analyze GC-EMC simulation data to estimate expectations of structural properties and free-energy surfaces.
 
 ---
 
-## Quick start — what you need before running anything
+## Quick start
 
-1. Python environment: we recommend Python 3.9–3.11 and a virtualenv or conda env. Install key packages used by the code:
+Python environment: we recommend Python 3.9–3.11 and a virtualenv or conda env. Install key packages used by the code:
 
    * `autoadsorbate`, `acat`, `ase`, `pymbar`
-
-2. Data layout conventions (expected by many example scripts)
-
-   * `calculation_dir/` — working directory for a run (will contain DB backups, trajectories, pickles).
-   * `template_*.traj` — a relaxed template structure for the system (bulk or surface).
-   * `*_input_pop.traj` — starting population (replicas) with `.info` pre-populated (temperature, replica id, mu window).
-   * precomputed lookup tables (optional): `*_bulk_wls_dmu_estimates.pkl`, `*_internal_data.pkl` used during GC runs.
-
-3. Parallel setup
-
-   * The run scripts assume `CUDA_VISIBLE_DEVICES` is set and that you pass GPU device IDs and `procs_per_device` on the command line. Adapt as needed for CPU-only runs.
 
 ---
 
