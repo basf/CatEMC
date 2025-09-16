@@ -12,7 +12,7 @@ Python environment: we recommend Python 3.9–3.11 and a virtualenv or conda env
 
 ---
 
-## Installation (practical)
+## Installation
 
 If you plan to use the code directly from this repo, install in editable mode:
 
@@ -24,7 +24,7 @@ pip install -e .
 
 ---
 
-## High-level workflow (practical view)
+## Workflow
 
 A typical GC/GE-EMC campaign follows these steps:
 
