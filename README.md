@@ -1,2 +1,2 @@
 # CatEMC
-An evolutionary Monte Carlo (EMC) pacakage for simulating catalysts under reaction conditions.
+An evolutionary Monte Carlo (EMC) Python pacakage for simulating catalysts under reaction conditions.
