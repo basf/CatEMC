@@ -37,18 +37,16 @@ A typical GC/GE-EMC campaign follows these steps:
 
 ## GE-EMC (bulk) — structure generation
 
-**What this script does (practical)**
 Creates a set of `pop_size` initial bulk replicas (ASE `Atoms`) that collectively span composition space consistent with your target composition. The generation step organizes atoms so that later GE-EMC swap/mutation moves will operate on well-defined indices and mu-windows can be assigned. The function `generate_population()` will return a list of ASE `Atoms` objects — save these to a `.traj` and inspect visually before running any production GE-EMC. If the composition or lattice parameters are off you will likely fail later during energy evaluations.
 
-**Files created / used**
+**Files required and produced**
 
-* Input: a relaxed template CIF or `.traj` (`Al2CoO4.cif` in the example).
-* Output: `*_input_pop.traj` containing `pop_size` ASE Atoms with `.info` fields set.
+* Input: a (relaxed) template structure file.
+* Output: `*_input_pop.traj` containing `pop_size` numer of ase.Atoms with `atoms.info` set (`.info['key_value_pairs']['temperature']`).
 
 **Practical tips**
 
 * Visualize the created population with `ase.visualize.view` to ensure mutational sites and adsorbates are where you expect.
-* If you use a MLIP calculator (MACE), verify one single energy call on the template first.
 * Keep `pop_size` a multiple of number of temperatures / replicas you plan to use.
 
 ```python
@@ -123,9 +121,8 @@ write(f'{cwd}/{comp}_{structure}_input_pop.traj', input_pop)
 
 ---
 
-## GE-EMC (bulk) — run script
+## GE-EMC (bulk) — run simulation
 
-**What this script does (practical)**
 This script instantiates `GEEMC` and runs an EM C campaign. It expects `*_input_pop.traj` (the result of the generation step) and a `calculate_fitness.py` (or equivalent) file in the working directory that defines how to evaluate / relax / score structures. The GEEMC engine coordinates mutation, interswap, replica exchange, and optional local MD/relaxation with the calculators you specify inside the `calculate_fitness.py`.
 
 **Files required**
@@ -187,7 +184,6 @@ emc.run(starting_step=14, total_steps=5000)
 
 ## GE-EMC (bulk) — analysis
 
-**What this script does (practical)**
 Parses DB backups produced during GEEMC, extracts Widom / trial-swap events, and computes chemical potential differences Δμ between metal species using MBAR. It can also apply a global WLS correction to make all pairwise Δμ consistent.
 
 **Files required**
@@ -234,14 +230,14 @@ for T, d in mbar_dmu_estimates.items():
 
 ---
 
-## GC-EMC (surface) — structure generation (μ-window mapping)
+## GC-EMC (surface) — structure generation (+ μ-window mapping)
 
-**What this script does (practical)**
 Generates an on-lattice starting population for surface GC-EMC. It sorts candidate surface structures by C/O/H count and then assigns equal numbers of μ-grid points to each replica (the μ-window). This step is crucial: it ensures each replica explores a contiguous portion of chemical potential space. If your μ-windowing is poor, MBAR reweighting will have little overlap and analysis will fail.
 
-**Files produced**
+**Files required and produced**
 
-* `*_input_pop.traj` with `.info['data']['mu']` and `.info['data']['mu_window']` fields.
+* Input: a (relaxed) template structure file.
+* Output: `*_input_pop.traj` containing `pop_size` number of ase.Atoms with `atoms.info` set (`.info['key_value_pairs']['temperature']`, `.info['data']['mu']` and `.info['data']['mu_window']`).
 
 **Practical tips**
 
@@ -297,9 +293,9 @@ view(input_pop)
 
 ---
 
-## GC-EMC (surface) — run script
+## GC-EMC (surface) — run simulation
 
-**What this script does (practical)**
+**What this script does**
 Runs surface grand-canonical EMC using `GCEMC`. `reaction_conditions` is your μ-grid (columns: gas μs, T, optional derived elemental μ) and `element_column_map` maps element symbols to their μ column in the grid. `temperature_dmu_map` is the WLS Δμ lookup for bulk metals (used when computing metal-related chemical potentials).
 
 **Files required**
