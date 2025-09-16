@@ -37,20 +37,19 @@ A typical GC/GE-EMC campaign follows these steps:
 
 ## GE-EMC (bulk) — structure generation
 
-Creates a set of `pop_size` initial bulk replicas (ASE `Atoms`) that collectively span composition space consistent with your target composition. The generation step organizes atoms so that later GE-EMC swap/mutation moves will operate on well-defined indices and mu-windows can be assigned. The function `generate_population()` will return a list of ASE `Atoms` objects — save these to a `.traj` and inspect visually before running any production GE-EMC. If the composition or lattice parameters are off you will likely fail later during energy evaluations.
+Generates a set of `pop_size` initial on-lattice bulk replicas (`ase.Atoms`) that have their composition consistent with your target composition. The function `catemc.generate.generate_population()` can return a list of randomized `ase.Atoms` objects that suffices the requirement. You should save these to a structure file and inspect visually before running any production GE-EMC.
 
 **Files required and produced**
 
 * Input: a (relaxed) template structure file.
-* Output: `*_input_pop.traj` containing `pop_size` numer of ase.Atoms with `atoms.info` set (`.info['key_value_pairs']['temperature']`).
+* Output: `*_input_pop.traj` containing `pop_size` numer of `ase.Atoms` with `atoms.info` set (`.info['key_value_pairs']['temperature']`).
 
 **Practical tips**
 
-* Visualize the created population with `ase.visualize.view` to ensure mutational sites and adsorbates are where you expect.
+* Set `pressure` to `None` if you want to run NVT GE-EMC, otherwise set to a common target `pressure` to run NPT GE-EMC which allows cell volume changes.
 * Keep `pop_size` a multiple of number of temperatures / replicas you plan to use.
 
 ```python
-# generation_example.py
 # Purpose: generate an initial bulk population for GE-EMC.
 from catemc.generate import generate_population
 from acat.build.ordering import RandomOrderingGenerator as ROG
@@ -127,26 +126,21 @@ This script instantiates `GEEMC` and runs an EM C campaign. It expects `*_input_
 
 **Files required**
 
-* `*_input_pop.traj` — required
+* `*_input_pop.traj` — the initial population
 * `calculate_fitness.py` — your scoring function; must accept an ASE `Atoms` and return `raw_score` etc.
-* Optional: `MACE model` path if you use an ML calculator.
 
 **Practical tips**
 
-* Test `calculate_fitness.py` on one structure locally (single-threaded) to ensure reproducible energy calls.
-* Start with small `total_steps` and smaller `pop_size` to smoke-test resources.
-* Use `trim_generation` to control DB checkpoint size; too large → long restarts, too small → many DB files.
+* You must provide your own `calculation_script` (.py file) inside your `calculation_dir`. If you know what you are doing, you should make your own calculation script instead of using my `catemt.calculation_template` function.
 
 ```python
-# run_geemc.py
 from catemc.geemc import GEEMC
 from ase.io import read
 import numpy as np
 import sys, os
 
-# Usage: python run_geemc.py "0" 1
-gpu_devices = [int(di) for di in sys.argv[1].split(',')]
-ppg = int(sys.argv[2])
+gpu_devices = [0]
+ppg = 10
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_devices[0])
 
 comp = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5'
@@ -177,28 +171,77 @@ emc = GEEMC(system_name,
             acceptance_key='accepted',
             gpu_devices=gpu_devices,
             procs_per_device=ppg)
-emc.run(starting_step=14, total_steps=5000)
+emc.run(starting_step=1, total_steps=5000)
+```
+A template calculation script looks like this:
+
+```python
+from catemc.calculation_templates import calculate_bulk_fitness
+from catemc.repulsive import RepulsivePotential
+from mace.calculators.mace import MACECalculator
+from ase import units
+from ase.io import read, write
+import numpy as np
+import sys
+import os
+
+#======================Don't change this=====================
+traj_path = sys.argv[1]
+run_md = bool(int(sys.argv[2]))
+gpu_device = sys.argv[3]
+if sys.argv[4] == 'None':
+    fix_indices = None
+else:
+    fix_indices = [int(i) for i in sys.argv[4].split(',')]
+os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_device)
+dir_name = '/'.join(traj_path.split('/')[:-1])
+atoms = read(traj_path, index=-1)
+atoms.wrap()
+#============================================================
+
+calc1 = RepulsivePotential()
+fmax1 = 0.5
+calc2 = MACECalculator(model_paths="/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model",
+                       dispersion=False, device='cuda', default_dtype='float64')
+fmax2 = 0.05
+
+calculate_bulk_fitness(
+        atoms, traj_path=traj_path,
+        calculator_list=[calc1, calc2],
+        fmax_list=[fmax1, fmax2],
+        target_metal_species=['Co','Ni','Mg','Zn','Mn','Al'],
+        run_md=run_md,
+        md_timestep=1*units.fs,
+        md_taut=0.5*1000**units.fs,
+        md_steps=50,
+        md_write_interval=10,
+        pressure=1.,
+        md_taup=1000*units.fs,
+        fix_indices=fix_indices,
+        neighbor_cutoff=3.5,
+        raw_score_cutoff=-10000.,
+        temperature_key='temperature',
+        replica_key='replica')
 ```
 
 ---
 
 ## GE-EMC (bulk) — analysis
 
-Parses DB backups produced during GEEMC, extracts Widom / trial-swap events, and computes chemical potential differences Δμ between metal species using MBAR. It can also apply a global WLS correction to make all pairwise Δμ consistent.
+Parses DB backups produced during GE-EMC, extracts Widom and potential energy samples, then computes chemical potential differences Δμ between all metal pairs using MBAR. Weighted least squares (WLS) can be used to correct the all pairwise Δμ estimates to suffice antisymmetry and transitivity.
 
-**Files required**
+**Files required and generated**
 
-* Existing DB backups or pickles in `calculation_dir`.
-* `*_mbar_dmu_data.pkl` and `*_mbar_energy_data.pkl` will be created if not present.
+* Input: Existing DB backup files.
+* Output: `*_mbar_dmu_data.pkl` and `*_mbar_energy_data.pkl` generated by `catemc.analysis.GEEMCAnalysis.prepare_data()` if files not present; `*_mbar_dmu_estimates.pkl` generated by `catemc.analysis.GEEMCAnalysis.get_dmu_estimates()`.
 
 **Practical tips**
 
-* Set `starting_step` to the step after burn-in when Δμ raw estimates have stabilized (look at the trace plots).
-* If MBAR has convergence issues, increase `sample_stride` to reduce correlation or increase total samples by running longer.
+* Set `starting_step` to the step after burn-in when Δμ raw estimates have stabilized.
+* If samples are highly correlated, increase `sample_stride` to reduce correlation.
 * WLS correction needs enough directed Δμ entries to solve the Laplacian robustly.
 
 ```python
-# analyze_geemc.py
 from catemc.analysis import GEEMCAnalysis
 import pickle
 
@@ -232,21 +275,20 @@ for T, d in mbar_dmu_estimates.items():
 
 ## GC-EMC (surface) — structure generation (+ μ-window mapping)
 
-Generates an on-lattice starting population for surface GC-EMC. It sorts candidate surface structures by C/O/H count and then assigns equal numbers of μ-grid points to each replica (the μ-window). This step is crucial: it ensures each replica explores a contiguous portion of chemical potential space. If your μ-windowing is poor, MBAR reweighting will have little overlap and analysis will fail.
+Generates a set of `pop_size` initial on-lattice replicas for surface GC-EMC. It sorts candidate surface structures by C/O/H count and then assigns equal numbers of μ-grid points to each replica (the μ-window). The μ-window mapping ensures each replica explores a contiguous portion of the chemical potential space, and the higher chemical potential of each element is assigned to replicas with higher coverage of that element.
 
 **Files required and produced**
 
 * Input: a (relaxed) template structure file.
-* Output: `*_input_pop.traj` containing `pop_size` number of ase.Atoms with `atoms.info` set (`.info['key_value_pairs']['temperature']`, `.info['data']['mu']` and `.info['data']['mu_window']`).
+* Output: `*_input_pop.traj` containing `pop_size` number of `ase.Atoms` with `atoms.info` set (`.info['key_value_pairs']['temperature']`, `.info['data']['mu']` and `.info['data']['mu_window']`).
 
 **Practical tips**
 
-* For surfaces, ensure `adsorption_sites` are correct (use `SlabAdsorptionSites` with `surface='autoadsorbate'` to choose realistic sites).
-* Sort by `C+O+H` or an appropriate composition metric to give each replica relevant μ windows.
-* Inspect a few `mu_window` arrays visually during development.
-
+* Ensure surface `adsorption_sites` are correct (use `SlabAdsorptionSites` with `surface='autoadsorbate'` to identify adsorption sites on complex surfaces).
+* Pay attention to the rounding of the μ-points.
+  
+To generate an initial set of randomized surface structures (with adsorbates), you can use `catemc.generate.generate_population()` function:
 ```python
-# generate_gc_input.py
 from catemc.generate import generate_population
 from acat.build import add_adsorbate_to_site
 from acat.adsorption_sites import SlabAdsorptionSites
@@ -285,10 +327,51 @@ onlat_images = generate_population(
     adsorption_sites=sas,
 ) + generate_population( template=template.copy(), pop_size=14, ... ) + generate_population(...)
 
-# sort by number of C/O/H atoms and map mu-grid windows (see full example above)
-# Save final input_pop with mu windows assigned
 write(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', input_pop)
 view(input_pop)
+```
+To assign tempreatures and μ-windows to the input population, you can then do
+```python
+from catemc.generate import assign_mu_windows
+input_images = []
+rep = 0
+for T in [623, 723, 823]:
+    for _ in range(14):
+        atoms = onlat_images[rep]
+        atoms.info = {'key_value_pairs': {}, 'data': {}}
+        atoms.info['key_value_pairs']['temperature'] = T
+        atoms.info['key_value_pairs']['replica'] = rep
+        atoms.info['key_value_pairs']['emc_step'] = 0
+        input_images.append(atoms)
+        rep += 1
+
+E_CH4 = -24.047 + 0.104 # Etot incl. ZPE PBE
+E_O2 = -8.768 + 0.009   # Etot incl. ZPE PBE
+E_H2 = -6.773 + 0.004   # Etot incl. ZPE PBE
+
+dmu_CH4 = np.arange(-2.8, -1.299, 0.1)
+dmu_O  = np.arange(-3.5, -1.999, 0.1)
+dmu_H  = np.arange(-1.0, 0.001, 0.05)
+
+# Mesh: first 3 cols = CH4, O, H μ; 4th col = elemental C μ
+grid = np.array(np.meshgrid(dmu_CH4, dmu_O, dmu_H)).T.reshape(-1, 3)
+mu_C = grid[:, 0] + E_CH4 - 4*(grid[:, 2] + E_H2/2)
+grid = np.hstack([grid, mu_C.reshape(-1, 1)])
+
+element_column_map = {'C': 3, 'O': 1, 'H': 2}
+assigned_input_pop = assign_mu_windows(
+        input_images, reaction_conditions=grid,
+        element_column_map=element_column_map,
+        round_decimals=3)
+
+for img_idx, img in enumerate(assigned_input_pop):
+    mu_rep = img.info['data']['mu']
+    mu_window = img.info['data']['mu_window']
+    T = img.info['key_value_pairs']['temperature']
+    print(f'Replica {img_idx} → T = {T}, {len(mu_window)} μ-points in μ-window, currently {tuple(mu_rep)}')
+
+view(assigned_input_pop)
+write(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', assigned_input_pop)
 ```
 
 ---
