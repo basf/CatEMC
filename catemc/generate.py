@@ -257,4 +257,83 @@ def generate_population(
             input_pop = read(trajectory, index=':') + input_pop
         write(trajectory, input_pop)
 
-    return input_pop                
+    return input_pop
+
+
+def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_decimals=3):
+    """
+    Assign μ-windows to a list of ase.Atoms objects based on their non-metal counts.
+    Modify each Atoms.info['data'] to include:
+        - 'mu'        : numpy array (center mu for that replica)
+        - 'mu_window' : numpy array (rows assigned to that replica)
+    The μ-windows are divided evenly from the whole chemical potential space.
+
+    Parameters
+    ----------
+    input_pop: list of ase.Atoms objects
+        list of ase.Atoms objects (replicas).
+
+    reaction_conditions: numpy.ndarray
+        2D numpy array, shape (n_conditions, n_elements). Each row is a μ-point.
+
+    element_column_map: dict of (str, int) pairs
+        Dict mapping non-metal element names to column indices in reaction_conditions,
+
+    round_decimals: int, default 3
+        Number of decimals to round the chosen center μ stored in atoms.info['data']['mu'].
+
+    """
+
+    atoms_list = list(input_pop)
+    n_images = len(atoms_list)
+    if n_images == 0:
+        return atoms_list
+
+    reaction_conditions = np.asarray(reaction_conditions)
+    if reaction_conditions.ndim != 2:
+        raise ValueError('reaction_conditions must be a 2D array (n_points, n_cols)')
+    n_grid = reaction_conditions.shape[0]
+
+    # 1) Count nonmetal atoms in each structure using element_column_map keys as species list
+    nonmetal_species = set(element_column_map.keys())
+    counts = []
+    for i, atoms in enumerate(atoms_list):
+        cnt = sum(1 for a in atoms if a.symbol in nonmetal_species)
+        counts.append((i, cnt))
+
+    # 2) sort structures by increasing nonmetal counts (same behavior as your script)
+    counts_sorted = sorted(counts, key=lambda x: x[1])
+    sorted_indices = [idx for idx, _ in counts_sorted]
+
+    # 3) equal-ish split of μ-points among structures
+    points_per_structure = n_grid // n_images
+    remainder = n_grid % n_images
+
+    # 4) Sort μ-grid by sum over the provided element columns
+    sort_cols = sorted(set(element_column_map.values()))
+    sort_key = np.sum(reaction_conditions[:, sort_cols], axis=1)
+    grid_sorted = reaction_conditions[np.argsort(sort_key)]
+
+    # 5) Allocate contiguous windows (low -> high) to structures in the order of sorted_indices
+    start = 0
+    for rank, img_idx in enumerate(sorted_indices):
+        size = points_per_structure + (1 if rank < remainder else 0)
+        if size <= 0:
+            mu_window = np.empty((0, reaction_conditions.shape[1]))
+            center_mu = np.full(reaction_conditions.shape[1], np.nan)
+        else:
+            mu_window = grid_sorted[start:start+size]
+            start += size
+            center_row = mu_window[len(mu_window)//2]
+            center_mu = np.round(center_row, round_decimals)
+
+        # set atoms.info['data'] entries in-place
+        ai = atoms_list[img_idx]
+        if not hasattr(ai, 'info') or ai.info is None:
+            ai.info = {'key_value_pairs': {}, 'data': {}}
+        if 'data' not in ai.info or ai.info['data'] is None:
+            ai.info['data'] = {}
+        ai.info['data']['mu'] = np.array(center_mu)
+        ai.info['data']['mu_window'] = np.array(mu_window)
+
+    return atoms_list
