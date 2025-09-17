@@ -16,20 +16,8 @@ import random
 
 
 class EMCPopulation(Population):
-    """Different tasks are assigned to different niches. The candidates
-    are ranked according to the effective fitness, given by the shortest
-    distance between the raw score of the marked niche and the upper
-    envelope after adding the individual. The raw score is given by the
-    fitness gain in the maximum-gained niche. **The raw scores of each
-    configuration for all tasks must be provided as a Numpy array in
-    atoms.info['data']['raw_scores']**. After providing the raw scores,
-    **the effective score of each configuration is automatically
-    calculated and stored in atoms.info['key_value_pairs']['raw_score']**.
-    The dominating niche of each configuration is stored in
-    atoms.info['key_value_pairs']['dominating_niche'], the best niche
-    (i.e. the niche closest to the upper envelope) is stored in
-    atoms.info['key_value_pairs']['best_niche'], and the niches that are
-    dominated by the dominating niche are stored in atoms.info['data']['niches'].
+    """The EMC population instance that evolves based on
+    metropolis algorithm individually.
 
     Parameters
     ----------
@@ -676,17 +664,9 @@ class EMCPopulation(Population):
 
 
 class MixtureEMCPopulation(EMCPopulation):
-    """Different tasks are assigned to different niches. The candidates
-    are ranked according to the effective fitness, given by the shortest
-    distance between the raw score of the marked niche and the upper
-    envelope after adding the individual. The raw score is given by the
-    fitness gain in the maximum-gained niche. **The raw scores of each
-    configuration for all tasks must be provided as a Numpy array in
-    atoms.info['data']['raw_scores']**. After providing the raw scores,
-    **the effective score of each configuration is automatically
-    calculated and stored in atoms.info['key_value_pairs']['raw_score']**.
-    The labeled accepted chemical potential indices are strored also as 
-    Numpy array in atoms.info['data']['tasks'].
+
+    """The mixture EMC population instance that evolves based on
+    metropolis algorithm as a whole.
 
     Parameters
     ----------
