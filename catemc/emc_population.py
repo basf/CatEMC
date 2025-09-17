@@ -17,7 +17,7 @@ import random
 
 class EMCPopulation(Population):
     """The EMC population instance that evolves based on
-    metropolis algorithm individually.
+    the Metropolis-Hastings algorithm individually.
 
     Parameters
     ----------
@@ -666,7 +666,7 @@ class EMCPopulation(Population):
 class MixtureEMCPopulation(EMCPopulation):
 
     """The mixture EMC population instance that evolves based on
-    metropolis algorithm as a whole.
+    Metropolis-Hastings algorithm as a whole.
 
     Parameters
     ----------
