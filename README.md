@@ -231,7 +231,7 @@ calculate_bulk_fitness(
 
 ---
 
-## GE-EMC (bulk) — analysis
+## GE-EMC (bulk) — MBAR analysis
 
 Parses DB backups produced during GE-EMC, extracts Widom and potential energy samples, then computes chemical potential differences Δμ between all metal pairs using MBAR. Weighted least squares (WLS) can be used to correct the all pairwise Δμ estimates to suffice antisymmetry and transitivity.
 
@@ -550,7 +550,7 @@ calculate_surface_fitness(
 
 ---
 
-## GC-EMC (surface) — analysis (structure expectations, FES)
+## GC-EMC (surface) — MBAR analysis
 
 Parses DB backups produced during GC-EMC, extracts potential energy samples, subsamples correlated series, then performs MBAR-based reweighting across your μ-grid, and computes structural expectations (adsorbate coverages, pair bond counts, vacancy concentration) at each reaction condition. 
 
