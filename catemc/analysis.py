@@ -42,7 +42,7 @@ class GEEMCAnalysis(object):
         collect_data = True
         if use_exist:
             if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar_dmu_data.pkl') and os.path.isfile(
-            '{self.calculation_dir}/{self.name}_mbar_energy_data.pkl'):
+            f'{self.calculation_dir}/{self.name}_mbar_energy_data.pkl'):                
                 with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_data.pkl', 'rb') as handle:
                     self.dmu_data = pickle.load(handle)
                 with open(f'{self.calculation_dir}/{self.name}_mbar_energy_data.pkl', 'rb') as handle:
