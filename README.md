@@ -736,6 +736,7 @@ plt.show()
 plt.clf()
 ```
 Output:
+![png](images/metal_spd.png)
 
 You can use the following script to visualize adsorbate coverage in the surface phase diagram:
 ```python
@@ -750,7 +751,6 @@ from ase.units import kB
 from itertools import combinations
 from collections import defaultdict
 import pickle
-
 
 matplotlib.rcParams.update(matplotlib.rcParamsDefault)
 # Set font properties
@@ -836,3 +836,4 @@ plt.show()
 plt.clf()
 ```
 Output:
+![png](images/adsorbate_spd.png)
