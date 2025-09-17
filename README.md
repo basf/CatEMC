@@ -250,8 +250,8 @@ Parses DB backups produced during GE-EMC, extracts Widom and potential energy sa
 from catemc.analysis import GEEMCAnalysis
 import pickle
 
-system_name = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4_bulk'
-dir_name = '/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4/bulk'
+system_name = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk'
+dir_name = '/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk'
 ana = GEEMCAnalysis(
         name=system_name,
         calculation_dir=dir_name,
@@ -274,6 +274,35 @@ with open(f'{dir_name}/{system_name}_mbar_dmu_estimates.pkl', 'rb') as handle:
 for T, d in mbar_dmu_estimates.items():
     print(T)
     print({k: round(v, 2) for k, v in d.items()})
+```
+Output:
+```text
+573
+{'Co2Ni': 1.68, 'Co2Mg': 1.34, 'Co2Zn': 4.16, 'Co2Mn': -3.32, 'Co2Al': -1.21, 'Ni2Mg': -0.33, 'Ni2Zn': 2.48, 'Ni2Mn': -4.99, 'Ni2Al': -2.89, 'Mg2Zn': 2.81, 'Mg2Mn': -4.66, 'Mg2Al': -2.56, 'Zn2Mn': -7.48, 'Zn2Al': -5.37, 'Mn2Al': 2.1}
+650
+{'Co2Ni': 1.67, 'Co2Mg': 1.37, 'Co2Zn': 4.19, 'Co2Mn': -3.3, 'Co2Al': -1.11, 'Ni2Mg': -0.3, 'Ni2Zn': 2.52, 'Ni2Mn': -4.97, 'Ni2Al': -2.78, 'Mg2Zn': 2.82, 'Mg2Mn': -4.67, 'Mg2Al': -2.48, 'Zn2Mn': -7.49, 'Zn2Al': -5.3, 'Mn2Al': 2.2}
+723
+{'Co2Ni': 1.66, 'Co2Mg': 1.4, 'Co2Zn': 4.21, 'Co2Mn': -3.3, 'Co2Al': -1.09, 'Ni2Mg': -0.27, 'Ni2Zn': 2.54, 'Ni2Mn': -4.96, 'Ni2Al': -2.76, 'Mg2Zn': 2.81, 'Mg2Mn': -4.7, 'Mg2Al': -2.49, 'Zn2Mn': -7.51, 'Zn2Al': -5.3, 'Mn2Al': 2.21}
+800
+{'Co2Ni': 1.63, 'Co2Mg': 1.38, 'Co2Zn': 4.18, 'Co2Mn': -3.3, 'Co2Al': -1.12, 'Ni2Mg': -0.26, 'Ni2Zn': 2.55, 'Ni2Mn': -4.94, 'Ni2Al': -2.75, 'Mg2Zn': 2.81, 'Mg2Mn': -4.68, 'Mg2Al': -2.5, 'Zn2Mn': -7.49, 'Zn2Al': -5.3, 'Mn2Al': 2.18}
+823
+{'Co2Ni': 1.64, 'Co2Mg': 1.37, 'Co2Zn': 4.19, 'Co2Mn': -3.3, 'Co2Al': -1.09, 'Ni2Mg': -0.27, 'Ni2Zn': 2.55, 'Ni2Mn': -4.94, 'Ni2Al': -2.74, 'Mg2Zn': 2.82, 'Mg2Mn': -4.67, 'Mg2Al': -2.47, 'Zn2Mn': -7.49, 'Zn2Al': -5.28, 'Mn2Al': 2.21}
+873
+{'Co2Ni': 1.76, 'Co2Mg': 1.4, 'Co2Zn': 4.23, 'Co2Mn': -3.26, 'Co2Al': -1.01, 'Ni2Mg': -0.36, 'Ni2Zn': 2.46, 'Ni2Mn': -5.02, 'Ni2Al': -2.78, 'Mg2Zn': 2.83, 'Mg2Mn': -4.65, 'Mg2Al': -2.41, 'Zn2Mn': -7.48, 'Zn2Al': -5.24, 'Mn2Al': 2.24}
+950
+{'Co2Ni': 1.67, 'Co2Mg': 1.38, 'Co2Zn': 4.22, 'Co2Mn': -3.29, 'Co2Al': -1.06, 'Ni2Mg': -0.29, 'Ni2Zn': 2.54, 'Ni2Mn': -4.97, 'Ni2Al': -2.73, 'Mg2Zn': 2.84, 'Mg2Mn': -4.67, 'Mg2Al': -2.44, 'Zn2Mn': -7.51, 'Zn2Al': -5.28, 'Mn2Al': 2.23}
+1023
+{'Co2Ni': 1.7, 'Co2Mg': 1.36, 'Co2Zn': 4.2, 'Co2Mn': -3.3, 'Co2Al': -1.14, 'Ni2Mg': -0.35, 'Ni2Zn': 2.5, 'Ni2Mn': -5.0, 'Ni2Al': -2.84, 'Mg2Zn': 2.84, 'Mg2Mn': -4.65, 'Mg2Al': -2.5, 'Zn2Mn': -7.5, 'Zn2Al': -5.34, 'Mn2Al': 2.16}
+1100
+{'Co2Ni': 1.68, 'Co2Mg': 1.38, 'Co2Zn': 4.22, 'Co2Mn': -3.29, 'Co2Al': -1.13, 'Ni2Mg': -0.31, 'Ni2Zn': 2.54, 'Ni2Mn': -4.98, 'Ni2Al': -2.81, 'Mg2Zn': 2.85, 'Mg2Mn': -4.67, 'Mg2Al': -2.5, 'Zn2Mn': -7.51, 'Zn2Al': -5.35, 'Mn2Al': 2.17}
+1173
+{'Co2Ni': 1.73, 'Co2Mg': 1.39, 'Co2Zn': 4.24, 'Co2Mn': -3.29, 'Co2Al': -1.04, 'Ni2Mg': -0.33, 'Ni2Zn': 2.51, 'Ni2Mn': -5.02, 'Ni2Al': -2.77, 'Mg2Zn': 2.85, 'Mg2Mn': -4.69, 'Mg2Al': -2.44, 'Zn2Mn': -7.53, 'Zn2Al': -5.29, 'Mn2Al': 2.25}
+1250
+{'Co2Ni': 1.7, 'Co2Mg': 1.4, 'Co2Zn': 4.26, 'Co2Mn': -3.3, 'Co2Al': -1.01, 'Ni2Mg': -0.3, 'Ni2Zn': 2.56, 'Ni2Mn': -4.99, 'Ni2Al': -2.71, 'Mg2Zn': 2.86, 'Mg2Mn': -4.69, 'Mg2Al': -2.41, 'Zn2Mn': -7.56, 'Zn2Al': -5.27, 'Mn2Al': 2.28}
+1323
+{'Co2Ni': 1.65, 'Co2Mg': 1.4, 'Co2Zn': 4.3, 'Co2Mn': -3.28, 'Co2Al': -0.98, 'Ni2Mg': -0.25, 'Ni2Zn': 2.65, 'Ni2Mn': -4.93, 'Ni2Al': -2.63, 'Mg2Zn': 2.89, 'Mg2Mn': -4.68, 'Mg2Al': -2.38, 'Zn2Mn': -7.57, 'Zn2Al': -5.27, 'Mn2Al': 2.3}
+1400
+{'Co2Ni': 1.69, 'Co2Mg': 1.42, 'Co2Zn': 4.34, 'Co2Mn': -3.26, 'Co2Al': -1.0, 'Ni2Mg': -0.27, 'Ni2Zn': 2.65, 'Ni2Mn': -4.95, 'Ni2Al': -2.7, 'Mg2Zn': 2.92, 'Mg2Mn': -4.68, 'Mg2Al': -2.43, 'Zn2Mn': -7.6, 'Zn2Al': -5.35, 'Mn2Al': 2.26}
 ```
 
 ---
