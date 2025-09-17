@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 __project__ = 'CatEMC'
-__description__ = 'Evolutionary Monte Carlo for heterogeneous catalysis'
+__description__ = 'Evolutionary Monte Carlo for simulating catalysts under reaction conditions'
 __authors__ = ['Shuang Han']
 __copyright__ = '2025'
 __email__ = 'hanshuangshiren@gmail.com, sandip.de@basf.com'
