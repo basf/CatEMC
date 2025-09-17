@@ -8,7 +8,7 @@ from .emc_operators import (
         EMCIntraSwap,
         EMCMutation)
 from .emc import EMC
-from .gc_utils import calculate_phi
+from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.ga.adsorbate_operators import (
         AddAdsorbate, 
@@ -386,7 +386,7 @@ class GCEMC(EMC):
                     epot = atoms.info['key_value_pairs']['potential_energy']
                     num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                     num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
-                    phi = calculate_phi(
+                    phi = compute_phi(
                             num_dict, self.target_metal_species, self.target_metal_composition, 
                             self.tdmu_map, grid, self.element_column_map, self.element_eref_map, 
                             self.element_y2x_map, num_metal, epot, dimensionless=True)

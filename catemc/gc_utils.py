@@ -296,7 +296,7 @@ def stirling(x):
     return x * (np.log(x) - 1) + np.log((2*np.pi*x)**0.5)
 
 
-def calculate_phi(
+def compute_phi(
         num_dict, target_metal_species, target_metal_composition, 
         temperature_dmu_map, grid, element_column_map, element_eref_map, 
         element_y2x_map, num_metal, epot, dimensionless=True,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from .gc_utils import calculate_phi
+from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.adsorbate_coverage import SlabAdsorbateCoverage
 from ase.io import read, write
@@ -345,9 +345,9 @@ def calculate_surface_fitness(
                         for m in target_metal_species + list(element_column_map.keys()))
         num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
 
-        phi = calculate_phi(num_dict, target_metal_species, target_metal_composition,
-                            temperature_dmu_map, np.array([np.append(mu, T)]), element_column_map, 
-                            element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
+        phi = compute_phi(num_dict, target_metal_species, target_metal_composition,
+                          temperature_dmu_map, np.array([np.append(mu, T)]), element_column_map, 
+                          element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
 
         fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())

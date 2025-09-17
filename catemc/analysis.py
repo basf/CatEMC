@@ -1,4 +1,4 @@
-from .gc_utils import calculate_phi
+from .gc_utils import compute_phi
 from ase.geometry.analysis import Analysis
 from ase.neighborlist import natural_cutoffs
 from ase.parallel import parprint
@@ -584,7 +584,7 @@ class GCEMCAnalysis(object):
                         else:
                             grid_for_calc = np.tile(sample_full, (K,1))
                             grid_for_calc[:,keep_dims] = kept_grid
-                        phi = calculate_phi(
+                        phi = compute_phi(
                                 num_dict, self.target_metal_species, self.target_metal_composition, 
                                 temperature_dmu_map, grid_for_calc, element_column_map, element_eref_map, 
                                 element_y2x_map, num_metal, epot, dimensionless=True)
