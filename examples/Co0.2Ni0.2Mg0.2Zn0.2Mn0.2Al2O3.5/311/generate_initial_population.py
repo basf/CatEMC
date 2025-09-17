@@ -97,7 +97,6 @@ for T in [623, 723, 823]:
         input_images.append(atoms)
         rep += 1
 
-# 1. Create the μ-grid
 E_CH4 = -24.047 + 0.104 # Etot incl. ZPE PBE
 E_O2 = -8.768 + 0.009   # Etot incl. ZPE PBE
 E_H2 = -6.773 + 0.004   # Etot incl. ZPE PBE
