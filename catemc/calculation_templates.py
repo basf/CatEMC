@@ -291,10 +291,13 @@ def calculate_surface_fitness(
                     penalize = True
 
     if not penalize:
-        nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate', 
-                                   composition_effect=False,
-                                   ignore_sites=sas.ignore_sites)
-        sas = nsas
+        try:
+            nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate', 
+                                       composition_effect=False,
+                                       ignore_sites=sas.ignore_sites)
+            sas = nsas
+        except:
+            sas.update(tmp_atoms)
         sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas, 
                                     dmax=adsorbate_surface_dmax,
                                     adsorbate_indices=[a.index for a in tmp_atoms if 
