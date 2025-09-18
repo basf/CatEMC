@@ -289,15 +289,20 @@ def calculate_surface_fitness(
                 opt.run(fmax=fmax, steps=250)
                 if not opt.converged():
                     penalize = True
-
     if not penalize:
+        if any(a for a in tmp_atoms if a.position[2] < atoms.positions[:,2].min()):
+            penalize = True
+        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and 
+        (a.position[2] > atoms.positions[:,2].max() + adsorbate_surface_dmax)):
+            penalize = True
         try:
-            nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate', 
+            nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate',
                                        composition_effect=False,
-                                       ignore_sites=sas.ignore_sites)
+                                       ignore_sites='bridge')
             sas = nsas
         except:
-            sas.update(tmp_atoms)
+            penalize = True
+    if not penalize:
         sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas, 
                                     dmax=adsorbate_surface_dmax,
                                     adsorbate_indices=[a.index for a in tmp_atoms if 
