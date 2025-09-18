@@ -156,7 +156,7 @@ class EMC(object):
         self.dc = DataConnection(asedb_path)
         self.dc.add_more_relaxed_candidates(current_pop)
 
-    def restart_with_trim(self, starting_step):
+    def connect_data_with_trim(self, starting_step):
 
         asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
         db = connect(asedb_path)
@@ -259,7 +259,7 @@ class EMC(object):
                         data=atoms.info['data'],
                         **kwargs)
         if restart_with_trim:
-            self.trim_data_after(starting_step=starting_step)
+            self.connect_data_with_trim(starting_step=starting_step)
         else:
             self.dc = DataConnection(asedb_path)
         if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
