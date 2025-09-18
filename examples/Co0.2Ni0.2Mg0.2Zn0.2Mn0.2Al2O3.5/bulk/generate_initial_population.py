@@ -18,7 +18,6 @@ for i in range(3):
     cell[i][i] = 8.06
 template.set_cell(cell, scale_atoms=True)
 template *= (2,2,2)
-from acat.build.ordering import RandomOrderingGenerator as ROG
 # Distinguish metal and oxygen atoms
 metal_ids, oxygen_ids = [], []
 for i, atom in enumerate(template):
@@ -31,12 +30,7 @@ metal_atoms, oxygen_atoms = template[metal_ids], template[oxygen_ids]
 sorted_ids = [0] * len(template)
 for k, v in enumerate(metal_ids + oxygen_ids):
     sorted_ids[v] = k
-rog = ROG(metal_atoms, elements=target_metal_species,
-          composition=target_metal_composition,
-          trajectory='template_orderings.traj')
-rog.run(num_gen=1)
-metal_bulk = read('template_orderings.traj')
-bulk = (metal_bulk + oxygen_atoms)[sorted_ids] 
+bulk = (metal_atoms + oxygen_atoms)[sorted_ids] 
 
 input_pop = generate_population(
     template=bulk,
