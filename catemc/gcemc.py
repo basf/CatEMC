@@ -438,7 +438,7 @@ class GCEMC(EMC):
         df = results['Delta_f']
         np.save(f'{self.calculation_dir}/{self.name}_free_energy_differences.npy', df)
 
-    def run(self, starting_step=1, total_steps=10000):
+    def run(self, starting_step=1, total_steps=10000, restart_with_trim=False):
 
         """                                    
         Parameters
@@ -448,6 +448,10 @@ class GCEMC(EMC):
                                                
         total_steps: int, default 10000
             The total number of EMC steps that the algorithm should run.
+
+        restart_with_trim: bool, default False
+            Whether to restart while trimming all data generated after
+            the starting_step that has been generated before.
 
         """
              
@@ -461,7 +465,7 @@ class GCEMC(EMC):
             for atoms in self.input_pop:
                 if 'key_value_pairs' not in atoms.info:
                     atoms.info['key_value_pairs'] = {}
-                if 'key_value_pairs' not in atoms.info:
+                if 'data' not in atoms.info:
                     atoms.info['data'] = {}
                 kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
                           self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
@@ -470,10 +474,10 @@ class GCEMC(EMC):
                         emc_step=atoms.info['key_value_pairs']['emc_step'],
                         data=atoms.info['data'],
                         **kwargs)
-
-        self.dc = DataConnection(asedb_path)
-        unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-
+        if restart_with_trim:
+            self.trim_data_after(starting_step=starting_step)
+        else:
+            self.dc = DataConnection(asedb_path)
         if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
             os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
         if self.slab_indices is None:
@@ -481,6 +485,7 @@ class GCEMC(EMC):
         else:
             slab_indices_str = ','.join(map(str, self.slab_indices)) 
         if not restart:
+            unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(
                     unrelaxed_candidates, run_md=True, add_args=[slab_indices_str])
             for atoms in relaxed_candidates:
@@ -522,10 +527,15 @@ class GCEMC(EMC):
         self.pop.update()
         if not restart:
             for atoms in self.pop.pop:
-                atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
+                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
                 rep = atoms.info['key_value_pairs'][self.replica_key]
                 traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
                 traj.write(atoms)
+        if restart_with_trim:
+            for atoms in self.pop.pop:
+                rep = atoms.info['key_value_pairs'][self.replica_key]
+                traj = read(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', index=f':{starting_step}')
+                write(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', traj)
 
         start_time = time.perf_counter()
         # Below is the iterative part of the algorithm

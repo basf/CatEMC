@@ -7,6 +7,7 @@ from .emc_operators import (
         EMCIntraSwap)
 from ase.io import read, write
 from ase.io.trajectory import Trajectory
+from ase.db import connect
 from ase.ga.data import DataConnection, PrepareDB
 from ase.parallel import parprint
 import numpy as np
@@ -155,6 +156,39 @@ class EMC(object):
         self.dc = DataConnection(asedb_path)
         self.dc.add_more_relaxed_candidates(current_pop)
 
+    def restart_with_trim(self, starting_step):
+
+        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        db = connect(asedb_path)
+        relaxed_images = []
+        unrelaxed_iamges = []
+        for i, row in enumerate(db.select('relaxed<=1')):
+            atoms = row.toatoms()
+            atoms.info['key_value_pairs'] = row.key_value_pairs
+            atoms.info['data'] = row.data
+            if row.emc_step < starting_step:
+                if row.relaxed:
+                    relaxed_images.append(atoms)
+                else:
+                    unrelaxed_images.append(atoms)
+
+        os.remove(asedb_path)
+        asedb = PrepareDB(asedb_path, population_size=self.pop_size)
+        for atoms in unrelaxed_images:
+            if 'key_value_pairs' not in atoms.info:
+                atoms.info['key_value_pairs'] = {}
+            if 'data' not in atoms.info:
+                atoms.info['data'] = {}
+            kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
+                      self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
+                      self.acceptance_key: 0}
+            asedb.add_unrelaxed_candidate(atoms, 
+                    emc_step=atoms.info['key_value_pairs']['emc_step'],
+                    data=atoms.info['data'],
+                    **kwargs)
+        self.dc = DataConnection(asedb_path)
+        self.dc.add_more_relaxed_candidates(relaxed_images)
+
     def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None):
 
         replicas = [c.info['key_value_pairs'][self.replica_key] for c in unrelaxed_candidates]
@@ -188,7 +222,7 @@ class EMC(object):
 
         return relaxed_candidates
 
-    def run(self, starting_step=1, total_steps=10000):
+    def run(self, starting_step=1, total_steps=10000, restart_with_trim=False):
 
         """                                    
         Parameters
@@ -199,7 +233,12 @@ class EMC(object):
         total_steps: int, default 10000
             The total number of EMC steps that the algorithm should run.
 
+        restart_with_trim: bool, default False
+            Whether to restart while trimming all data generated after
+            the starting_step that has been generated before.
+
         """
+
         restart = True
         self.pop_size = len(self.input_pop)
         # Connect to the ase db
@@ -210,22 +249,23 @@ class EMC(object):
             for atoms in self.input_pop:
                 if 'key_value_pairs' not in atoms.info:
                     atoms.info['key_value_pairs'] = {}
-                if 'key_value_pairs' not in atoms.info:
+                if 'data' not in atoms.info:
                     atoms.info['data'] = {}
                 kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
                           self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
                           self.acceptance_key: 0}
                 asedb.add_unrelaxed_candidate(atoms, 
                         emc_step=atoms.info['key_value_pairs']['emc_step'],
+                        data=atoms.info['data'],
                         **kwargs)
-
-        self.dc = DataConnection(asedb_path)
-        unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-
+        if restart_with_trim:
+            self.trim_data_after(starting_step=starting_step)
+        else:
+            self.dc = DataConnection(asedb_path)
         if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
             os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
-
         if not restart:
+            unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:                  
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
@@ -244,9 +284,15 @@ class EMC(object):
         self.pop.update()
         if not restart:
             for atoms in self.pop.pop:
+                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
                 rep = atoms.info['key_value_pairs'][self.replica_key]
                 traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
                 traj.write(atoms)
+        if restart_with_trim:
+            for atoms in self.pop.pop:
+                rep = atoms.info['key_value_pairs'][self.replica_key]
+                traj = read(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', index=f':{starting_step}')
+                write(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', traj)
         rates_sum = self.intraswap_rate + self.crossover_rate
         if rates_sum != 1:
             self.intraswap_rate /= rates_sum

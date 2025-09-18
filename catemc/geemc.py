@@ -153,7 +153,7 @@ class GEEMC(EMC):
         self.nonmetal_interswap_rate = nonmetal_interswap_rate
         self.intraswap_rate = intraswap_rate
         
-    def run(self, starting_step=1, total_steps=10000):
+    def run(self, starting_step=1, total_steps=10000, restart_with_trim=False):
 
         """                                    
         Parameters
@@ -164,7 +164,12 @@ class GEEMC(EMC):
         total_steps: int, default 10000
             The total number of EMC steps that the algorithm should run.
 
+        restart_with_trim: bool, default False
+            Whether to restart while trimming all data generated after
+            the starting_step that has been generated before.
+
         """
+
         restart = True
         self.pop_size = len(self.input_pop)
         # Connect to the ase db
@@ -175,22 +180,23 @@ class GEEMC(EMC):
             for atoms in self.input_pop:
                 if 'key_value_pairs' not in atoms.info:
                     atoms.info['key_value_pairs'] = {}
-                if 'key_value_pairs' not in atoms.info:
+                if 'data' not in atoms.info:
                     atoms.info['data'] = {}
                 kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
                           self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
                           self.acceptance_key: 0}
                 asedb.add_unrelaxed_candidate(atoms, 
                         emc_step=atoms.info['key_value_pairs']['emc_step'],
+                        data=atoms.info['data'],
                         **kwargs)
-
-        self.dc = DataConnection(asedb_path)
-        unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-
+        if restart_with_trim:
+            self.trim_data_after(starting_step=starting_step)
+        else:
+            self.dc = DataConnection(asedb_path)
         if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
             os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
-
         if not restart:
+            unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:                  
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
@@ -209,9 +215,15 @@ class GEEMC(EMC):
         self.pop.update()
         if not restart:
             for atoms in self.pop.pop:
+                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
                 rep = atoms.info['key_value_pairs'][self.replica_key]
                 traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
                 traj.write(atoms)
+        if restart_with_trim:
+            for atoms in self.pop.pop:
+                rep = atoms.info['key_value_pairs'][self.replica_key]
+                traj = read(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', index=f':{starting_step}')
+                write(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', traj)
         rates_sum = self.intraswap_rate + self.crossover_rate + self.metal_interswap_rate + self.nonmetal_interswap_rate 
         if rates_sum != 1:
             self.intraswap_rate /= rates_sum
