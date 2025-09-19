@@ -34,10 +34,11 @@ class GEEMCAnalysis(object):
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
 
-    def prepare_data(self, starting_step=None, ending_step=None, 
+    def prepare_data(self, starting_step=None, ending_step=None, pressure=None,
                      use_exist=True, raw_score_cutoff=-10000.):
 
-        """Prepare GE-EMC potential energy and Widom samples."""
+        """Prepare GE-EMC potential energy and Widom samples. Set the pressure 
+        for NpT GE-EMC simulations"""
 
         collect_data = True
         if use_exist:
@@ -85,10 +86,14 @@ class GEEMCAnalysis(object):
                             continue
                         if abs(dU) < 0.01:
                             continue
+                        atoms = row.toatoms()
                         is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
                         if (row.key_value_pairs[self.acceptance_key] == 1) or is_widom:
                             rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
                             U = row.potential_energy
+                            if pressure is not None:
+                                V = atoms.get_volume()
+                                U = (U + pressure * V, len(atoms) * np.log(V))
                             # ensure replica list exists and is long enough, then set energy
                             rep = row.key_value_pairs[self.replica_key]
                             rep_list = self.energy_data[T].setdefault(rep, [])
@@ -99,12 +104,12 @@ class GEEMCAnalysis(object):
 
                         if not is_widom:
                             continue
-                        atoms = row.toatoms()
                         m1, m2 = row.data.mutated_elements
-                        U_new = row.potential_energy
                         N1 = len([a for a in atoms if a.symbol == m1]) + 1
                         N2plus1 = len([a for a in atoms if a.symbol == m2])
                         W_prefactor = N1 / N2plus1
+                        if pressure is not None:
+                            W_prefactor *= row.volume_ratio**len(atoms)
                         latest_acc_step = rep_latest_step_map[row.key_value_pairs[self.replica_key]]
                         # ensure dmu key list exists and is long enough, then append the tuple
                         key = f'{m1}2{m2}'
@@ -113,7 +118,7 @@ class GEEMCAnalysis(object):
                         if needed > 0:
                             key_list.extend([[] for _ in range(needed)])  # distinct empty lists
                         key_list[row.emc_step - 1].append(
-                                (U_new, dU, W_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
+                                (U, dU, W_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
                         )
 
             # Assign the previous energy if energy is None at a step (forward-fill per replica)
@@ -136,10 +141,11 @@ class GEEMCAnalysis(object):
                 pickle.dump(self.energy_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1, 
-                          target_temperatures=None, wls_correction=True):
+                          target_temperatures=None, volume_correction=False, wls_correction=True):
 
         """Get the MBAR-estimated chemical potential differences between all 
-           metal pairs with/without WLS correction."""
+           metal pairs with/without WLS correction. Turn on volume_correction
+           for NpT GE-EMC simulations."""
 
         from pymbar import MBAR
         sim_temperatures = sorted(list(self.energy_data.keys()))
@@ -173,25 +179,42 @@ class GEEMCAnalysis(object):
 
         betas = [1/(units.kB * T) for T in target_temperatures]
         samples = []
+        volume_samples = []
         idx = 0
         for T in sim_temperatures:
             samples_T = []
+            volume_samples_T = []
             for n_minus_1 in range(ending_step):
                 if n_minus_1 >= starting_step:
                     try:
-                        U = sum(lst[n_minus_1] for lst in self.energy_data[T].values())
+                        if volume_correction:
+                            H = sum(lst[n_minus_1][0] for lst in self.energy_data[T].values())
+                            NlnV = sum(lst[n_minus_1][1] for lst in self.energy_data[T].values())
+                        else:
+                            U = sum(lst[n_minus_1] for lst in self.energy_data[T].values())
                     except:
                         break
                     temp_step_idx_map[T][n_minus_1+1] = idx
-                    samples_T.append(U)
+                    if volume_correction:
+                        samples_T.append(H)
+                        volume_samples_T.append(NlnV)
+                    else:
+                        samples_T.append(U)
                     idx += 1
             samples_per_T[target_temperatures.index(T)] = len(samples_T)
             samples += samples_T
+            if volumes_correction:
+                volume_samples += volume_samples_T
         samples = np.array(samples)
-        U_kn = []  # Reduced energy matrix (K x N_total)  
+        U_kn = []  # Reduced energy matrix (K x N_total)
+        NlnV_kn = []
         for k, T in enumerate(target_temperatures):
             U_kn.append(betas[k] * samples)
+            if volume_correction:
+                NlnV_kn.append(volume_samples)
         U_kn = np.array(U_kn)  # Shape (K, N_total)
+        if volume_correction:
+            U_kn -= np.array(N_lnV_kn)
         mbar = MBAR(U_kn, samples_per_T, relative_tolerance=1e-7, 
                     solver_protocol='robust', maximum_iterations=30000)  
         w_nk = mbar.weights()

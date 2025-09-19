@@ -200,6 +200,9 @@ class EMCPopulation(Population):
             if self.store_delta:
                 offsprings[sorted_oids[0]].info['key_value_pairs']['delta'] = df1
                 offsprings[sorted_oids[1]].info['key_value_pairs']['delta'] = df2
+                if pressure is not None:
+                    offsprings[sorted_oids[0]].info['key_value_pairs']['volume_ratio'] = V12 / V11
+                    offsprings[sorted_oids[1]].info['key_value_pairs']['volume_ratio'] = V22 / V21
 
         elif len(parents) == 1:
             # Mutation
@@ -244,6 +247,8 @@ class EMCPopulation(Population):
                 parprint(f'Replica {rep} intra move rejected!')
             if self.store_delta:
                 offsprings[0].info['key_value_pairs']['delta'] = df
+                if pressure is not None:
+                    offsprings[0].info['key_value_pairs']['volume_ratio'] = V2 / V1
 
         return offsprings
 
