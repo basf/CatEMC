@@ -511,13 +511,14 @@ class EMCPopulation(Population):
             mu_window = c.info['data']['mu_window']
             mask = np.all(mu_window==mu, axis=1)
             valid_rows = np.where(~mask)[0]
- 
+
             if multiple_try:
+                # multiple-try Metropolis
                 # compute exponent/log-weight for every candidate in valid_rows
                 exps = []
                 for idx in valid_rows:
                     trial_mu_c = mu_window[idx]
-                    exponent_c = 0
+                    exponent_c = 0.0
                     for k, col in element_column_map.items():
                         nk = len([a for a in c if a.symbol == k])
                         exponent_c += nk * (trial_mu_c[col] - mu[col])
@@ -531,8 +532,10 @@ class EMCPopulation(Population):
                                 np.all(np.abs(reaction_conditions - trial_cond) < tol, axis=1))[0]
                         df = free_energy_differences[grid_id, trial_grid_id]
                         exponent_c += df
+                    # exponent_c is ln(w_j / w_current)
                     exps.append(float(exponent_c))
- 
+
+                # numerically-stable selection: convert to probs ~ exp(exps)
                 exps = np.asarray(exps, dtype=float)
                 M = np.max(exps)
                 weights = np.exp(exps - M)
@@ -541,25 +544,25 @@ class EMCPopulation(Population):
                 chosen_pos = np.random.choice(len(valid_rows), p=probs)
                 trial_idx = int(valid_rows[chosen_pos])
                 trial_mu = mu_window[trial_idx]
-                # forward log-sum over all forward candidates (exps corresponds to valid_rows)
+                # MTM reverse/exponent construction
+                exps_chosen = exps[chosen_pos]
+                # forward log-sum = log(sum_j w_j) baseline canceled later
                 log_sum_forward = logsumexp(exps)
-                # alpha = log pi(trial) - log pi(current)
-                alpha = exps[chosen_pos]
-                # For reverse exponents (reference = trial), each exponent_j_rev = exps_j - alpha
-                reverse_exps = np.delete(exps, chosen_pos) - alpha
-                # Include the original current state's exponent when referenced to the trial:
-                # ln pi(current) - ln pi(trial) = -alpha
-                reverse_exps = np.append(reverse_exps, -alpha)
+                # reverse_exps = ln(w_u / w_selected) for u in reverse set
+                reverse_exps = np.delete(exps, chosen_pos) - exps_chosen
+                # include current state's term ln(w_current/w_selected) = -exps_chosen
+                reverse_exps = np.append(reverse_exps, -exps_chosen)
                 log_sum_reverse = logsumexp(reverse_exps)
- 
-                lnR = log_sum_forward - log_sum_reverse
+                # final lnR as derived in the note
+                lnR = log_sum_forward - log_sum_reverse - exps_chosen
                 if lnR >= 0:
                     accept = True
                 else:
                     accept = (np.random.uniform() < np.exp(lnR))
             else:
+                # single-try Metropolis
                 trial_mu = mu_window[np.random.choice(valid_rows)]
-                exponent = 0
+                exponent = 0.0
                 for k, col in element_column_map.items():
                     nk = len([a for a in c if a.symbol == k])
                     exponent += nk * (trial_mu[col] - mu[col])
@@ -574,15 +577,15 @@ class EMCPopulation(Population):
                     df = free_energy_differences[grid_id, trial_grid_id]
                     exponent += df
                 p_acc = min([1, np.exp(exponent)])
-                accept = p_acc > np.random.uniform()
- 
+                accept = (p_acc > np.random.uniform())
+
             if accept:
                 c.info['data']['mu'] = trial_mu
                 parprint(f'Replica {rep} mu-walk move accepted!')
             else:
                 parprint(f'Replica {rep} mu-walk move rejected!')
             new_pop.append(c)
- 
+
         self.pop = new_pop
 
     def get_all_parents(self, n_crossover_pairs=1, n_interswap_pairs=0,
