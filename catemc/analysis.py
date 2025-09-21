@@ -42,23 +42,23 @@ class GEEMCAnalysis(object):
 
         collect_data = True
         if use_exist:
-            if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar_dmu_data.pkl') and os.path.isfile(
-            f'{self.calculation_dir}/{self.name}_mbar_energy_data.pkl'):                
-                with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_data.pkl', 'rb') as handle:
-                    self.dmu_data = pickle.load(handle)
-                with open(f'{self.calculation_dir}/{self.name}_mbar_energy_data.pkl', 'rb') as handle:
-                    self.energy_data = pickle.load(handle)
+            if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl') and os.path.isfile(
+            f'{self.calculation_dir}/{self.name}_mbar_data.pkl'):                
+                with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl', 'rb') as handle:
+                    self.widom_data = pickle.load(handle)
+                with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'rb') as handle:
+                    self.data = pickle.load(handle)
                 collect_data = False
             else:
                 parprint(f'Cannot find MBAR data file, collect data instead.')
         if collect_data:
             # initialize containers (no pre-defined temperatures)
-            self.dmu_data = {}      # T -> {key -> list_of_step_lists}
-            self.energy_data = {}   # T -> {rep -> list_of_step_values}
+            self.widom_data = {}      # T -> {key -> list_of_step_lists}
+            self.data = {}   # T -> {rep -> list_of_step_values}
 
             # normalize starting_step
             if starting_step is None:
-                starting_step = 1
+                starting_step = 0
 
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
             n = 0
@@ -77,30 +77,37 @@ class GEEMCAnalysis(object):
                             continue
                         # obtain temperature from the row and ensure containers exist for it
                         T = row.key_value_pairs[self.temperature_key]
-                        if T not in self.dmu_data:
-                            self.dmu_data[T] = {}
-                        if T not in self.energy_data:
-                            self.energy_data[T] = {}
+                        if T not in self.widom_data:
+                            self.widom_data[T] = {}
+                        if T not in self.data:
+                            self.data[T] = {}
                         dU = -row.delta
                         if abs(dU) > 100.:
                             continue
                         if abs(dU) < 0.01:
                             continue
                         atoms = row.toatoms()
+                        U = row.potential_energy
                         is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
                         if (row.key_value_pairs[self.acceptance_key] == 1) or is_widom:
+                            atoms.info = {'key_value_pairs': {
+                                              self.temperature_key: T, 
+                                              self.replica_key: row.key_value_pairs[self.replica_key],
+                                              'potential_energy': U}, 
+                                          'data': {}}
                             rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
-                            U = row.potential_energy
                             if pressure is not None:
                                 V = atoms.get_volume()
-                                U = (U + pressure * V, len(atoms) * np.log(V))
+                                U += pressure * V
+                                atoms.info['key_value_pairs']['enthalpy'] = U
+                                atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
                             # ensure replica list exists and is long enough, then set energy
                             rep = row.key_value_pairs[self.replica_key]
-                            rep_list = self.energy_data[T].setdefault(rep, [])
+                            rep_list = self.data[T].setdefault(rep, [])
                             needed = row.emc_step - len(rep_list)
                             if needed > 0:
                                 rep_list.extend([None] * needed) 
-                            rep_list[row.emc_step-1] = U
+                            rep_list[row.emc_step-1] = atoms
 
                         if not is_widom:
                             continue
@@ -113,32 +120,45 @@ class GEEMCAnalysis(object):
                         latest_acc_step = rep_latest_step_map[row.key_value_pairs[self.replica_key]]
                         # ensure dmu key list exists and is long enough, then append the tuple
                         key = f'{m1}2{m2}'
-                        key_list = self.dmu_data[T].setdefault(key, [])
+                        key_list = self.widom_data[T].setdefault(key, [])
                         needed = row.emc_step - len(key_list)
                         if needed > 0:
                             key_list.extend([[] for _ in range(needed)])  # distinct empty lists
-                        key_list[row.emc_step - 1].append(
+                        key_list[row.emc_step-1].append(
                                 (U, dU, W_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
                         )
 
             # Assign the previous energy if energy is None at a step (forward-fill per replica)
-            for T, dd in self.energy_data.items():
+            for T, dd in self.data.items():
                 for rep in list(dd.keys()):
-                    U_prev = None
+                    atoms_prev = None
                     newlist = []
-                    for E in dd[rep]:
-                        if E is not None:
-                            U_prev = E
-                            newlist.append(E)
+                    for atoms in dd[rep]:
+                        if atoms is not None:
+                            atoms_prev = atoms
+                            newlist.append(atoms)
                         else:
-                            newlist.append(U_prev)
+                            newlist.append(atoms_prev)
                     dd[rep] = newlist
 
             # save pickles
-            with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_data.pkl', 'wb') as handle:
-                pickle.dump(self.dmu_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            with open(f'{self.calculation_dir}/{self.name}_mbar_energy_data.pkl', 'wb') as handle:
-                pickle.dump(self.energy_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl', 'wb') as handle:
+                pickle.dump(self.widom_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
+                pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def get_trajectory(self, replica):
+
+        """Get the EMC trajectory of a given replica number."""
+
+        traj = []
+        for T, dd in self.data.items():
+            if replica in dd.keys():
+                for atoms in dd[replica]:
+                    if atoms is not None:
+                        traj.append(atoms)
+
+        write(f'{self.calculation_dir}/{self.name}_geemc_{replica}.traj', traj)
 
     def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1, 
                           target_temperatures=None, volume_correction=False, wls_correction=True):
@@ -148,7 +168,7 @@ class GEEMCAnalysis(object):
            for NpT GE-EMC simulations."""
 
         from pymbar import MBAR
-        sim_temperatures = sorted(list(self.energy_data.keys()))
+        sim_temperatures = sorted(list(self.data.keys()))
         if target_temperatures is None:
             target_temperatures = sim_temperatures
         else:
@@ -156,7 +176,7 @@ class GEEMCAnalysis(object):
             target_temperatures = sorted(set(target_temperatures))
         rep_temp_map = {}
         for T in sim_temperatures:
-            for rep in self.energy_data[T].keys():
+            for rep in self.data[T].keys():
                 rep_temp_map[rep] = T
         metal_pairs = list(combinations(self.target_metal_species, 2))
 
@@ -167,10 +187,10 @@ class GEEMCAnalysis(object):
 
         # Fill energy matrix and widom data
         if starting_step is None:
-            starting_step = 1
+            starting_step = 0
         if ending_step is None:
             max_steps = 0
-            for T, rep_dict in self.energy_data.items():
+            for T, rep_dict in self.data.items():
                 for rep, lst in rep_dict.items():
                     if lst:
                         max_steps = max(max_steps, len(lst))
@@ -188,10 +208,10 @@ class GEEMCAnalysis(object):
                 if n_minus_1 >= starting_step:
                     try:
                         if volume_correction:
-                            H = sum(lst[n_minus_1][0] for lst in self.energy_data[T].values())
-                            NlnV = sum(lst[n_minus_1][1] for lst in self.energy_data[T].values())
+                            H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in self.data[T].values())
+                            NlnV = sum(lst[n_minus_1].info['key_value_pairs']['NlnV'] for lst in self.data[T].values())
                         else:
-                            U = sum(lst[n_minus_1] for lst in self.energy_data[T].values())
+                            U = sum(lst[n_minus_1].info['key_value_pairs']['potential_energy'] for lst in self.data[T].values())
                     except:
                         break
                     temp_step_idx_map[T][n_minus_1+1] = idx
@@ -203,7 +223,7 @@ class GEEMCAnalysis(object):
                     idx += 1
             samples_per_T[target_temperatures.index(T)] = len(samples_T)
             samples += samples_T
-            if volumes_correction:
+            if volume_correction:
                 volume_samples += volume_samples_T
         samples = np.array(samples)
         U_kn = []  # Reduced energy matrix (K x N_total)
@@ -227,7 +247,7 @@ class GEEMCAnalysis(object):
                 dmu_estimates[T][f'{m2}2{m1}'] = {}
         for m1, m2 in metal_pairs:
             # Precompute W_{m→n} for ALL configs, replicas, and target betas
-            lot_m12m2 = [t for T in sim_temperatures for lot in self.dmu_data[T][f'{m1}2{m2}'] for t in lot]
+            lot_m12m2 = [t for T in sim_temperatures for lot in self.widom_data[T][f'{m1}2{m2}'] for t in lot]
             dd_temp_m12m2 = {T: defaultdict(list) for T in target_temperatures}
             for U_new, dU, W_prefactor, rep, latest_acc_step in lot_m12m2:
                 if latest_acc_step > starting_step:
@@ -235,7 +255,7 @@ class GEEMCAnalysis(object):
                     for T in target_temperatures:
                         W = W_prefactor * np.exp(-dU / (units.kB*T))
                         dd_temp_m12m2[T][(T_origin, latest_acc_step)].append(W)
-            lot_m22m1 = [t for T in sim_temperatures for lot in self.dmu_data[T][f'{m2}2{m1}'] for t in lot]
+            lot_m22m1 = [t for T in sim_temperatures for lot in self.widom_data[T][f'{m2}2{m1}'] for t in lot]
             dd_temp_m22m1 = {T: defaultdict(list) for T in target_temperatures}
             for U_new, dU, W_prefactor, rep, latest_acc_step in lot_m22m1:
                 if latest_acc_step > starting_step:
@@ -450,7 +470,7 @@ class GCEMCAnalysis(object):
             self.data = {}   # T -> {rep -> list_of_step_values}
             # normalize starting_step
             if starting_step is None:
-                starting_step = 1
+                starting_step = 0
 
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
             n = 0
@@ -476,9 +496,9 @@ class GCEMCAnalysis(object):
                             atoms = row.toatoms()
                             atoms.info = {'key_value_pairs': {
                                               self.temperature_key: T, 
-                                              self.replica_key: row.key_value_pairs[self.replica_key]}, 
+                                              self.replica_key: row.key_value_pairs[self.replica_key],
+                                              'potential_energy': row.potential_energy}, 
                                           'data': {}}
-                            atoms.info['key_value_pairs']['potential_energy'] = row.potential_energy
                             atoms.info['data']['mu'] = row.data.mu
                             atoms.info['data']['mu_window'] = row.data.mu_window
                             atoms.info['data']['fragments'] = row.data.fragments
@@ -493,19 +513,32 @@ class GCEMCAnalysis(object):
             # Assign the previous energy if energy is None at a step (forward-fill per replica)
             for T, dd in self.data.items():
                 for rep in list(dd.keys()):
-                    U_prev = None
+                    atoms_prev = None
                     newlist = []
-                    for E in dd[rep]:
-                        if E is not None:
-                            U_prev = E
-                            newlist.append(E)
+                    for atoms in dd[rep]:
+                        if atoms is not None:
+                            atoms_prev = atoms
+                            newlist.append(atoms)
                         else:
-                            newlist.append(U_prev)
+                            newlist.append(atoms_prev)
                     dd[rep] = newlist
 
             # save pickles
             with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
                 pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def get_trajectory(self, replica):
+
+        """Get the EMC trajectory of a given replica number."""
+
+        traj = []
+        for T, dd in self.data.items():
+            if replica in dd.keys():
+                for atoms in dd[replica]:
+                    if atoms is not None:
+                        traj.append(atoms)
+
+        write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
     def get_structural_expectations(self, z_surf, reaction_conditions, temperature_dmu_map, 
                                     element_column_map, element_eref_map, element_y2x_map,

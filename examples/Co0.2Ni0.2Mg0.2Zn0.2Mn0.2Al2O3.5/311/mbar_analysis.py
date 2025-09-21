@@ -18,6 +18,7 @@ ana = GCEMCAnalysis(
         acceptance_key='accepted')
 
 ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
+ana.get_trajectory(replica=10)
 
 E_CH4 = -24.047 + 0.104 # Etot incl. ZPE PBE
 E_O2 = -8.768 + 0.009   # Etot incl. ZPE PBE
