@@ -58,7 +58,7 @@ class GEEMCAnalysis(object):
 
             # normalize starting_step
             if starting_step is None:
-                starting_step = 0
+                starting_step = 1
 
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
             n = 0
@@ -187,7 +187,7 @@ class GEEMCAnalysis(object):
 
         # Fill energy matrix and widom data
         if starting_step is None:
-            starting_step = 0
+            starting_step = 1
         if ending_step is None:
             max_steps = 0
             for T, rep_dict in self.data.items():
@@ -470,7 +470,7 @@ class GCEMCAnalysis(object):
             self.data = {}   # T -> {rep -> list_of_step_values}
             # normalize starting_step
             if starting_step is None:
-                starting_step = 0
+                starting_step = 1
 
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
             n = 0
@@ -523,7 +523,7 @@ class GCEMCAnalysis(object):
                             newlist.append(atoms_prev)
                     dd[rep] = newlist
 
-            # save pickles
+            # save pickle
             with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
                 pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
