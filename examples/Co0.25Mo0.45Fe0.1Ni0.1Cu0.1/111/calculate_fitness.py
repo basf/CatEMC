@@ -52,7 +52,7 @@ try:
 except:
     with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/111/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_111_sites.pkl', 'rb') as f:
         sas = pickle.load(f)
-with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/fcc_Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_wls_dmu_estimates.pkl', 'rb') as f:
+with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 allowed_adsorbate_species = ['H','N','NH','NH2','N2','H2','NH3']
 

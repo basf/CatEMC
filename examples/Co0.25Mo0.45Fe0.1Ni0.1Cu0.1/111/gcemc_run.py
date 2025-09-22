@@ -42,7 +42,7 @@ reaction_conditions = grid.copy()
 element_column_map = {'N': 0, 'H': 1}
 element_eref_map = {'N': E_N2/2, 'H': E_H2/2}
 element_y2x_map = {'N': 0., 'H': 0.}
-with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/fcc_Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_wls_dmu_estimates.pkl', 'rb') as f:
+with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 with open(f'{dir_name}/NH_internal_data.pkl', 'rb') as handle:
     tsi_map = pickle.load(handle)
