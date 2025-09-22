@@ -310,6 +310,12 @@ Output:
 1400
 {'Co2Ni': 1.69, 'Co2Mg': 1.42, 'Co2Zn': 4.34, 'Co2Mn': -3.26, 'Co2Al': -1.0, 'Ni2Mg': -0.27, 'Ni2Zn': 2.65, 'Ni2Mn': -4.95, 'Ni2Al': -2.7, 'Mg2Zn': 2.92, 'Mg2Mn': -4.68, 'Mg2Al': -2.43, 'Zn2Mn': -7.6, 'Zn2Al': -5.35, 'Mn2Al': 2.26}
 ```
+We can also get the GE-EMC trajectory of any replica by the following simple command, e.g. getting replica 10:
+```
+ana.get_trajectory(replica=10)
+```
+You can then visualize the trajectory with the name `*_geemc_10.traj`. Below shows a production trajectory for replica 10 of a HEA bulk GE-EMC simulation:
+![png](images/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_geemc_10.gif)
 
 ---
 
@@ -490,7 +496,7 @@ emc = GCEMC(system_name, calculation_dir=dir_name, calculation_script='calculate
             acceptance_key='accepted', raw_score_cutoff=-10000., gpu_devices=gpu_devices,
             procs_per_device=ppg)
 
-emc.run(starting_step=15, total_steps=5000)
+emc.run(starting_step=1, total_steps=5000)
 ```
 A template calculation script looks like this:
 ```
@@ -647,6 +653,12 @@ ana.get_structural_expectations(
         target_temperatures=temperatures,
         vacancy_indices=vac_indices)
 ```
+We can also get the GC-EMC trajectory of any replica by the following simple command, e.g. getting replica 10:
+```
+ana.get_trajectory(replica=10)
+```
+You can then visualize the trajectory with the name `*_gcemc_10.traj`. Below shows a production trajectory for replica 10 of a HEA(111) surface GC-EMC simulation under ammonia decomposition condition:
+![png](images/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111_gcemc_10.gif)
 
 ## Visualizing results
 
