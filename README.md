@@ -314,7 +314,7 @@ We can also get the GE-EMC trajectory of any replica by the following simple com
 ```
 ana.get_trajectory(replica=10)
 ```
-You can then visualize the trajectory with the name `*_geemc_10.traj`. Below shows a production trajectory for replica 10 of a HEA bulk GE-EMC simulation:
+You can then visualize the trajectory with the name `*_geemc_10.traj`. Below shows a production trajectory for replica 10 of a spinel HEO bulk GE-EMC simulation:
 ![png](images/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_geemc_10.gif)
 
 ---
@@ -657,7 +657,7 @@ We can also get the GC-EMC trajectory of any replica by the following simple com
 ```
 ana.get_trajectory(replica=10)
 ```
-You can then visualize the trajectory with the name `*_gcemc_10.traj`. Below shows a production trajectory for replica 10 of a HEA(111) surface GC-EMC simulation under ammonia decomposition condition:
+You can then visualize the trajectory with the name `*_gcemc_10.traj`. Below shows a production trajectory for replica 10 of an FCC HEA(111) surface GC-EMC simulation under ammonia decomposition condition:
 ![png](images/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111_gcemc_10.gif)
 
 ## Visualizing results
