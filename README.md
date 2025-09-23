@@ -12,7 +12,7 @@ Shuang Han: hanshuangshiren@gmail.com
 
 ## Quick start
 
-Python environment: we recommend Python 3.9–3.11 and a virtualenv or conda env. Install key packages used by the code:
+Python environment: we recommend Python 3.9+ and a virtualenv or conda env. Install key packages used by the code:
 
    * `autoadsorbate`, `acat`, `ase`, `pymbar`
 
