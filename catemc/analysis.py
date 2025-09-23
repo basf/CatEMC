@@ -543,28 +543,25 @@ class GCEMCAnalysis(object):
     def get_structural_expectations(self, z_surf, reaction_conditions, temperature_dmu_map, 
                                     element_column_map, element_eref_map, element_y2x_map,
                                     starting_step=None, ending_step=None, sample_stride=1, 
-                                    keep_dims=None, vacancy_indices=None, tol=1e-3):
+                                    vacancy_indices=None, tol=1e-3):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (> z_surf) and reaction conditions. 
-        Use keep_dims to select the relevant reaction condition columns"""
+        The reaction conditions is supposed to emcompass all the reaction condition
+        grid considered in the EMC simulation, including last column as temperature.
+        You can also add more rows to reaction_conditions to consider states that are
+        not included in the simulation."""
 
         from pymbar import MBAR
         sim_temperatures = sorted(list(self.data.keys()))
-        target_temperatures = sorted(np.unique(reaction_conditions[:,-1]))
         all_species = self.target_metal_species + list(element_column_map.keys())
         metal_pairs = list(combinations(self.target_metal_species, 2))
         all_atom_pairs = list(combinations(all_species, 2)) + [(m,m) for m in all_species]
-        if keep_dims is None:
-            keep_dims = np.arange(reaction_conditions.shape[1])
         if vacancy_indices is None:
             vacancy_indices = []
         grid = reaction_conditions.copy()
-        # Build the kept-state grid (unique combinations of the two kept dims)
-        kept_grid_indices = np.sort(np.unique(grid[:,keep_dims], axis=0, return_index=True)[1])
-        kept_grid = grid[:,keep_dims][kept_grid_indices]  # shape (K_kept, 2)
-        K = kept_grid.shape[0]
-        parprint(f'Number of kept states (unique pairs for dims {keep_dims}): {K}')
+        K = grid.shape[0]
+        parprint(f'Number of states: {K}')
         
         # Build MBAR inputs
         samples_per_state = np.zeros(K, dtype=int)
@@ -620,24 +617,18 @@ class GCEMCAnalysis(object):
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
  
-                        sample_full = np.append(atoms.info['data']['mu'], T)
-                        sample_key = sample_full[keep_dims]
-                        idx_match = np.where(np.all(np.abs(kept_grid-sample_key) < tol, axis=1))[0]
+                        sample_cond = np.append(atoms.info['data']['mu'], T)
+                        idx_match = np.where(np.all(np.abs(grid-sample_cond) < tol, axis=1))[0]
                         if idx_match.size == 0:
-                            parprint('No matching kept-state found for sample:', sample_key, 'T_sample:', T)
+                            parprint('No matching state found for sample:', sample_cond)
                             continue
                         state_idx = int(idx_match[0])
                         samples_per_state[state_idx] += 1
                         sample_state.append(state_idx)
                         sample_steps.append(n_minus_1)
-                        if len(keep_dims) == grid.shape[1]:
-                            grid_for_calc = kept_grid.copy()
-                        else:
-                            grid_for_calc = np.tile(sample_full, (K,1))
-                            grid_for_calc[:,keep_dims] = kept_grid
                         phi = compute_phi(
                                 num_dict, self.target_metal_species, self.target_metal_composition, 
-                                temperature_dmu_map, grid_for_calc, element_column_map, element_eref_map, 
+                                temperature_dmu_map, grid, element_column_map, element_eref_map, 
                                 element_y2x_map, num_metal, epot, dimensionless=True)
                         phi_kn.append(phi.reshape(-1,1))
 

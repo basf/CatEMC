@@ -632,8 +632,8 @@ E_H2 = -6.773 + 0.004
 
 dmu_O  = np.arange(-5., -2.999, 0.1)
 dmu_H  = np.arange(-1.0, 0.001, 0.05)
-temperatures = [1023,]
-reaction_conditions = np.array(np.meshgrid(dmu_O, dmu_H, temperatures)).T.reshape(-1, 3)
+sim_temperatures = [1023,]
+reaction_conditions = np.array(np.meshgrid(dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 3)
 
 with open('/path/to/bulk_wls_dmu_estimates.pkl','rb') as f:
     tdmu_map = pickle.load(f)
@@ -650,8 +650,6 @@ ana.get_structural_expectations(
         starting_step=500,
         ending_step=2000,
         sample_stride=50,
-        keep_dims=[0,1],
-        target_temperatures=temperatures,
         vacancy_indices=vac_indices)
 ```
 We can also get the GC-EMC trajectory of any replica by the following simple command, e.g. getting replica 10:
@@ -690,12 +688,11 @@ plt.rcParams['text.usetex'] = False
 plt.rcParams['svg.fonttype'] = 'none'
 
 system_name = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5OH_311'
+sim_temperatures = [1023,]
 T = 1023
 dmu_O = np.arange(-5., -2.999, 0.02)
 dmu_H = np.arange(-1., 0.001, 0.01)
-grid = np.array(np.meshgrid(dmu_O, dmu_H)).T.reshape(-1, 2)
-target_grid_ids = np.arange(len(grid))
-grid_T = grid.copy()
+grid = np.array(np.meshgrid(dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 3)
 
 with open(f'{system_name}_mbar_expectations.pkl', 'rb') as handle:
     expectations = pickle.load(handle)
@@ -712,7 +709,7 @@ levels = np.linspace(vmin, vmax, 6)
 
 for i, ax in enumerate(axes_flat):
     m = metal_species[i]
-    x_surf_avg = expectations[f'x_surf_{m}'][target_grid_ids] / metal_composition[m]
+    x_surf_avg = expectations[f'x_surf_{m}'] / metal_composition[m]
 
     # allocate Z with shape (Ny, Nx) since contourf expects rows->y (dmu_H), cols->x (dmu_O)
     Z = np.empty((len(dmu_O), len(dmu_H)), dtype=float)
@@ -720,7 +717,7 @@ for i, ax in enumerate(axes_flat):
     # fill Z by matching mu_N, mu_H using np.isclose (robust to FP rounding)
     for iy, muH in enumerate(dmu_H):
         for ix, muO in enumerate(dmu_O):
-            idx = np.where(np.isclose(grid_T[:,0], muO) & np.isclose(grid_T[:,1], muH))[0]
+            idx = np.where(np.isclose(grid[:,0], muO) & np.isclose(grid[:,1], muH) & np.isclose(grid[:,-1], T))[0]
             assert idx.size == 1
             Z[iy, ix] = x_surf_avg[idx[0]]
     Z[Z==0] = np.nan
@@ -783,12 +780,11 @@ plt.rcParams['text.usetex'] = False
 plt.rcParams['svg.fonttype'] = 'none'
 
 system_name = 'Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111'
+sim_temperatures = [573, 673, 773, 873]
 T = 773
 dmu_N = np.arange(-1., 0.001, 0.01)
 dmu_H = np.arange(-1., 0.001, 0.01)
-grid = np.array(np.meshgrid(dmu_N, dmu_H)).T.reshape(-1, 2)
-target_grid_ids = np.arange(len(grid))
-grid_T = grid.copy()
+grid = np.array(np.meshgrid(dmu_N, dmu_H, sim_temperatures)).T.reshape(-1, 3)
 with open(f'{system_name}_mbar_expectations.pkl', 'rb') as handle:
     expectations = pickle.load(handle)
 
@@ -806,9 +802,9 @@ levels = np.linspace(vmin, vmax, 6)
 for i, ax in enumerate(axes_flat):
     ads = adsorbate_species[i]
     if ads == 'all':
-        ads_coverage_avg = expectations[f'ads_coverage'][target_grid_ids]
+        ads_coverage_avg = expectations[f'ads_coverage']
     else:
-        ads_coverage_avg = expectations[f'ads_coverage_{ads}'][target_grid_ids]
+        ads_coverage_avg = expectations[f'ads_coverage_{ads}']
 
     # allocate Z with shape (Ny, Nx) since contourf expects rows->y (dmu_H), cols->x (dmu_N)
     Z = np.empty((len(dmu_N), len(dmu_H)), dtype=float)
@@ -816,7 +812,7 @@ for i, ax in enumerate(axes_flat):
     # fill Z by matching mu_N, mu_H using np.isclose (robust to FP rounding)
     for iy, muH in enumerate(dmu_H):
         for ix, muN in enumerate(dmu_N):
-            idx = np.where(np.isclose(grid_T[:,0], muN) & np.isclose(grid_T[:,1], muH))[0]
+            idx = np.where(np.isclose(grid[:,0], muN) & np.isclose(grid[:,1], muH) & np.isclose(grid[:,-1], T))[0]
             assert idx.size == 1
             Z[iy, ix] = ads_coverage_avg[idx[0]]
     Z[Z==0] = np.nan

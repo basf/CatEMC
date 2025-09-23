@@ -26,8 +26,8 @@ E_H2 = -6.773 + 0.004   # Etot incl. ZPE PBE
 dmu_CH4 = np.arange(-2.8, -1.299, 0.1)
 dmu_O  = np.arange(-3.5, -1.999, 0.1)
 dmu_H  = np.arange(-1.0, 0.001, 0.05)
-target_temperatures = [723,]
-grid = np.array(np.meshgrid(dmu_CH4, dmu_O, dmu_H, target_temperatures)).T.reshape(-1, 4)
+sim_temperatures = [723,]
+grid = np.array(np.meshgrid(dmu_CH4, dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 4)
 reaction_conditions = np.hstack([grid, (grid[:,0] + E_CH4 - 4*(grid[:,2] + E_H2/2)).reshape(-1,1)])
 reaction_conditions[:, [3, 4]] = reaction_conditions[:, [4, 3]] # Swap columns
 with open(f'/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_wls_dmu_estimates.pkl', 'rb') as f:
@@ -45,5 +45,4 @@ ana.get_structural_expectations(
         starting_step=500, 
         ending_step=2000, 
         sample_stride=50,
-        keep_dims=[0,1], # Sample mu_CH4 and mu_O 2d map 
         vacancy_indices=vac_indices)

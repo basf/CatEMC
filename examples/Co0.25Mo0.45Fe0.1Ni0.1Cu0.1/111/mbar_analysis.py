@@ -24,8 +24,8 @@ E_N2 = -16.293 + 0.008 # Etot incl. ZPE RPBE
 E_H2 = -6.984 + 0.003  # Etot incl. ZPE RPBE
 dmu_N = np.arange(-1., 0.001, 0.05).round(2)
 dmu_H = np.arange(-1., 0.001, 0.05).round(2)
-target_temperatures = [773,]
-reaction_conditions = np.array(np.meshgrid(dmu_N, dmu_H, target_temperatures)).T.reshape(-1, 3)
+sim_temperatures = [573, 673, 773, 873]
+reaction_conditions = np.array(np.meshgrid(dmu_N, dmu_H, temperatures)).T.reshape(-1, 3)
 with open(f'/mnt/mfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 ana.get_structural_expectations(
@@ -38,5 +38,4 @@ ana.get_structural_expectations(
         starting_step=500, 
         ending_step=2000, 
         sample_stride=50,
-        keep_dims=[0,1], 
         vacancy_indices=None)
