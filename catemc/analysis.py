@@ -543,8 +543,7 @@ class GCEMCAnalysis(object):
     def get_structural_expectations(self, z_surf, reaction_conditions, temperature_dmu_map, 
                                     element_column_map, element_eref_map, element_y2x_map,
                                     starting_step=None, ending_step=None, sample_stride=1, 
-                                    keep_dims=None, target_temperatures=None, 
-                                    vacancy_indices=None, tol=1e-3):
+                                    keep_dims=None, vacancy_indices=None, tol=1e-3):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (> z_surf) and reaction conditions. 
@@ -552,11 +551,7 @@ class GCEMCAnalysis(object):
 
         from pymbar import MBAR
         sim_temperatures = sorted(list(self.data.keys()))
-        if target_temperatures is None:
-            target_temperatures = sim_temperatures
-        else:
-            target_temperatures += sim_temperatures
-            target_temperatures = sorted(set(target_temperatures))        
+        target_temperatures = sorted(np.unique(reaction_conditions[:,-1]))
         all_species = self.target_metal_species + list(element_column_map.keys())
         metal_pairs = list(combinations(self.target_metal_species, 2))
         all_atom_pairs = list(combinations(all_species, 2)) + [(m,m) for m in all_species]
