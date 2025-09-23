@@ -690,7 +690,6 @@ plt.rcParams['text.usetex'] = False
 plt.rcParams['svg.fonttype'] = 'none'
 
 system_name = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5OH_311'
-target_temperatures = [1023]
 T = 1023
 dmu_O = np.arange(-5., -2.999, 0.02)
 dmu_H = np.arange(-1., 0.001, 0.01)
