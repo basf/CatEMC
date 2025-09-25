@@ -35,6 +35,8 @@ def calculate_bulk_fitness(
         pressure=None,
         md_taup=1000*units.fs,
         fix_indices=None,
+        update_md_positions=True,
+        update_relaxed_positions=False,
         neighbor_cutoff=2.5,
         raw_score_cutoff=-10000.,
         temperature_key='temperature',
@@ -74,6 +76,14 @@ def calculate_bulk_fitness(
     pressure: pressure, default None
         Target pressure for running NPT and cell relaxation. Running
         NVT MD and fixed-cell relaxation if this is not set.
+
+    update_md_positions: bool
+        Whether to update the atom positions of the trajectory after
+        molecular dynamics. Recommended to set to True.
+
+    update_relaxed_positions: bool
+        Wheter to update the atom position of the trajectory after
+        geometry relaxation. Recommended to set to False.
 
     neighbor_cutoff: float, default 2.5
         Cutoff (Å) for identify neighboring metal atoms to track
@@ -133,6 +143,9 @@ def calculate_bulk_fitness(
                 traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
                 dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
+                if update_md_positions:
+                    md_atoms = tmp_atoms.copy()
+
             penalize = False
             if fmax is not None:
                 if pressure is None:
@@ -149,14 +162,20 @@ def calculate_bulk_fitness(
         pseudo_atoms = atoms.copy()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     else:
-        pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        if update_md_positions and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
+        elif update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        else:
+            pseudo_atoms = atoms.copy()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
 
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
             parprint(f'Something wrong with replica {rep}, where metal indices are mutated into nonmetals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
-    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
 
+    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
+    
     write(f"{dir_name}/relaxed_{traj_path.split('/')[-1]}", [atoms, pseudo_atoms])
 
 
@@ -180,6 +199,8 @@ def calculate_surface_fitness(
         adsorption_sites, 
         slab_indices, 
         fix_indices=None,
+        update_md_positions=True,
+        update_relaxed_positions=True,
         adsorbate_surface_dmax=2.5,
         neighbor_cutoff=2.5,
         raw_score_cutoff=-10000.,
@@ -226,6 +247,14 @@ def calculate_surface_fitness(
     pressure: float, default None
         Target pressure for running NPT and cell relaxation. Running
         NVT MD and fixed-cell relaxation if this is not set.
+
+    update_md_positions: bool
+        Whether to update the atom positions of the trajectory after
+        molecular dynamics. Recommended to set to True.
+
+    update_relaxed_positions: bool
+        Wheter to update the atom position of the trajectory after
+        geometry relaxation. Recommended to set to True.
 
     neighbor_cutoff: float, default 2.5
         Cutoff (Å) for identify neighboring metal atoms to track
@@ -283,6 +312,9 @@ def calculate_surface_fitness(
                 traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
                 dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
+                if update_md_positions:
+                    md_atoms = tmp_atoms.copy()
+
             penalize = False
             if fmax is not None:
                 opt = LBFGS(tmp_atoms, logfile=None)
@@ -348,7 +380,12 @@ def calculate_surface_fitness(
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
         fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()] 
     else:
-        pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        if update_md_positions and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
+        elif update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        else:
+            pseudo_atoms = atoms.copy()
         num_dict = dict((m, len([a for a in tmp_atoms if a.symbol==m])) 
                         for m in target_metal_species + list(element_column_map.keys()))
         num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
