@@ -95,6 +95,7 @@ def calculate_bulk_fitness(
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
     atoms = rattle_close_atoms(atoms, min_distance=0.1)
+    md_atoms = None
     if fix_indices is None:
         fix_indices = []
     else:
@@ -162,7 +163,7 @@ def calculate_bulk_fitness(
         pseudo_atoms = atoms.copy()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     else:
-        if update_md_positions and not update_relaxed_positions:
+        if (md_atoms is not None) and update_md_positions and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
@@ -268,6 +269,7 @@ def calculate_surface_fitness(
     sas = adsorption_sites
     mu = atoms.info['data']['mu']
     atoms = rattle_close_atoms(atoms, min_distance=0.1)
+    md_atoms = None
     if fix_indices is None:
         fix_indices = []
     else:
@@ -380,7 +382,7 @@ def calculate_surface_fitness(
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
         fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()] 
     else:
-        if update_md_positions and not update_relaxed_positions:
+        if (md_atoms is not None) and update_md_positions and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
