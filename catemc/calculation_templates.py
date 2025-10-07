@@ -77,11 +77,11 @@ def calculate_bulk_fitness(
         Target pressure for running NPT and cell relaxation. Running
         NVT MD and fixed-cell relaxation if this is not set.
 
-    update_md_positions: bool
+    update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
         molecular dynamics. Recommended to set to True.
 
-    update_relaxed_positions: bool
+    update_relaxed_positions: bool, default False
         Wheter to update the atom position of the trajectory after
         geometry relaxation. Recommended to set to False.
 
@@ -201,7 +201,7 @@ def calculate_surface_fitness(
         slab_indices, 
         fix_indices=None,
         update_md_positions=True,
-        update_relaxed_positions=True,
+        update_relaxed_positions=False,
         adsorbate_surface_dmax=2.5,
         neighbor_cutoff=2.5,
         raw_score_cutoff=-10000.,
@@ -249,13 +249,13 @@ def calculate_surface_fitness(
         Target pressure for running NPT and cell relaxation. Running
         NVT MD and fixed-cell relaxation if this is not set.
 
-    update_md_positions: bool
+    update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
         molecular dynamics. Recommended to set to True.
 
-    update_relaxed_positions: bool
+    update_relaxed_positions: bool, default False
         Wheter to update the atom position of the trajectory after
-        geometry relaxation. Recommended to set to True.
+        geometry relaxation. Recommended to set to False.
 
     neighbor_cutoff: float, default 2.5
         Cutoff (Å) for identify neighboring metal atoms to track
