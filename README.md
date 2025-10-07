@@ -1,6 +1,8 @@
 # CatEMC
 
-**CatEMC** is a Python package for running evolutionary Monte Carlo (EMC) simulations for complex bulk/surface hetergeneous catalyst materials. The pacakge provides tools to (1) generate populations of structures and μ-windows, (2) run Gibbs ensemble evolutionary Monte Carlo (GE-EMC) bulk simulation at different temperatures, (3) run grand canonical evolutionary Monte Carlo (GC-EMC) simultions under different temperatures and reaction conditions, (4) analyze GE-EMC simulation data to estimate metal chemical potential differences, (5) analyze GC-EMC simulation data to estimate expectations of structural properties and free-energy surfaces.
+**CatEMC** is a Python package for running evolutionary Monte Carlo (EMC) simulations for complex bulk/surface hetergeneous catalyst materials. The pacakge provides tools to (1) generate populations of structures and μ-windows, (2) run Gibbs ensemble evolutionary Monte Carlo (GE-EMC) bulk simulation at different temperatures, or run grand canonical evolutionary Monte Carlo (GC-EMC) simultions at different temperatures and reaction conditions, (3) analyze GE-EMC simulation data to estimate metal chemical potential differences, or analyze GC-EMC simulation data to estimate expectations of structural properties and free-energy surfaces.
+
+![png](images/catemc_workflow.png)
 
 ---
 
