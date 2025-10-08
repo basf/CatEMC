@@ -308,13 +308,14 @@ def compute_phi(
         element_y2x_map = {e: 0. for e in element_column_map.keys()}
     T = grid[:,-1]
     metal_mu_sum = 0
-    for m, n in combinations(target_metal_species, 2):
-        dc_surf = (num_dict[n] - num_dict[m]) / num_metal
-        dc_bulk = target_metal_composition[n] - target_metal_composition[m]
-        dmu_T = np.empty(T.size, dtype=float)
-        for key, d in temperature_dmu_map.items():
-            dmu_T[T==key] = d[f'{m}2{n}']
-        metal_mu_sum += (dc_surf - dc_bulk) * dmu_T
+    if temperature_dmu_map is not None:
+        for m, n in combinations(target_metal_species, 2):
+            dc_surf = (num_dict[n] - num_dict[m]) / num_metal
+            dc_bulk = target_metal_composition[n] - target_metal_composition[m]
+            dmu_T = np.empty(T.size, dtype=float)
+            for key, d in temperature_dmu_map.items():
+                dmu_T[T==key] = d[f'{m}2{n}']
+            metal_mu_sum += (dc_surf - dc_bulk) * dmu_T
     phi = epot - num_metal / len(target_metal_species) * metal_mu_sum                             
     for k, col in element_column_map.items():
         phi -= (num_dict[k] - element_y2x_map[k] * num_metal) * (grid[:,col] + element_eref_map[k])

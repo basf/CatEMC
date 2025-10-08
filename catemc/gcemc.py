@@ -192,7 +192,8 @@ class GCEMC(EMC):
         simulations). Note that the keys must be in the form of 'A2B' which represents
         \mu_B - \mu_A, must consider all possible metal pairs, and the metal element 
         order must follow the order in the metal_element_pool. Only needed if the free 
-        energy bias weight is applied.
+        energy bias weight is applied. Default is None, which is only suitable for 
+        surface EMC simulations with fixed surface metal composition.
 
     temperature_species_internal_map: dict of (float, dict) pairs, default None
        A dictionary that maps the temperature to the dictionary of adsorbate fragments'
