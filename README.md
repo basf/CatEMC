@@ -60,7 +60,6 @@ Generates a set of `pop_size` initial on-lattice bulk replicas (`ase.Atoms`) tha
 To generate an initial set of randomized surface structures (with adsorbates), you can use `catemc.generate.generate_population()` function:
 ```python
 from catemc.generate import generate_population
-from acat.build.ordering import RandomOrderingGenerator as ROG
 from ase.io import read, write
 from ase.visualize import view
 import numpy as np
@@ -72,16 +71,13 @@ target_metal_species = ['Co','Ni','Mg','Zn','Mn','Al']
 target_metal_composition = {'Co': 0.2, 'Ni': 0.2, 'Mg': 0.2, 'Zn': 0.2, 'Mn': 0.2, 'Al': 2}
 target_nonmetal_species = ['O', 'X']
 target_nonmetal_composition = {'O': 3.5, 'X': 0.5}
-
 template = read('Al2CoO4.cif')
-# Prepare supercell / ordering
 cell = template.cell.copy()
 for i in range(3):
     cell[i][i] = 8.06
 template.set_cell(cell, scale_atoms=True)
 template *= (2,2,2)
-
-# Separate metal and oxygen atoms so we can reorder metals while keeping oxygens fixed
+# Distinguish metal and oxygen atoms
 metal_ids, oxygen_ids = [], []
 for i, atom in enumerate(template):
     if atom.symbol == 'O':
@@ -89,20 +85,15 @@ for i, atom in enumerate(template):
     else:
         metal_ids.append(i)
 metal_atoms, oxygen_atoms = template[metal_ids], template[oxygen_ids]
+# Prepare sorted_ids for sorting atomic indices back to original order
 sorted_ids = [0] * len(template)
 for k, v in enumerate(metal_ids + oxygen_ids):
     sorted_ids[v] = k
-
-rog = ROG(metal_atoms, elements=target_metal_species,
-          composition=target_metal_composition,
-          trajectory='template_orderings.traj')
-rog.run(num_gen=1)
-metal_bulk = read('template_orderings.traj')
-bulk = (metal_bulk + oxygen_atoms)[sorted_ids]
+bulk = (metal_atoms + oxygen_atoms)[sorted_ids] 
 
 input_pop = generate_population(
     template=bulk,
-    pop_size=36,
+    pop_size=24,
     target_metal_species=target_metal_species,
     target_metal_composition=target_metal_composition,
     target_nonmetal_species=target_nonmetal_species,
@@ -228,7 +219,7 @@ calculate_bulk_fitness(
         md_taut=0.5*1000**units.fs,
         md_steps=50,
         md_write_interval=10,
-        pressure=1.,
+        pressure=0.,
         md_taup=1000*units.fs,
         fix_indices=fix_indices,
         neighbor_cutoff=3.5,
