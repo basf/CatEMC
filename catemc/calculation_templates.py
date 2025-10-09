@@ -3,22 +3,18 @@
 from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.adsorbate_coverage import SlabAdsorbateCoverage
-from ase.io import read, write
-from ase.db import connect
+from ase.io import write
 from ase import units
 from ase.neighborlist import NeighborList
 from ase.constraints import FixAtoms
-from ase.optimize import BFGS, LBFGS
+from ase.optimize import LBFGS
 from ase.filters import FrechetCellFilter
 from ase.io.trajectory import Trajectory
 from ase.md.nvtberendsen import NVTBerendsen
 from ase.md.nptberendsen import NPTBerendsen
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.parallel import parprint
-from collections import defaultdict
-from itertools import combinations
 import numpy as np
-import os
 
 
 def calculate_bulk_fitness(
@@ -154,8 +150,8 @@ def calculate_bulk_fitness(
                 else:
                     ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
                     opt = LBFGS(ucf, logfile=None)
-                opt.run(fmax=fmax, steps=250)
-                if not opt.converged():
+                converged = opt.run(fmax=fmax, steps=250)
+                if not converged:
                     penalize = True
 
     epot = tmp_atoms.get_potential_energy()
@@ -320,8 +316,8 @@ def calculate_surface_fitness(
             penalize = False
             if fmax is not None:
                 opt = LBFGS(tmp_atoms, logfile=None)
-                opt.run(fmax=fmax, steps=250)
-                if not opt.converged():
+                converged = opt.run(fmax=fmax, steps=250)
+                if not converged:
                     penalize = True
     if not penalize:
         if any(a for a in tmp_atoms if a.position[2] < atoms.positions[:,2].min()):
@@ -362,8 +358,8 @@ def calculate_surface_fitness(
             tmp_atoms.calc = calc
             if fmax is not None:
                 opt = LBFGS(tmp_atoms, logfile=None)
-                opt.run(fmax=fmax, steps=250)
-                if not opt.converged():
+                converged = opt.run(fmax=fmax, steps=250)
+                if not converged:
                     penalize = True
             sas.update(tmp_atoms)
             sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas, dmax=adsorbate_surface_dmax, 
