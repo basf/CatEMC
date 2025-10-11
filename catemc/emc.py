@@ -11,10 +11,12 @@ from ase.db import connect
 from ase.ga.data import DataConnection, PrepareDB
 from ase.parallel import parprint
 import numpy as np
+import subprocess
 import warnings
 import random
 import shutil
 import time
+import sys
 import os
 
 
@@ -85,6 +87,9 @@ class EMC(object):
         The number of processes to run in parallel on each GPU/CPU device. Defaul is to
         run in serial.
 
+    batching: bool, default False
+        Whether to run batch relaxation and MD using torch-sim. Default is False.
+
     """
 
     def __init__(self, name,
@@ -105,6 +110,7 @@ class EMC(object):
             acceptance_key='accepted',
             gpu_devices=1,
             procs_per_device=10,
+            batching=False,
             verbose=True):
 
         self.name = name
@@ -125,6 +131,7 @@ class EMC(object):
         self.acceptance_key = acceptance_key
         self.gpu_devices = gpu_devices
         self.procs_per_device = procs_per_device
+        self.batching = batching
         self.verbose = verbose
 
     def get_pop(self):
@@ -189,35 +196,63 @@ class EMC(object):
         self.dc = DataConnection(asedb_path)
         self.dc.add_more_relaxed_candidates(relaxed_images)
 
-    def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None):
+    def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None, batching=False):
 
         replicas = [c.info['key_value_pairs'][self.replica_key] for c in unrelaxed_candidates]
+        if self.fix_indices is None:
+            fix_indices_str = 'None'
+        else:
+            fix_indices_str = ','.join(map(str, self.fix_indices))
+        if self.gpu_devices is None:
+            gpu_devices = [0]
+        else:
+            gpu_devices = self.gpu_devices
+        batch_images = []
+        gpu_device = gpu_devices[0]
         for i, atoms in enumerate(unrelaxed_candidates):
             rep = atoms.info['key_value_pairs'][self.replica_key]
             if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
                 continue
-            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', atoms)
-            if self.fix_indices is None:
-                fix_indices_str = 'None'
+            if batching:
+                print('BATCHING')
+                # Append current atoms and decide whether to flush the batch.
+                device_for_current = gpu_devices[(i // self.procs_per_device) % len(gpu_devices)]
+                batch_images.append(atoms)
+                is_last = (i == len(unrelaxed_candidates) - 1)
+                device_for_next = None
+                if not is_last:
+                    device_for_next = gpu_devices[((i + 1) // self.procs_per_device) % len(gpu_devices)]
+                if (len(batch_images) >= self.procs_per_device) or (device_for_next is not None and device_for_next != device_for_current) or is_last:
+                    reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
+                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
+                    script_path = os.path.join(self.calculation_dir, self.calculation_script)
+                    cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj',
+                           str(int(run_md)), str(device_for_current), fix_indices_str]
+                    if add_args is not None:
+                        for arg in add_args:
+                            cmd.append(str(arg))
+                    # spawn detached process, no shell, stdout/stderr to DEVNULL
+                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                    # reset batch_images for next batch
+                    batch_images = []
             else:
-                fix_indices_str = ','.join(map(str, self.fix_indices))
-            if self.gpu_devices is None:
-                gpu_devices = [0]
-            else:
-                gpu_devices = self.gpu_devices
-            gpu_device = gpu_devices[(i//self.procs_per_device)%len(self.gpu_devices)]
-            arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj {int(run_md)} {gpu_device} {fix_indices_str}'
-            if add_args is not None:
-                for arg in add_args:
-                    arg_str += f' {arg}'
-            os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
+                print('NOT BATCHING')
+                gpu_device = gpu_devices[(i//self.procs_per_device)%len(self.gpu_devices)]
+                write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', atoms)
+                script_path = os.path.join(self.calculation_dir, self.calculation_script)
+                cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj',
+                       str(int(run_md)), str(gpu_device), fix_indices_str] 
+                if add_args is not None:
+                    for arg in add_args:
+                        cmd.append(str(arg)) 
+                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+ 
             if (i % (len(gpu_devices)*self.procs_per_device) == (len(gpu_devices)*self.procs_per_device-1)
             ) or (i == len(unrelaxed_candidates) - 1):
                 while not all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{replicas[j]}.traj') for j in range(i+1)):
                     time.sleep(5)
         relaxed_candidates = [read(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj', index=-1) for rep in replicas]
         for rep in replicas:
-            os.remove(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj')
             os.remove(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj')
 
         return relaxed_candidates
@@ -266,7 +301,7 @@ class EMC(object):
             os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
+            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
             for atoms in relaxed_candidates:                  
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
         else:
@@ -312,7 +347,7 @@ class EMC(object):
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
-                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
+                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
                 for atoms in relaxed_candidates:
                     atoms.info['key_value_pairs'][self.acceptance_key] = 1
                 # Update the population to allow new candidates to enter
@@ -357,7 +392,7 @@ class EMC(object):
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
             unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
-            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False)
+            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:

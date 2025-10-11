@@ -14,6 +14,10 @@ from ase.md.nvtberendsen import NVTBerendsen
 from ase.md.nptberendsen import NPTBerendsen
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.parallel import parprint
+import importlib
+import importlib.util
+from multiprocessing import get_context
+import multiprocessing
 import numpy as np
 
 
@@ -87,6 +91,7 @@ def calculate_bulk_fitness(
 
     """
 
+    assert len(calculator_list) == len(fmax_list), 'calculator_list and fmax_list must match length'
     dir_name = '/'.join(traj_path.split('/')[:-1])
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
@@ -259,6 +264,7 @@ def calculate_surface_fitness(
 
     """
 
+    assert len(calculator_list) == len(fmax_list), 'calculator_list and fmax_list must match length'
     dir_name = '/'.join(traj_path.split('/')[:-1])
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
@@ -560,3 +566,450 @@ def rattle_close_atoms(atoms, min_distance=0.1):
     atoms.set_positions(pos)
 
     return atoms
+
+
+def detect_and_get_ts_model(calc):
+    """
+    Return (True, ts_model_obj) if calc is supported by torch-sim, else (False, None).
+    Checks exactly the module names you provided (and MACE). Uses only find_spec before import.
+    """
+    SUPPORTED_MODULES = [
+        "mace.calculators.mace",
+        "fairchem.core.calculate.ase_calculator",
+        "sevenn.calculator",
+        "orb_models.forcefield.calculator",
+        "mattersim.forcefield.potential",
+        "graph_pes.utils.calculator",
+        "metatomic_torch.metatomic.torch.ase_calculator",
+    ]
+    PREF_ATTRS = ("mace_model", "ts_model", "model", "mace")
+
+    def _preferred(o):
+        for a in PREF_ATTRS:
+            v = getattr(o, a, None)
+            if v is not None:
+                return v
+        return None
+
+    def _looks_like_supported(obj):
+        if obj is None:
+            return False
+        mod = getattr(obj.__class__, "__module__", "").lower()
+        name = getattr(obj.__class__, "__name__", "").lower()
+        for m in SUPPORTED_MODULES:
+            if m in mod or m in name:
+                return True
+        return False
+
+    # 1) direct check: calc instance matching supported module classes (import modules only if present)
+    for modname in SUPPORTED_MODULES:
+        if importlib.util.find_spec(modname) is None:
+            continue
+        module = importlib.import_module(modname)
+        # iterate classes in module; if calc is instance of any class -> supported
+        for attr in dir(module):
+            cls = getattr(module, attr)
+            if isinstance(cls, type):
+                # isinstance may raise for some extension types; use getattr checks conservatively
+                try:
+                    if isinstance(calc, cls):
+                        # prefer exposed model attribute if present
+                        model_obj = _preferred(calc) or calc
+                        return True, model_obj
+                except Exception:
+                    # fall back to name-based check below (no broad try/except elsewhere)
+                    pass
+
+    # 2) check calc attributes that may expose underlying supported model
+    for a in PREF_ATTRS:
+        if hasattr(calc, a):
+            cand = getattr(calc, a)
+            if _looks_like_supported(cand):
+                return True, cand
+            # one deeper: cand may itself wrap the real model
+            for b in PREF_ATTRS:
+                if hasattr(cand, b):
+                    cand2 = getattr(cand, b)
+                    if _looks_like_supported(cand2):
+                        return True, cand2
+
+    # 3) conservative fallback: class/module name of calc itself
+    if _looks_like_supported(calc):
+        return True, (_preferred(calc) or calc)
+
+    return False, None
+
+
+def _relax_worker(args):
+    (tmp_atoms, calc, fmax, is_last_calc, run_md_flag, md_timestep, md_taut, md_steps, 
+     md_write_interval, pressure, md_taup, temperature) = args
+    tmp_atoms.calc = calc
+    if is_last_calc and run_md_flag:
+        # run MD as in serial function
+        tag = 'md_worker'
+        MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=temperature, force_temp=True)
+        Stationary(tmp_atoms)
+        if pressure is None:
+            dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=temperature,
+                               taut=md_taut, logfile=None, trajectory=None, append_trajectory=False)
+        else:
+            dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=temperature,
+                               taut=md_taut, pressure_au=pressure,
+                               taup=md_taup, compressibility_au=4.57e-5/units.bar,
+                               logfile=None, trajectory=None, append_trajectory=False)
+        dyn.run(md_steps)
+    if fmax is not None:
+        # perform LBFGS relaxation like serial code
+        opt = LBFGS(tmp_atoms, logfile=None)
+        opt.run(fmax=fmax, steps=250)
+
+    return tmp_atoms
+
+
+def _postprocess_bulk_worker(args):
+    (dir_name, orig_atoms, tmp_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md, 
+     update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot) = args
+
+    penalize = False
+    if epot is None or np.isinf(epot):
+        penalize = True
+
+    if penalize:
+        pseudo_atoms = orig_atoms.copy()
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+    else:
+        if (run_md and update_md_positions) and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(orig_atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        elif update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(orig_atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        else:
+            pseudo_atoms = orig_atoms.copy()
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
+
+        mut_metal_indices = [a.index for a in pseudo_atoms if (a.index not in (fix_indices or [])) and (a.symbol in target_metal_species)]
+        if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
+            parprint(f"Something wrong with replica {orig_atoms.info['key_value_pairs'][replica_key]}")
+            pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+
+    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
+    write(f"{dir_name}/relaxed_{orig_atoms.info['key_value_pairs'][replica_key]}.traj", [orig_atoms, pseudo_atoms])
+
+    return None
+
+
+def _postprocess_surface_worker(args):
+    (dir_name, orig_atoms, tmp_atoms, sas, target_metal_species, target_metal_composition,
+     allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map,
+     slab_indices, neighbor_cutoff, run_md, update_md_positions, update_relaxed_positions,
+     adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot) = args
+
+    penalize = False
+    if epot is None or np.isinf(epot):
+        penalize = True
+
+    if not penalize:
+        if any(a for a in tmp_atoms if a.position[2] < orig_atoms.positions[:, 2].min()):
+            penalize = True
+        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and
+               (a.position[2] > orig_atoms.positions[:, 2].max() + adsorbate_surface_dmax)):
+            penalize = True
+
+    fragments = []
+    if not penalize:
+        nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate', composition_effect=False, ignore_sites='bridge')
+        sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=nsas,
+                                    dmax=adsorbate_surface_dmax,
+                                    adsorbate_indices=[a.index for a in tmp_atoms if a.index not in slab_indices])
+        adsorbate_tuples = sac.get_adsorbates(allowed_adsorbate_species)
+        adsorbates = [t[0] for t in adsorbate_tuples]
+        adsorbate_ids = set(); rm_adsorbate_ids = set()
+        for t in adsorbate_tuples:
+            adsorbate_ids.update(t[1])
+            if t[0] not in allowed_adsorbate_species:
+                rm_adsorbate_ids.update(list(t[1]))
+        adsorbate_indices = [i for i in sorted(adsorbate_ids - rm_adsorbate_ids)]
+
+        # possibly reduce to slab+adsorbates and run a quick relaxation with final calc is handled by caller
+        new_atoms = tmp_atoms[[a.index for a in tmp_atoms if a.index in (slab_indices + adsorbate_indices)]]
+        if len(new_atoms) < len(tmp_atoms):
+            tmp_atoms = new_atoms.copy()
+
+    if penalize:
+        pseudo_atoms = orig_atoms.copy()
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+        fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()]
+    else:
+        num_dict = dict((m, len([a for a in tmp_atoms if a.symbol == m]))
+                        for m in target_metal_species + list(element_column_map.keys()))
+        num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
+        mu = orig_atoms.info['data']['mu']
+        phi = compute_phi(num_dict, target_metal_species, target_metal_composition,
+                          temperature_dmu_map, np.array([np.append(mu, orig_atoms.info['key_value_pairs'].get(temperature_key, None))]),
+                          element_column_map, element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
+
+        if (run_md and update_md_positions) and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(orig_atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        elif update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(orig_atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        else:
+            pseudo_atoms = orig_atoms.copy()
+
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
+        fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())]
+
+        if any(a for a in pseudo_atoms if (a.symbol in target_metal_species) and
+               (a.position[2] > orig_atoms.positions[:, 2].max() + adsorbate_surface_dmax)):
+            parprint(f"Something wrong with replica {orig_atoms.info['key_value_pairs'][replica_key]}")
+            pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+
+    pseudo_atoms.info['data']['fragments'] = fragments
+    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
+    write(f"{dir_name}/relaxed_{orig_atoms.info['key_value_pairs'][replica_key]}.traj", [orig_atoms, pseudo_atoms])
+
+    return None
+
+
+def calculate_batch_bulk_fitness(
+        orig_atoms_list,
+        traj_path,
+        calculator_list,
+        fmax_list,
+        target_metal_species,
+        run_md,
+        md_timestep,
+        md_taut,
+        md_steps,
+        md_write_interval,
+        pressure=None,
+        md_taup=1000 * units.fs,
+        fix_indices=None,
+        update_md_positions=True,
+        update_relaxed_positions=False,
+        neighbor_cutoff=2.5,
+        raw_score_cutoff=-10000.,
+        temperature_key='temperature',
+        replica_key='replica',
+        temperature_dmu_map=None):
+    dir_name = '/'.join(traj_path.split('/')[:-1])
+
+    # prepare tmp_atoms_list and bookkeeping
+    tmp_atoms_list = []
+    temps = []
+    for orig_atoms in orig_atoms_list:
+        atoms = rattle_close_atoms(orig_atoms.copy(), min_distance=0.1)
+        if fix_indices:
+            atoms.set_constraint(FixAtoms(indices=fix_indices))
+        real_indices = [a.index for a in atoms if a.symbol != 'X']
+        tmp_atoms = atoms[real_indices].copy()
+        tmp_atoms_list.append(tmp_atoms)
+        temps.append(atoms.info['key_value_pairs'][temperature_key])
+
+    last_relaxed_state = None
+
+    # iterate calculators in sequence
+    for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
+        supported, ts_model = detect_and_get_ts_model(calc)
+        is_last = (idx == len(calculator_list) - 1)
+
+        if supported and (fmax is not None) and (ts_model is not None):
+            import torch_sim as ts
+            # optional batch MD with TS
+            if run_md:
+                timestep_ps = float(md_timestep / units.fs) * 1e-3
+                tag = f'{dir_name}/md'
+                integ_kwargs = dict(system=tmp_atoms_list,
+                                    model=ts_model,
+                                    n_steps=int(md_steps),
+                                    temperature = temps,
+                                    timestep=timestep_ps,
+                                    autobatcher=True,
+                                    trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
+                                                             state_frequency=int(md_write_interval)))
+                ts.integrate(**integ_kwargs)
+            # batched optimize with TS (fmax -> force_tol)
+            conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
+            last_relaxed_state = ts.optimize(system=tmp_atoms_list,
+                                             model=ts_model,
+                                             optimizer=ts.frechet_cell_fire,
+                                             convergence_fn=conv,
+                                             autobatcher=True)
+            if hasattr(last_relaxed_state, 'to_atoms'):
+                tmp_atoms_list = last_relaxed_state.to_atoms()
+            elif isinstance(last_relaxed_state, (list, tuple)):
+                tmp_atoms_list = list(last_relaxed_state)
+
+        else:
+            # fallback: perform per-replica operations in parallel (LBFGS + MD if is_last)
+            if fmax is None and not is_last:
+                continue
+            ctx = get_context('fork')
+            pool = ctx.Pool(min(len(tmp_atoms_list), multiprocessing.cpu_count()))
+            work_args = []
+            for tmp, temp in zip(tmp_atoms_list, temps):
+                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, md_taut, 
+                                 md_steps, md_write_interval, pressure, md_taup, temp))
+            results = pool.map(_relax_worker, work_args)
+            pool.close()
+            pool.join()
+            tmp_atoms_list = results
+
+    # try to extract energies from last_relaxed_state
+    energies = None
+    if last_relaxed_state is not None:
+        energies = getattr(last_relaxed_state, 'energies', None) or getattr(last_relaxed_state, 'energy', None)
+
+    # final_calc for ASE energy evaluation preference
+    final_calc = calculator_list[-1]
+
+    # assemble postprocessing args and run postprocessing in parallel
+    ctx = get_context('fork')
+    pool = ctx.Pool(min(len(orig_atoms_list), multiprocessing.cpu_count()))
+    post_args = []
+    for orig_atoms, tmp_atoms in zip(orig_atoms_list, tmp_atoms_list):
+        # determine epot: ASE final_calc preferred
+        epot = None
+        if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
+            tmp_atoms.calc = final_calc
+            epot = tmp_atoms.get_potential_energy()
+        # fallback to energies from TS state if present
+        if epot is None and energies is not None:
+            if hasattr(energies, '__len__'):
+                if len(energies) > 0:
+                    epot = float(energies[0])
+                    try:
+                        energies = energies[1:]
+                    except Exception:
+                        pass
+            else:
+                epot = float(energies)
+        post_args.append((dir_name, orig_atoms, tmp_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md, 
+                          update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot))
+    pool.map(_postprocess_bulk_worker, post_args)
+    pool.close()
+    pool.join()
+
+
+def calculate_batch_surface_fitness(
+        orig_atoms_list,
+        traj_path,
+        calculator_list,
+        fmax_list,
+        target_metal_species,
+        target_metal_composition,
+        allowed_adsorbate_species,
+        run_md,
+        md_timestep,
+        md_taut,
+        md_steps,
+        md_write_interval,
+        element_column_map,
+        element_eref_map,
+        element_y2x_map,
+        adsorption_sites_list,
+        slab_indices,
+        fix_indices=None,
+        temperature_dmu_map=None,
+        update_md_positions=True,
+        update_relaxed_positions=False,
+        adsorbate_surface_dmax=2.5,
+        neighbor_cutoff=2.5,
+        raw_score_cutoff=-10000.,
+        temperature_key='temperature',
+        replica_key='replica'):
+    dir_name = '/'.join(traj_path.split('/')[:-1])
+
+    # prepare tmp_atoms_list and bookkeeping
+    tmp_atoms_list = []
+    temps = []
+    for orig_atoms in orig_atoms_list:
+        atoms = rattle_close_atoms(orig_atoms.copy(), min_distance=0.1)
+        if fix_indices:
+            atoms.set_constraint(FixAtoms(indices=fix_indices))
+        real_indices = [a.index for a in atoms if a.symbol != 'X']
+        tmp_atoms = atoms[real_indices].copy()
+        tmp_atoms_list.append(tmp_atoms)
+        temps.append(atoms.info['key_value_pairs'][temperature_key])
+
+    last_relaxed_state = None
+
+    # iterate calculators in sequence
+    for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
+        supported, ts_model = detect_and_get_ts_model(calc)
+        is_last = (idx == len(calculator_list) - 1)
+
+        if supported and (fmax is not None) and (ts_model is not None):
+            import torch_sim as ts
+            # optional batch MD
+            if run_md:
+                timestep_ps = float(md_timestep / units.fs) * 1e-3
+                tag = f'{dir_name}/md'
+                integ_kwargs = dict(system=tmp_atoms_list,
+                                    model=ts_model,
+                                    temperature=temps,
+                                    n_steps=int(md_steps),
+                                    timestep=timestep_ps,
+                                    autobatcher=True,
+                                    trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
+                                                             state_frequency=int(md_write_interval)))
+                ts.integrate(**integ_kwargs)
+            # batched optimization
+            conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
+            last_relaxed_state = ts.optimize(system=tmp_atoms_list,
+                                             model=ts_model,
+                                             optimizer=ts.frechet_cell_fire,
+                                             convergence_fn=conv,
+                                             autobatcher=True)
+            if hasattr(last_relaxed_state, 'to_atoms'):
+                tmp_atoms_list = last_relaxed_state.to_atoms()
+            elif isinstance(last_relaxed_state, (list, tuple)):
+                tmp_atoms_list = list(last_relaxed_state)
+
+        else:
+            # fallback: parallel LBFGS per-system (with MD for last)
+            if fmax is None and not is_last:
+                continue
+            ctx = get_context('fork')
+            pool = ctx.Pool(min(len(tmp_atoms_list), multiprocessing.cpu_count()))
+            work_args = []
+            for tmp, temp in zip(tmp_atoms_list, temps):
+                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, 
+                                  md_taut, md_steps, md_write_interval, None, None, temp))
+            results = pool.map(_relax_worker, work_args)
+            pool.close()
+            pool.join()
+            tmp_atoms_list = results
+
+    # try to read energies from last_relaxed_state
+    energies = None
+    if last_relaxed_state is not None:
+        energies = getattr(last_relaxed_state, 'energies', None) or getattr(last_relaxed_state, 'energy', None)
+
+    final_calc = calculator_list[-1]
+
+    # postprocess per-replica in parallel (adsorbate detection, phi, vacancy insertion, write)
+    ctx = get_context('fork')
+    pool = ctx.Pool(min(len(orig_atoms_list), multiprocessing.cpu_count()))
+    post_args = []
+    for orig_atoms, tmp_atoms, sas in zip(orig_atoms_list, tmp_atoms_list, adsorption_sites_list):
+        epot = None
+        if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
+            tmp_atoms.calc = final_calc
+            epot = tmp_atoms.get_potential_energy()
+        if epot is None and energies is not None:
+            if hasattr(energies, '__len__'):
+                if len(energies) > 0:
+                    epot = float(energies[0])
+                    try:
+                        energies = energies[1:]
+                    except Exception:
+                        pass
+            else:
+                epot = float(energies)
+        post_args.append((dir_name, orig_atoms, tmp_atoms, sas, target_metal_species, target_metal_composition,
+                          allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map,
+                          slab_indices, neighbor_cutoff, run_md, update_md_positions, update_relaxed_positions,
+                          adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot))
+    pool.map(_postprocess_surface_worker, post_args)
+    pool.close()
+    pool.join()
+

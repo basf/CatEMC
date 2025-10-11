@@ -227,6 +227,9 @@ class GCEMC(EMC):
         The number of processes to run in parallel on each GPU/CPU device. Defaul is to
         run in serial.
 
+    batching: bool, default False
+        Whether to run batch relaxation and MD using torch-sim. Default is False.
+
     """
 
     def __init__(self, name,
@@ -276,6 +279,7 @@ class GCEMC(EMC):
             acceptance_key='accepted',
             gpu_devices=None,
             procs_per_device=1,
+            batching=False,
             verbose=True):
 
         super().__init__(
@@ -295,6 +299,7 @@ class GCEMC(EMC):
                 acceptance_key=acceptance_key,
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
+                batching=batching,
                 verbose=verbose)
 
         self.mu_walk_generation = mu_walk_generation
@@ -488,7 +493,7 @@ class GCEMC(EMC):
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(
-                    unrelaxed_candidates, run_md=True, add_args=[slab_indices_str])
+                    unrelaxed_candidates, run_md=True, add_args=[slab_indices_str], batching=self.batching)
             for atoms in relaxed_candidates:
                 rep = atoms.info['key_value_pairs'][self.replica_key]
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
@@ -562,7 +567,7 @@ class GCEMC(EMC):
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
                 relaxed_candidates = self.get_relaxed_candidates(
-                        unrelaxed_candidates, run_md=True, add_args=[slab_indices_str])
+                        unrelaxed_candidates, run_md=True, add_args=[slab_indices_str], batching=self.batching)
                 relaxed_candidates.sort(key=lambda c: c.info['key_value_pairs'][self.replica_key])
                 for atoms in relaxed_candidates:
                     rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -673,7 +678,7 @@ class GCEMC(EMC):
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
             unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
             relaxed_offsprings = self.get_relaxed_candidates(
-                    unrelaxed_offsprings, run_md=False, add_args=[slab_indices_str])
+                    unrelaxed_offsprings, run_md=False, add_args=[slab_indices_str], batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:

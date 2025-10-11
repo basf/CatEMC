@@ -101,6 +101,9 @@ class GEEMC(EMC):
         The number of processes to run in parallel on each GPU/CPU device. Defaul is to
         run in serial.
 
+    batching: bool, default False
+        Whether to run batch relaxation and MD using torch-sim. Default is False.
+
     """
 
     def __init__(self, name,
@@ -125,6 +128,7 @@ class GEEMC(EMC):
             acceptance_key='accepted',
             gpu_devices=1,
             procs_per_device=10,
+            batching=False,
             verbose=True):
 
         super().__init__(
@@ -144,6 +148,7 @@ class GEEMC(EMC):
                 acceptance_key=acceptance_key,
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
+                batching=batching,
                 verbose=verbose)
 
         self.pressure = pressure
@@ -197,7 +202,7 @@ class GEEMC(EMC):
             os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
+            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
             for atoms in relaxed_candidates:                  
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
         else:
@@ -245,7 +250,7 @@ class GEEMC(EMC):
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
-                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
+                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
                 for atoms in relaxed_candidates:
                     atoms.info['key_value_pairs'][self.acceptance_key] = 1
                 # Update the population to allow new candidates to enter
@@ -306,7 +311,7 @@ class GEEMC(EMC):
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
             unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
-            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False)
+            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:
