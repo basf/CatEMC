@@ -16,8 +16,6 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.parallel import parprint
 import importlib
 import importlib.util
-from multiprocessing import get_context
-import multiprocessing
 import numpy as np
 
 
@@ -568,75 +566,65 @@ def rattle_close_atoms(atoms, min_distance=0.1):
     return atoms
 
 
-def detect_and_get_ts_model(calc):
+def detect_and_get_model(calc):
     """
-    Return (True, ts_model_obj) if calc is supported by torch-sim, else (False, None).
-    Checks exactly the module names you provided (and MACE). Uses only find_spec before import.
+    Exclusive detection of a short whitelist of MLIP calculators.
+    Returns (True, model_obj) when `calc` is recognized and the expected
+    attribute exists (non-None). Otherwise returns (False, None).
+
+    Rules:
+      - If `mace.calculators.mace` is available, treat any instance of
+        MACECalculator (including user subclasses) as supported and prefer
+        attributes 'mace_model' then 'model'. If none present, return the
+        wrapper instance itself.
+      - For other supported wrappers (fairchem, sevenn, orb_models,
+        mattersim, graph_pes, metatomic), match by the exact module substring
+        provided and return the first non-None attribute in the listed order.
+      - No other calculators will be reported as supported.
     """
-    SUPPORTED_MODULES = [
-        "mace.calculators.mace",
-        "fairchem.core.calculate.ase_calculator",
-        "sevenn.calculator",
-        "orb_models.forcefield.calculator",
-        "mattersim.forcefield.potential",
-        "graph_pes.utils.calculator",
-        "metatomic_torch.metatomic.torch.ase_calculator",
-    ]
-    PREF_ATTRS = ("mace_model", "ts_model", "model", "mace")
+    import torch
+    SUPPORTED = {
+        'fairchem.core.calculate.ase_calculator': ('FAIRChemCalculator', ('predictor', 'model')),
+        'sevenn.calculator': ('SevenNetCalculator', ('model',)),
+        'orb_models.forcefield.calculator': ('ORBCalculator', ('model',)),
+        'mattersim.forcefield.potential': ('MatterSimCalculator', ('model',)),
+        'graph_pes.utils.calculator': ('GraphPESCalculator', ('model',)),
+        'metatomic_torch.metatomic.torch.ase_calculator': ('MetatomicCalculator', ('model',)),
+    }
+    PREF_ATTRS_FOR_MACE = ('mace_model', 'model')
 
-    def _preferred(o):
-        for a in PREF_ATTRS:
-            v = getattr(o, a, None)
-            if v is not None:
-                return v
-        return None
+    mod = getattr(calc.__class__, '__module__', '') or ''
+    name = getattr(calc.__class__, '__name__', '') or ''
+    mod_l = mod.lower()
+    name_l = name.lower()
 
-    def _looks_like_supported(obj):
-        if obj is None:
-            return False
-        mod = getattr(obj.__class__, "__module__", "").lower()
-        name = getattr(obj.__class__, "__name__", "").lower()
-        for m in SUPPORTED_MODULES:
-            if m in mod or m in name:
-                return True
-        return False
+    # 1) explicit, reliable MACE subclass detection (covers user subclasses)
+    if importlib.util.find_spec('mace.calculators.mace') is not None:
+        mace_mod = importlib.import_module('mace.calculators.mace')
+        MACECalculator = getattr(mace_mod, 'MACECalculator', None)
+        if MACECalculator is not None and isinstance(calc, MACECalculator):
+            from torch_sim.models.mace import MaceModel
+            ts_model = MaceModel(
+                    model=calc.models[0],
+                    device=torch.device(calc.device),
+                    dtype=getattr(torch, calc.default_dtype),
+                    compute_forces=True,
+                    compute_stress=True,
+                    enable_cueq=calc.enable_cueq)
+            return True, ts_model 
 
-    # 1) direct check: calc instance matching supported module classes (import modules only if present)
-    for modname in SUPPORTED_MODULES:
-        if importlib.util.find_spec(modname) is None:
-            continue
-        module = importlib.import_module(modname)
-        # iterate classes in module; if calc is instance of any class -> supported
-        for attr in dir(module):
-            cls = getattr(module, attr)
-            if isinstance(cls, type):
-                # isinstance may raise for some extension types; use getattr checks conservatively
-                try:
-                    if isinstance(calc, cls):
-                        # prefer exposed model attribute if present
-                        model_obj = _preferred(calc) or calc
-                        return True, model_obj
-                except Exception:
-                    # fall back to name-based check below (no broad try/except elsewhere)
-                    pass
+    # 2) other explicit supported wrappers: match module substring OR class name,
+    #    and return the first expected attribute that is non-None
+    for mod_substr, (_cls_name, attrs) in SUPPORTED.items():
+        if (mod_substr.lower() in mod_l) or (_cls_name.lower() == name_l):
+            for a in attrs:
+                model_obj = getattr(calc, a, None)
+                if model_obj is not None:
+                    return True, model_obj
+            # matched wrapper identity but expected attributes missing -> not supported
+            return False, None
 
-    # 2) check calc attributes that may expose underlying supported model
-    for a in PREF_ATTRS:
-        if hasattr(calc, a):
-            cand = getattr(calc, a)
-            if _looks_like_supported(cand):
-                return True, cand
-            # one deeper: cand may itself wrap the real model
-            for b in PREF_ATTRS:
-                if hasattr(cand, b):
-                    cand2 = getattr(cand, b)
-                    if _looks_like_supported(cand2):
-                        return True, cand2
-
-    # 3) conservative fallback: class/module name of calc itself
-    if _looks_like_supported(calc):
-        return True, (_preferred(calc) or calc)
-
+    # 3) not supported
     return False, None
 
 
@@ -692,7 +680,7 @@ def _postprocess_bulk_worker(args):
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
 
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
-    write(f"{dir_name}/relaxed_{orig_atoms.info['key_value_pairs'][replica_key]}.traj", [orig_atoms, pseudo_atoms])
+    write(f"{dir_name}/relaxed_atoms_{orig_atoms.info['key_value_pairs'][replica_key]}.traj", [orig_atoms, pseudo_atoms])
 
     return None
 
@@ -764,13 +752,13 @@ def _postprocess_surface_worker(args):
 
     pseudo_atoms.info['data']['fragments'] = fragments
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
-    write(f"{dir_name}/relaxed_{orig_atoms.info['key_value_pairs'][replica_key]}.traj", [orig_atoms, pseudo_atoms])
+    write(f"{dir_name}/relaxed_atoms_{orig_atoms.info['key_value_pairs'][replica_key]}.traj", [orig_atoms, pseudo_atoms])
 
     return None
 
 
 def calculate_batch_bulk_fitness(
-        orig_atoms_list,
+        atoms_list,
         traj_path,
         calculator_list,
         fmax_list,
@@ -790,12 +778,15 @@ def calculate_batch_bulk_fitness(
         temperature_key='temperature',
         replica_key='replica',
         temperature_dmu_map=None):
-    dir_name = '/'.join(traj_path.split('/')[:-1])
 
+    import torch_sim as ts
+    import multiprocessing
+
+    dir_name = '/'.join(traj_path.split('/')[:-1])
     # prepare tmp_atoms_list and bookkeeping
     tmp_atoms_list = []
     temps = []
-    for orig_atoms in orig_atoms_list:
+    for orig_atoms in atoms_list:
         atoms = rattle_close_atoms(orig_atoms.copy(), min_distance=0.1)
         if fix_indices:
             atoms.set_constraint(FixAtoms(indices=fix_indices))
@@ -805,48 +796,80 @@ def calculate_batch_bulk_fitness(
         temps.append(atoms.info['key_value_pairs'][temperature_key])
 
     last_relaxed_state = None
-
     # iterate calculators in sequence
     for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
-        supported, ts_model = detect_and_get_ts_model(calc)
+        supported, ts_model = detect_and_get_model(calc)
         is_last = (idx == len(calculator_list) - 1)
 
         if supported and (fmax is not None) and (ts_model is not None):
-            import torch_sim as ts
-            # optional batch MD with TS
+            # MD via torch-sim: choose integrator based on presence of pressure
             if run_md:
                 timestep_ps = float(md_timestep / units.fs) * 1e-3
                 tag = f'{dir_name}/md'
-                integ_kwargs = dict(system=tmp_atoms_list,
-                                    model=ts_model,
-                                    n_steps=int(md_steps),
-                                    temperature = temps,
-                                    timestep=timestep_ps,
-                                    autobatcher=True,
-                                    trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
-                                                             state_frequency=int(md_write_interval)))
+                if pressure is None:
+                    # NVT Langevin for pressure=None
+                    integ_kwargs = dict(
+                        system=tmp_atoms_list,
+                        model=ts_model,
+                        n_steps=int(md_steps),
+                        temperature=temps,
+                        timestep=timestep_ps,
+                        integrator=ts.integrators.nvt_langevin,
+                        autobatcher=False,
+                        trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
+                                                 state_frequency=int(md_write_interval)),
+                    )
+                else:
+                    # NPT Langevin for pressure != None (bulk)
+                    integ_kwargs = dict(
+                        system=tmp_atoms_list,
+                        model=ts_model,
+                        n_steps=int(md_steps),
+                        temperature=temps,
+                        timestep=timestep_ps,
+                        integrator=ts.integrators.npt_langevin,
+                        pressure=pressure,
+                        autobatcher=False,
+                        trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
+                                                 state_frequency=int(md_write_interval)),
+                    )
                 ts.integrate(**integ_kwargs)
-            # batched optimize with TS (fmax -> force_tol)
+
+            # Optimization via torch-sim: use FIRE; when pressure provided use Frechet cell filter via init_kwargs
             conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
-            last_relaxed_state = ts.optimize(system=tmp_atoms_list,
-                                             model=ts_model,
-                                             optimizer=ts.frechet_cell_fire,
-                                             convergence_fn=conv,
-                                             autobatcher=True)
+            if pressure is None:
+                last_relaxed_state = ts.optimize(
+                    system=tmp_atoms_list,
+                    model=ts_model,
+                    optimizer=ts.Optimizer.fire,
+                    convergence_fn=conv,
+                    autobatcher=False,
+                )
+            else:
+                # Frechet cell + applied pressure for cell relaxation
+                last_relaxed_state = ts.optimize(
+                    system=tmp_atoms_list,
+                    model=ts_model,
+                    optimizer=ts.Optimizer.fire,
+                    convergence_fn=conv,
+                    autobatcher=False,
+                    init_kwargs=dict(cell_filter=ts.CellFilter.frechet, pressure=pressure),
+                )
+
             if hasattr(last_relaxed_state, 'to_atoms'):
                 tmp_atoms_list = last_relaxed_state.to_atoms()
             elif isinstance(last_relaxed_state, (list, tuple)):
                 tmp_atoms_list = list(last_relaxed_state)
 
         else:
-            # fallback: perform per-replica operations in parallel (LBFGS + MD if is_last)
+            # Fallback to ASE LBFGS
             if fmax is None and not is_last:
                 continue
-            ctx = get_context('fork')
+            ctx = multiprocessing.get_context('spawn')
             pool = ctx.Pool(min(len(tmp_atoms_list), multiprocessing.cpu_count()))
             work_args = []
             for tmp, temp in zip(tmp_atoms_list, temps):
-                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, md_taut, 
+                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, md_taut,
                                  md_steps, md_write_interval, pressure, md_taup, temp))
             results = pool.map(_relax_worker, work_args)
             pool.close()
@@ -862,10 +885,10 @@ def calculate_batch_bulk_fitness(
     final_calc = calculator_list[-1]
 
     # assemble postprocessing args and run postprocessing in parallel
-    ctx = get_context('fork')
-    pool = ctx.Pool(min(len(orig_atoms_list), multiprocessing.cpu_count()))
+    ctx = multiprocessing.get_context('spawn')
+    pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
     post_args = []
-    for orig_atoms, tmp_atoms in zip(orig_atoms_list, tmp_atoms_list):
+    for orig_atoms, tmp_atoms in zip(atoms_list, tmp_atoms_list):
         # determine epot: ASE final_calc preferred
         epot = None
         if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
@@ -882,15 +905,16 @@ def calculate_batch_bulk_fitness(
                         pass
             else:
                 epot = float(energies)
-        post_args.append((dir_name, orig_atoms, tmp_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md, 
+        post_args.append((dir_name, orig_atoms, tmp_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
                           update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot))
+
     pool.map(_postprocess_bulk_worker, post_args)
     pool.close()
     pool.join()
 
 
 def calculate_batch_surface_fitness(
-        orig_atoms_list,
+        atoms_list,
         traj_path,
         calculator_list,
         fmax_list,
@@ -916,12 +940,15 @@ def calculate_batch_surface_fitness(
         raw_score_cutoff=-10000.,
         temperature_key='temperature',
         replica_key='replica'):
-    dir_name = '/'.join(traj_path.split('/')[:-1])
 
+    import torch_sim as ts 
+    import multiprocessing
+
+    dir_name = '/'.join(traj_path.split('/')[:-1])
     # prepare tmp_atoms_list and bookkeeping
     tmp_atoms_list = []
     temps = []
-    for orig_atoms in orig_atoms_list:
+    for orig_atoms in atoms_list:
         atoms = rattle_close_atoms(orig_atoms.copy(), min_distance=0.1)
         if fix_indices:
             atoms.set_constraint(FixAtoms(indices=fix_indices))
@@ -931,48 +958,52 @@ def calculate_batch_surface_fitness(
         temps.append(atoms.info['key_value_pairs'][temperature_key])
 
     last_relaxed_state = None
-
     # iterate calculators in sequence
     for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
-        supported, ts_model = detect_and_get_ts_model(calc)
+        supported, ts_model = detect_and_get_model(calc)
         is_last = (idx == len(calculator_list) - 1)
-
+        
         if supported and (fmax is not None) and (ts_model is not None):
-            import torch_sim as ts
-            # optional batch MD
             if run_md:
                 timestep_ps = float(md_timestep / units.fs) * 1e-3
                 tag = f'{dir_name}/md'
-                integ_kwargs = dict(system=tmp_atoms_list,
-                                    model=ts_model,
-                                    temperature=temps,
-                                    n_steps=int(md_steps),
-                                    timestep=timestep_ps,
-                                    autobatcher=True,
-                                    trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
-                                                             state_frequency=int(md_write_interval)))
+                # Surface MD: use NVT Langevin (no pressure)
+                integ_kwargs = dict(
+                    system=tmp_atoms_list,
+                    model=ts_model,
+                    n_steps=int(md_steps),
+                    temperature=temps,
+                    timestep=timestep_ps,
+                    integrator=ts.integrators.nvt_langevin,
+                    autobatcher=False,
+                    trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
+                                             state_frequency=int(md_write_interval)),
+                )
                 ts.integrate(**integ_kwargs)
-            # batched optimization
+ 
+            # batched optimization for surface: FIRE (pressure not applicable)
             conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
-            last_relaxed_state = ts.optimize(system=tmp_atoms_list,
-                                             model=ts_model,
-                                             optimizer=ts.frechet_cell_fire,
-                                             convergence_fn=conv,
-                                             autobatcher=True)
+            last_relaxed_state = ts.optimize(
+                system=tmp_atoms_list,
+                model=ts_model,
+                optimizer=ts.Optimizer.fire,
+                convergence_fn=conv,
+                autobatcher=False,
+            )
             if hasattr(last_relaxed_state, 'to_atoms'):
                 tmp_atoms_list = last_relaxed_state.to_atoms()
             elif isinstance(last_relaxed_state, (list, tuple)):
                 tmp_atoms_list = list(last_relaxed_state)
 
         else:
-            # fallback: parallel LBFGS per-system (with MD for last)
+            # Fallback to ASE LBFGS
             if fmax is None and not is_last:
                 continue
-            ctx = get_context('fork')
+            ctx = multiprocessing.get_context('spawn')
             pool = ctx.Pool(min(len(tmp_atoms_list), multiprocessing.cpu_count()))
             work_args = []
             for tmp, temp in zip(tmp_atoms_list, temps):
-                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, 
+                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep,
                                   md_taut, md_steps, md_write_interval, None, None, temp))
             results = pool.map(_relax_worker, work_args)
             pool.close()
@@ -987,10 +1018,10 @@ def calculate_batch_surface_fitness(
     final_calc = calculator_list[-1]
 
     # postprocess per-replica in parallel (adsorbate detection, phi, vacancy insertion, write)
-    ctx = get_context('fork')
-    pool = ctx.Pool(min(len(orig_atoms_list), multiprocessing.cpu_count()))
+    ctx = multiprocessing.get_context('spawn')
+    pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
     post_args = []
-    for orig_atoms, tmp_atoms, sas in zip(orig_atoms_list, tmp_atoms_list, adsorption_sites_list):
+    for orig_atoms, tmp_atoms, sas in zip(atoms_list, tmp_atoms_list, adsorption_sites_list):
         epot = None
         if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
             tmp_atoms.calc = final_calc
@@ -1012,4 +1043,3 @@ def calculate_batch_surface_fitness(
     pool.map(_postprocess_surface_worker, post_args)
     pool.close()
     pool.join()
-

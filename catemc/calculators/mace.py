@@ -17,8 +17,18 @@ class MACECalculatorWrapper(MACECalculator):
     All other args/kwargs are passed to MACECalculator.__init__.
     """
 
-    def __init__(self, fix_indices=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, fix_indices=None, *args, device='cpu', 
+                 default_dtype='', enable_cueq=False, **kwargs):
+
+        kwargs_for_super = kwargs.copy()
+        self.device = device
+        kwargs_for_super['device'] = device
+        self.default_dtype = default_dtype
+        kwargs_for_super['default_dtype'] = default_dtype
+        self.enable_cueq = enable_cueq
+        kwargs_for_super['enable_cueq'] = enable_cueq
+ 
+        super().__init__(*args, **kwargs_for_super)
         self._fix_indices = None
         if fix_indices is not None:
             self.set_fix_indices(fix_indices)

@@ -214,7 +214,6 @@ class EMC(object):
             if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
                 continue
             if batching:
-                print('BATCHING')
                 # Append current atoms and decide whether to flush the batch.
                 device_for_current = gpu_devices[(i // self.procs_per_device) % len(gpu_devices)]
                 batch_images.append(atoms)
@@ -225,28 +224,35 @@ class EMC(object):
                 if (len(batch_images) >= self.procs_per_device) or (device_for_next is not None and device_for_next != device_for_current) or is_last:
                     reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
                     write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
-                    script_path = os.path.join(self.calculation_dir, self.calculation_script)
-                    cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj',
-                           str(int(run_md)), str(device_for_current), fix_indices_str]
+                  #  script_path = os.path.join(self.calculation_dir, self.calculation_script)
+                  #  cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj',
+                  #         str(int(run_md)), str(device_for_current), fix_indices_str]
+                  #  if add_args is not None:
+                  #      for arg in add_args:
+                  #          cmd.append(str(arg))
+                  #  subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                    arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}'
                     if add_args is not None:
                         for arg in add_args:
-                            cmd.append(str(arg))
-                    # spawn detached process, no shell, stdout/stderr to DEVNULL
-                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                            arg_str += f' {arg}'
+                    os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
                     # reset batch_images for next batch
                     batch_images = []
             else:
-                print('NOT BATCHING')
                 gpu_device = gpu_devices[(i//self.procs_per_device)%len(self.gpu_devices)]
                 write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', atoms)
-                script_path = os.path.join(self.calculation_dir, self.calculation_script)
-                cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj',
-                       str(int(run_md)), str(gpu_device), fix_indices_str] 
+                #script_path = os.path.join(self.calculation_dir, self.calculation_script)
+                #cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj',
+                #       str(int(run_md)), str(gpu_device), fix_indices_str]
+                #if add_args is not None:
+                #    for arg in add_args:
+                #        cmd.append(str(arg))
+                #subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj {int(run_md)} {gpu_device} {fix_indices_str}'
                 if add_args is not None:
                     for arg in add_args:
-                        cmd.append(str(arg)) 
-                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
- 
+                        arg_str += f' {arg}'
+                os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
             if (i % (len(gpu_devices)*self.procs_per_device) == (len(gpu_devices)*self.procs_per_device-1)
             ) or (i == len(unrelaxed_candidates) - 1):
                 while not all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{replicas[j]}.traj') for j in range(i+1)):
