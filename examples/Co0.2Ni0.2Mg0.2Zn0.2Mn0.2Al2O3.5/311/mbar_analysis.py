@@ -20,16 +20,14 @@ ana = GCEMCAnalysis(
 ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 ana.get_trajectory(replica=10)
 
-E_CH4 = -24.047 + 0.104 # Etot incl. ZPE PBE
-E_O2 = -8.768 + 0.009   # Etot incl. ZPE PBE
-E_H2 = -6.773 + 0.004   # Etot incl. ZPE PBE
-dmu_CH4 = np.arange(-2.8, -1.299, 0.1)
-dmu_O  = np.arange(-3.5, -1.999, 0.1)
-dmu_H  = np.arange(-1.0, 0.001, 0.05)
+E_C = -9.944    # Etot per atom graphite PBE
+E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
+dmu_C = np.arange(0., 2.001, 0.1)
+dmu_O = np.arange(-4., -2.999, 0.1)
+dmu_H = np.arange(-1.0, 0.001, 0.1)
 sim_temperatures = [723,]
-grid = np.array(np.meshgrid(dmu_CH4, dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 4)
-reaction_conditions = np.hstack([grid, (grid[:,0] + E_CH4 - 4*(grid[:,2] + E_H2/2)).reshape(-1,1)])
-reaction_conditions[:, [3, 4]] = reaction_conditions[:, [4, 3]] # Swap columns
+reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 4)
 with open(f'/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_wls_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 template = read(f'{dir_name}/template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4_311_slab_mace_opt.traj')
@@ -39,8 +37,8 @@ ana.get_structural_expectations(
         z_surf=24.,
         reaction_conditions=reaction_conditions,
         temperature_dmu_map=tdmu_map,
-        element_column_map={'C': 3 'O': 1, 'H': 2},
-        element_eref_map={'C': 0., 'O': E_O2/2, 'H': E_H2/2},
+        element_column_map={'C': 0, 'O': 1, 'H': 2},
+        element_eref_map={'C': E_C, 'O': E_O2/2, 'H': E_H2/2},
         element_y2x_map={'C': 0., 'O': 4/3, 'H': 0.},
         starting_step=500, 
         ending_step=2000, 

@@ -48,8 +48,9 @@ fmax2 = 0.25
 calc3 = MACECalculator(model_paths="/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model", 
                        dispersion=False, device='cuda', default_dtype='float64')
 fmax3 = 0.05
-E_O2 = -8.768 + 0.009   # Etot incl. ZPE PBE
-E_H2 = -6.773 + 0.004   # Etot incl. ZPE PBE
+E_C = -9.944    # Etot per atom graphite PBE
+E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 rep = atoms.info['key_value_pairs']['replica']
 site_path = f'{dir_name}/sites_{rep}.pkl'
 try:
@@ -75,8 +76,8 @@ calculate_surface_fitness(
         md_steps=50,
         md_write_interval=10,
         temperature_dmu_map=tdmu_map,
-        element_column_map={'C': 3, 'O': 1, 'H': 2},
-        element_eref_map={'C': 0., 'O': E_O2/2, 'H': E_H2/2},
+        element_column_map={'C': 0, 'O': 1, 'H': 2},
+        element_eref_map={'C': E_C, 'O': E_O2/2, 'H': E_H2/2},
         element_y2x_map={'C': 0., 'O': 4/3, 'H': 0.},
         adsorption_sites=sas,
         slab_indices=slab_indices, 

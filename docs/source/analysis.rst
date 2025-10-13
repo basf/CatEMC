@@ -117,9 +117,8 @@ Example: GC-EMC analysis (abridged)
 
    ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 
-   E_O2 = -8.768 + 0.009
-   E_H2 = -6.773 + 0.004
-
+   E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+   E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
    dmu_O  = np.arange(-5., -2.999, 0.1)
    dmu_H  = np.arange(-1.0, 0.001, 0.05)
    sim_temperatures = [1023,]

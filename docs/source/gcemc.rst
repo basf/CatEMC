@@ -158,6 +158,9 @@ Example: launching GC-EMC (abridged)
    template = read(f'{dir_name}/template_{comp}_{surface}_slab_mace_opt.traj')
 
    # Build reaction_conditions (mu_C, mu_O, mu_H, T)
+   E_C = -9.944    # Etot per atom graphite PBE
+   E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+   E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
    dmu_C = np.arange(0., 2.001, 0.1)
    dmu_O  = np.arange(-4., -2.999, 0.1)
    dmu_H  = np.arange(-1., 0.001, 0.05)
@@ -236,6 +239,7 @@ Below is the calculation script template used by the engine; keep the header (ar
    fmax2 = 0.25
    calc3 = MACECalculator(model_paths="/path/to/custom_mace.model", dispersion=False, device='cuda', default_dtype='float64')
    fmax3 = 0.05
+   E_C = -9.944    # Etot per atom graphite PBE
    E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
    E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 

@@ -385,12 +385,12 @@ for T in [623, 723, 823]:
         input_images.append(atoms)
         rep += 1
 
-E_C= -9.944 # Etot per atom graphite PBE
+E_C = -9.944    # Etot per atom graphite PBE
 E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
 E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 dmu_C = np.arange(0., 2.001, 0.1)
-dmu_O  = np.arange(-4., -2.999, 0.1)
-dmu_H  = np.arange(-1., 0.001, 0.1)
+dmu_O = np.arange(-4., -2.999, 0.1)
+dmu_H = np.arange(-1., 0.001, 0.1)
 # Mesh: first 3 cols = C, O, H 
 grid = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H)).T.reshape(-1, 3)
 
@@ -449,9 +449,12 @@ input_pop = read(f'{dir_name}/{system_name}_input_pop.traj', index=':')
 template = read(f'{dir_name}/template_{comp}_{surface}_slab_mace_opt.traj')
 
 # Build reaction_conditions grid (mu_C, mu_O, mu_H, T)
+E_C = -9.944    # Etot per atom graphite PBE
+E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 dmu_C = np.arange(0., 2.001, 0.1)
-dmu_O  = np.arange(-4., -2.999, 0.1)
-dmu_H  = np.arange(-1., 0.001, 0.1)
+dmu_O = np.arange(-4., -2.999, 0.1)
+dmu_H = np.arange(-1., 0.001, 0.1)
 temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})
 reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)).T.reshape(-1, 4)
 
@@ -537,6 +540,7 @@ fmax2 = 0.25
 calc3 = MACECalculator(model_paths="/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model",
                        dispersion=False, device='cuda', default_dtype='float64')
 fmax3 = 0.05
+E_C = -9.944    # Etot per atom graphite PBE
 E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
 E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 rep = atoms.info['key_value_pairs']['replica']
@@ -616,8 +620,8 @@ ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 
 E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
 E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
-dmu_O  = np.arange(-5., -2.999, 0.1)
-dmu_H  = np.arange(-1.0, 0.001, 0.05)
+dmu_O = np.arange(-5., -2.999, 0.1)
+dmu_H = np.arange(-1.0, 0.001, 0.05)
 sim_temperatures = [1023,]
 reaction_conditions = np.array(np.meshgrid(dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 3)
 

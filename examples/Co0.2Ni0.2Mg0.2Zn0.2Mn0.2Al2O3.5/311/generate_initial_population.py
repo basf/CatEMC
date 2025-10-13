@@ -97,20 +97,16 @@ for T in [623, 723, 823]:
         input_images.append(atoms)
         rep += 1
 
-E_CH4 = -24.047 + 0.104 # Etot incl. ZPE PBE
-E_O2 = -8.768 + 0.009   # Etot incl. ZPE PBE
-E_H2 = -6.773 + 0.004   # Etot incl. ZPE PBE
-
-dmu_CH4 = np.arange(-2.8, -1.299, 0.1)
-dmu_O  = np.arange(-3.5, -1.999, 0.1)
-dmu_H  = np.arange(-1.0, 0.001, 0.05)
-
+E_C = -9.944    # Etot per atom graphite PBE
+E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
+dmu_C = np.arange(0., 2.001, 0.1)
+dmu_O = np.arange(-4., -2.999, 0.1)
+dmu_H = np.arange(-1.0, 0.001, 0.1)
 # Mesh: first 3 cols = CH4, O, H μ; 4th col = elemental C μ
-grid = np.array(np.meshgrid(dmu_CH4, dmu_O, dmu_H)).T.reshape(-1, 3)
-mu_C = grid[:, 0] + E_CH4 - 4*(grid[:, 2] + E_H2/2)
-grid = np.hstack([grid, mu_C.reshape(-1, 1)])
+grid = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H)).T.reshape(-1, 3)
 
-element_column_map = {'C': 3, 'O': 1, 'H': 2}
+element_column_map = {'C': 0, 'O': 1, 'H': 2}
 assigned_input_pop = assign_mu_windows(
         input_images, reaction_conditions=grid,
         element_column_map=element_column_map,
