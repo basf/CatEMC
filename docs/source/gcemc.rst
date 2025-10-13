@@ -163,7 +163,7 @@ Example: launching GC-EMC (abridged)
    E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
    dmu_C = np.arange(0., 2.001, 0.1)
    dmu_O = np.arange(-4., -2.999, 0.1)
-   dmu_H = np.arange(-1., 0.001, 0.05)
+   dmu_H = np.arange(-1., 0.001, 0.1)
    temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})
    reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)).T.reshape(-1, 4)
 

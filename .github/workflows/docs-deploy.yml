@@ -1,7 +1,7 @@
 name: build-and-deploy-docs
 on:
   push:
-    branches: [ main ]    # or 'master' / whatever branch you use for docs source
+    branches: [ main ]
 
 jobs:
   build-deploy:
@@ -19,7 +19,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install sphinx sphinx-wagtail-theme ghp-import
+          pip install sphinx sphinx-wagtail-theme ghp-import sphinx-autodoc-typehints sphinxcontrib-programoutput
 
       - name: Generate API docs
         run: sphinx-apidoc -o docs/source/ catemc
@@ -34,5 +34,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs/build/html
-          # optionally set publish_branch: gh-pages (default)
 
