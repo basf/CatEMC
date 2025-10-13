@@ -57,7 +57,14 @@
     </form>
 </div><div class="site-toc">
     <nav class="toc mt-3" aria-label="Main menu">
-        
+        <p class="caption" role="heading"><span class="caption-text">Main sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="initial_replica_generation.html">Initial replica generation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="emc_simulations.html">EMC simulations: canonical, Gibbs &amp; grand-canonical</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mbar_analysis.html">MBAR analysis: Δμ estimation &amp; structural ensemble averages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization.html">Visualization — Surface phase diagrams</a></li>
+</ul>
+
     </nav>
     <template data-toggle-item-template>
         <button class="btn btn-sm btn-link toctree-expand" type="button">
@@ -110,7 +117,7 @@
     <section id="analysis">
 <h1>Analysis<a class="headerlink" href="#analysis" title="Link to this heading">¶</a></h1>
 <p>This page provides concrete examples for GE-EMC (bulk) and GC-EMC (surface)
-postprocessing using the classes in <a class="reference internal" href="catemc.html#module-catemc.analysis" title="catemc.analysis"><code class="xref py py-mod docutils literal notranslate"><span class="pre">catemc.analysis</span></code></a>. The examples mirror
+postprocessing using the classes in <code class="xref py py-mod docutils literal notranslate"><span class="pre">catemc.analysis</span></code>. The examples mirror
 the README tutorial and include recommended parameters and practical tips.</p>
 <nav class="contents local" id="contents">
 <ul class="simple">
@@ -131,7 +138,7 @@ the README tutorial and include recommended parameters and practical tips.</p>
 </nav>
 <section id="ge-emc-bulk-mbar-analysis">
 <h2><a class="toc-backref" href="#id1" role="doc-backlink">GE-EMC (bulk) MBAR analysis</a><a class="headerlink" href="#ge-emc-bulk-mbar-analysis" title="Link to this heading">¶</a></h2>
-<p>Use <a class="reference internal" href="catemc.html#catemc.analysis.GEEMCAnalysis" title="catemc.analysis.GEEMCAnalysis"><code class="xref py py-class docutils literal notranslate"><span class="pre">catemc.analysis.GEEMCAnalysis</span></code></a> to parse GE-EMC DB backups, extract
+<p>Use <code class="xref py py-class docutils literal notranslate"><span class="pre">catemc.analysis.GEEMCAnalysis</span></code> to parse GE-EMC DB backups, extract
 Widom insertion samples and potential energies, and compute Δμ estimates
 between metal species using MBAR. WLS (weighted least squares) can be used to
 enforce antisymmetry and transitivity for the pairwise Δμ estimates.</p>
@@ -190,7 +197,7 @@ enforce antisymmetry and transitivity for the pairwise Δμ estimates.</p>
 </section>
 <section id="gc-emc-surface-mbar-analysis">
 <h2><a class="toc-backref" href="#id4" role="doc-backlink">GC-EMC (surface) MBAR analysis</a><a class="headerlink" href="#gc-emc-surface-mbar-analysis" title="Link to this heading">¶</a></h2>
-<p>Use <a class="reference internal" href="catemc.html#catemc.analysis.GCEMCAnalysis" title="catemc.analysis.GCEMCAnalysis"><code class="xref py py-class docutils literal notranslate"><span class="pre">catemc.analysis.GCEMCAnalysis</span></code></a> to parse GC-EMC DB backups, extract
+<p>Use <code class="xref py py-class docutils literal notranslate"><span class="pre">catemc.analysis.GCEMCAnalysis</span></code> to parse GC-EMC DB backups, extract
 potential energies and other observables, subsample to reduce correlation,
 and perform MBAR reweighting over the μ-grid to obtain structural
 expectations.</p>
@@ -342,7 +349,7 @@ on the visualize page. Save your <code class="docutils literal notranslate"><spa
                     </a>
                     and
                     <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
-                        Sphinx 8.2.3
+                        Sphinx 8.1.3
                     </a>
                 </small>
             </div>

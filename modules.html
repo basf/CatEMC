@@ -57,7 +57,14 @@
     </form>
 </div><div class="site-toc">
     <nav class="toc mt-3" aria-label="Main menu">
-        
+        <p class="caption" role="heading"><span class="caption-text">Main sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="initial_replica_generation.html">Initial replica generation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="emc_simulations.html">EMC simulations: canonical, Gibbs &amp; grand-canonical</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mbar_analysis.html">MBAR analysis: Δμ estimation &amp; structural ensemble averages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization.html">Visualization — Surface phase diagrams</a></li>
+</ul>
+
     </nav>
     <template data-toggle-item-template>
         <button class="btn btn-sm btn-link toctree-expand" type="button">
@@ -113,137 +120,16 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="catemc.html">catemc package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="catemc.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.analysis">catemc.analysis module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.analysis.GEEMCAnalysis"><code class="docutils literal notranslate"><span class="pre">GEEMCAnalysis</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.analysis.GEEMCAnalysis.prepare_data"><code class="docutils literal notranslate"><span class="pre">GEEMCAnalysis.prepare_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.analysis.GEEMCAnalysis.get_trajectory"><code class="docutils literal notranslate"><span class="pre">GEEMCAnalysis.get_trajectory()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.analysis.GEEMCAnalysis.get_dmu_estimates"><code class="docutils literal notranslate"><span class="pre">GEEMCAnalysis.get_dmu_estimates()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.analysis.GCEMCAnalysis"><code class="docutils literal notranslate"><span class="pre">GCEMCAnalysis</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.analysis.GCEMCAnalysis.prepare_data"><code class="docutils literal notranslate"><span class="pre">GCEMCAnalysis.prepare_data()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.analysis.GCEMCAnalysis.get_trajectory"><code class="docutils literal notranslate"><span class="pre">GCEMCAnalysis.get_trajectory()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.analysis.GCEMCAnalysis.get_structural_expectations"><code class="docutils literal notranslate"><span class="pre">GCEMCAnalysis.get_structural_expectations()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.calculation_templates">catemc.calculation_templates module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.calculation_templates.calculate_bulk_fitness"><code class="docutils literal notranslate"><span class="pre">calculate_bulk_fitness()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.calculation_templates.calculate_surface_fitness"><code class="docutils literal notranslate"><span class="pre">calculate_surface_fitness()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.calculation_templates.insert_vacancies"><code class="docutils literal notranslate"><span class="pre">insert_vacancies()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.calculation_templates.rattle_close_atoms"><code class="docutils literal notranslate"><span class="pre">rattle_close_atoms()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.calculation_templates.detect_and_get_model"><code class="docutils literal notranslate"><span class="pre">detect_and_get_model()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.calculation_templates.calculate_batch_bulk_fitness"><code class="docutils literal notranslate"><span class="pre">calculate_batch_bulk_fitness()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.calculation_templates.calculate_batch_surface_fitness"><code class="docutils literal notranslate"><span class="pre">calculate_batch_surface_fitness()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.emc">catemc.emc module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc.EMC"><code class="docutils literal notranslate"><span class="pre">EMC</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc.EMC.get_pop"><code class="docutils literal notranslate"><span class="pre">EMC.get_pop()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc.EMC.trim_asedb"><code class="docutils literal notranslate"><span class="pre">EMC.trim_asedb()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc.EMC.connect_data_with_trim"><code class="docutils literal notranslate"><span class="pre">EMC.connect_data_with_trim()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc.EMC.get_relaxed_candidates"><code class="docutils literal notranslate"><span class="pre">EMC.get_relaxed_candidates()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc.EMC.run"><code class="docutils literal notranslate"><span class="pre">EMC.run()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.emc_operators">catemc.emc_operators module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCCutSpliceCrossover"><code class="docutils literal notranslate"><span class="pre">EMCCutSpliceCrossover</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCCutSpliceCrossover.get_new_individual"><code class="docutils literal notranslate"><span class="pre">EMCCutSpliceCrossover.get_new_individual()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCCatalystAdsorbateCrossover"><code class="docutils literal notranslate"><span class="pre">EMCCatalystAdsorbateCrossover</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCCatalystAdsorbateCrossover.get_new_individual"><code class="docutils literal notranslate"><span class="pre">EMCCatalystAdsorbateCrossover.get_new_individual()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCInterSwap"><code class="docutils literal notranslate"><span class="pre">EMCInterSwap</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCInterSwap.get_new_individual"><code class="docutils literal notranslate"><span class="pre">EMCInterSwap.get_new_individual()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCIntraSwap"><code class="docutils literal notranslate"><span class="pre">EMCIntraSwap</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCIntraSwap.get_new_individual"><code class="docutils literal notranslate"><span class="pre">EMCIntraSwap.get_new_individual()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCMutation"><code class="docutils literal notranslate"><span class="pre">EMCMutation</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_operators.EMCMutation.get_new_individual"><code class="docutils literal notranslate"><span class="pre">EMCMutation.get_new_individual()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.emc_population">catemc.emc_population module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation"><code class="docutils literal notranslate"><span class="pre">EMCPopulation</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.update"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.update()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.evaluate_offsprings"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.evaluate_offsprings()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.get_exchange_pairs_between_temperatures"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.get_exchange_pairs_between_temperatures()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.get_exchange_pairs_between_replicas"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.get_exchange_pairs_between_replicas()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.get_exchange_pairs_within_composition"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.get_exchange_pairs_within_composition()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.exchange"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.exchange()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.mu_walk"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.mu_walk()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.EMCPopulation.get_all_parents"><code class="docutils literal notranslate"><span class="pre">EMCPopulation.get_all_parents()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.emc_population.MixtureEMCPopulation"><code class="docutils literal notranslate"><span class="pre">MixtureEMCPopulation</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.MixtureEMCPopulation.evaluate_offsprings"><code class="docutils literal notranslate"><span class="pre">MixtureEMCPopulation.evaluate_offsprings()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.emc_population.MixtureEMCPopulation.exchange"><code class="docutils literal notranslate"><span class="pre">MixtureEMCPopulation.exchange()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.gc_utils">catemc.gc_utils module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.gc_utils.compute_intramove_prefactor"><code class="docutils literal notranslate"><span class="pre">compute_intramove_prefactor()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.gc_utils.compute_interswap_prefactor"><code class="docutils literal notranslate"><span class="pre">compute_interswap_prefactor()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.gc_utils.compute_crossover_prefactor"><code class="docutils literal notranslate"><span class="pre">compute_crossover_prefactor()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.gc_utils.compute_exchange_prefactor"><code class="docutils literal notranslate"><span class="pre">compute_exchange_prefactor()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.gc_utils.stirling"><code class="docutils literal notranslate"><span class="pre">stirling()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.gc_utils.compute_phi"><code class="docutils literal notranslate"><span class="pre">compute_phi()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.gcemc">catemc.gcemc module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.gcemc.GCEMC"><code class="docutils literal notranslate"><span class="pre">GCEMC</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.gcemc.GCEMC.calculate_free_energy_differences"><code class="docutils literal notranslate"><span class="pre">GCEMC.calculate_free_energy_differences()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.gcemc.GCEMC.run"><code class="docutils literal notranslate"><span class="pre">GCEMC.run()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.geemc">catemc.geemc module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.geemc.GEEMC"><code class="docutils literal notranslate"><span class="pre">GEEMC</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.geemc.GEEMC.run"><code class="docutils literal notranslate"><span class="pre">GEEMC.run()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.generate">catemc.generate module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.generate.generate_population"><code class="docutils literal notranslate"><span class="pre">generate_population()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.generate.assign_mu_windows"><code class="docutils literal notranslate"><span class="pre">assign_mu_windows()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc.repulsive">catemc.repulsive module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.implemented_properties"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.implemented_properties</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.default_parameters"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.default_parameters</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.nolabel"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.nolabel</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.calculate"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.calculate()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_radii"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_radii()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_energy_and_derivatives"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_energy_and_derivatives()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.setup_energy_forces"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.setup_energy_forces()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_distance_info"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_distance_info()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_potential_function_LJ"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_potential_function_LJ()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_potential_function_parabola"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_potential_function_parabola()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_x_potential"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_x_potential()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.radial_info"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.radial_info()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.cartesian_conversion"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.cartesian_conversion()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_potential"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_potential()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.update_energy"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.update_energy()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.update_forces"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.update_forces()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.update_stress"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.update_stress()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="catemc.html#catemc.repulsive.RepulsivePotential.get_extra_potential"><code class="docutils literal notranslate"><span class="pre">RepulsivePotential.get_extra_potential()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-analysis-module">catemc.analysis module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-calculation-templates-module">catemc.calculation_templates module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-emc-module">catemc.emc module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-emc-operators-module">catemc.emc_operators module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-emc-population-module">catemc.emc_population module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-gc-utils-module">catemc.gc_utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-gcemc-module">catemc.gcemc module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-geemc-module">catemc.geemc module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-generate-module">catemc.generate module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="catemc.html#catemc-repulsive-module">catemc.repulsive module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="catemc.html#module-catemc">Module contents</a></li>
 </ul>
 </li>
@@ -306,7 +192,7 @@
                     </a>
                     and
                     <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
-                        Sphinx 8.2.3
+                        Sphinx 8.1.3
                     </a>
                 </small>
             </div>
