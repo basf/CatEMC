@@ -57,7 +57,14 @@
     </form>
 </div><div class="site-toc">
     <nav class="toc mt-3" aria-label="Main menu">
-        
+        <p class="caption" role="heading"><span class="caption-text">Main sections</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="initial_replica_generation.html">Initial replica generation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="emc_simulations.html">EMC simulations: canonical, Gibbs &amp; grand-canonical</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mbar_analysis.html">MBAR analysis: Δμ estimation &amp; structural ensemble averages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization.html">Visualization — Surface phase diagrams</a></li>
+</ul>
+
     </nav>
     <template data-toggle-item-template>
         <button class="btn btn-sm btn-link toctree-expand" type="button">
@@ -275,7 +282,7 @@ MD/relaxation with the calculators specified in the <code class="docutils litera
 <span class="n">E_H2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">6.773</span> <span class="o">+</span> <span class="mf">0.267</span>   <span class="c1"># Etot incl. ZPE PBE</span>
 <span class="n">dmu_C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">2.001</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
 <span class="n">dmu_O</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">4.</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.999</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
-<span class="n">dmu_H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)</span>
+<span class="n">dmu_H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
 <span class="n">temperatures</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;temperature&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">input_pop</span><span class="p">})</span>
 <span class="n">reaction_conditions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">dmu_C</span><span class="p">,</span> <span class="n">dmu_O</span><span class="p">,</span> <span class="n">dmu_H</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
 

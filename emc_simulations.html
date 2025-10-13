@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en" data-content_root="./">
+<head>
+    <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+        <title>EMC simulations: canonical, Gibbs &amp; grand-canonical &mdash; CatEMC 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" type="text/css" href="_static/dist/fontawesome.css" />
+      <link rel="stylesheet" type="text/css" href="_static/dist/theme.css?v=310cf088" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+            <link rel="index" title="Index" href="genindex.html" />
+            <link rel="search" title="Search" href="search.html" />
+            <link rel="top" title="CatEMC 1.0.0 documentation" href="#" />
+            <link rel="next" title="MBAR analysis: Δμ estimation &amp; structural ensemble averages" href="mbar_analysis.html" />
+            <link rel="prev" title="Initial replica generation" href="initial_replica_generation.html" />
+    </head>
+<body>
+    <script type="text/javascript" src="_static/dist/blocking.js"></script>
+    <header class="container-fluid bg-primary">
+        <a class="btn btn-sm btn-light skip-to-content-link" href="#main">Skip to content</a>
+        <div class="container-fluid">
+            <div class="navbar navbar-expand-lg navbar-dark font-weight-bold">
+                    <a href="index.html"
+                        title="Wagtail"
+                        class="logo navbar-brand"
+                    >
+                        <img src="_static/img/wagtail-logo-circle.svg" width="45" height="59" alt="Wagtail"
+                            class="logo-img"
+                        />
+                        Sphinx Wagtail Theme
+                    </a>
+                
+                
+                <button class="navbar-toggler btn btn-primary d-lg-none" type="button" data-toggle="collapse" data-target="#collapseSidebar" aria-expanded="false" aria-controls="collapseExample">
+                    <span class="navbar-toggler-icon"></span>
+                    <span class="sr-only">menu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 sidebar-container">
+                <div id="collapseSidebar" class="collapse sticky-top d-lg-block pt-5 pr-lg-4">
+<div id="searchbox" class="searchbox mb-6 px-1" role="search">
+    <form id="search-form" action="search.html" autocomplete="off" method="get" role="search">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <div class="input-group-text border-right-0 bg-white py-3 pl-3 pr-2"><span class="fas fa-search"></span></div>
+            </div>
+            <input class="form-control py-3 pr-3 pl-1 h-100 border-left-0" type="search" name="q" placeholder="Search documentation" aria-label="Search documentation" id="searchinput" />
+        </div>
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div><div class="site-toc">
+    <nav class="toc mt-3" aria-label="Main menu">
+        <p class="caption" role="heading"><span class="caption-text">Main sections</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="initial_replica_generation.html">Initial replica generation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">EMC simulations: canonical, Gibbs &amp; grand-canonical</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mbar_analysis.html">MBAR analysis: Δμ estimation &amp; structural ensemble averages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization.html">Visualization — Surface phase diagrams</a></li>
+</ul>
+
+    </nav>
+    <template data-toggle-item-template>
+        <button class="btn btn-sm btn-link toctree-expand" type="button">
+            <span class="sr-only">Toggle menu contents</span>
+        </button>
+    </template>
+</div>
+                    <div class="d-lg-none border-bottom">
+                        
+                    </div>
+                </div>
+            </aside>
+            <div class="col-12 col-lg-9 pt-5">
+                <header class="row align-items-baseline">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+    <ol class="breadcrumb m-0 p-0 bg-transparent">
+        <li class="breadcrumb-item"><a href="index.html">Docs</a></li>
+        <li class="breadcrumb-item active" aria-current="page">EMC simulations: canonical, Gibbs &amp; grand-canonical</li>
+    </ol>
+</nav>
+                    </div>
+                    <div class="col-sm-12 col-lg-auto mt-3 mt-lg-3">
+                        <noscript>
+                            <p>JavaScript is required to toggle light/dark mode..</p>
+                        </noscript>
+                        <button id="wagtail-theme" class="btn btn-sm btn-light text-decoration-none" type="button">
+                            <span class="dark-only"><i class="fas fa-sun"></i> Light mode</span>
+                            <span class="light-only"><i class="fas fa-moon"></i> Dark mode</span>
+                        </button>
+    <a class="btn btn-sm btn-light text-decoration-none" href="https://github.com/wagtail/sphinx_wagtail_theme/blob/main/docs/emc_simulations.rst" rel="nofollow">
+        <span class="btn-icon"><span class="fab fa-github"></span></span>
+        <span class="btn-text">Edit on GitHub</span>
+    </a>
+    <a class="btn btn-sm btn-light text-decoration-none" href="_sources/emc_simulations.rst.txt" rel="nofollow">
+        <span class="btn-icon"><span class="fas fa-code"></span></span>
+        <span class="btn-text">View source</span>
+    </a>
+                        
+                    </div>
+                </header>
+                <div class="row" >
+                    <div class="col-12">
+                        <hr class="w-100 my-4">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-lg-9 order-last order-lg-first rst-content">
+                        <main role="main" id="main">
+    <section id="emc-simulations-canonical-gibbs-grand-canonical">
+<h1>EMC simulations: canonical, Gibbs &amp; grand-canonical<a class="headerlink" href="#emc-simulations-canonical-gibbs-grand-canonical" title="Link to this heading">¶</a></h1>
+<p>This section describes how to run EMC simulations under different ensembles:
+* <strong>Canonical (NVT)</strong> — basic MC with fixed composition and cell,
+* <strong>Gibbs (GE-EMC)</strong> — for bulk, allowing swaps between replica cells and cell changes (NPT optionally),
+* <strong>Grand canonical (GC-EMC)</strong> — for surfaces, sampling adsorbates and vacancies across μ-grid.</p>
+<p>Each subsection gives the engine call, required inputs, and a calculation script template.</p>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#canonical-nvt-usage" id="id1">Canonical (NVT) usage</a></p></li>
+<li><p><a class="reference internal" href="#gibbs-ensemble-ge-emc-bulk" id="id2">Gibbs ensemble (GE-EMC) — bulk</a></p>
+<ul>
+<li><p><a class="reference internal" href="#calculation-script-template-ge-emc" id="id3">Calculation script template (GE-EMC)</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#grand-canonical-gc-emc-surface" id="id4">Grand-canonical (GC-EMC) — surface</a></p>
+<ul>
+<li><p><a class="reference internal" href="#calculation-script-template-gc-emc" id="id5">Calculation script template (GC-EMC)</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#best-practices-for-production-runs" id="id6">Best practices for production runs</a></p></li>
+</ul>
+</nav>
+<section id="canonical-nvt-usage">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Canonical (NVT) usage</a><a class="headerlink" href="#canonical-nvt-usage" title="Link to this heading">¶</a></h2>
+<p>If you only need to run a canonical (NVT) style evolutionary Monte Carlo with no volume changes and no open-exchange of species between separate cells, you can run a simplified engine (example shown using GEEMC with <cite>pressure=None</cite> or a custom canonical runner).</p>
+<p><strong>Use case</strong></p>
+<ul class="simple">
+<li><p>Testing mutation/crossover/intraswap logic locally.</p></li>
+<li><p>Quick structural exploration without replica exchange.</p></li>
+</ul>
+<p><strong>Minimal example (canonical-like with GEEMC)</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">catemc.geemc</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEEMC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+<span class="c1"># read prepared population where temperature is set in atoms.info</span>
+<span class="n">input_pop</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="s1">&#39;Co_bulk_input_pop.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+<span class="n">emc</span> <span class="o">=</span> <span class="n">GEEMC</span><span class="p">(</span><span class="s1">&#39;Co_bulk_test&#39;</span><span class="p">,</span>
+            <span class="n">calculation_dir</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span>
+            <span class="n">calculation_script</span><span class="o">=</span><span class="s1">&#39;calculate_fitness.py&#39;</span><span class="p">,</span>
+            <span class="n">input_pop</span><span class="o">=</span><span class="n">input_pop</span><span class="p">,</span>
+            <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>           <span class="c1"># NVT-like behavior</span>
+            <span class="n">trim_generation</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">md_generation</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">exchange_generation</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>   <span class="c1"># no replica-exchange for pure canonical testing</span>
+            <span class="n">crossover_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">intraswap_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">metal_element_pool</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Co&#39;</span><span class="p">,</span><span class="s1">&#39;Ni&#39;</span><span class="p">,</span><span class="s1">&#39;Mg&#39;</span><span class="p">,</span><span class="s1">&#39;Zn&#39;</span><span class="p">,</span><span class="s1">&#39;Mn&#39;</span><span class="p">,</span><span class="s1">&#39;Al&#39;</span><span class="p">],</span>
+            <span class="n">nonmetal_element_pool</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;O&#39;</span><span class="p">,</span><span class="s1">&#39;X&#39;</span><span class="p">],</span>
+            <span class="n">temperature_key</span><span class="o">=</span><span class="s1">&#39;temperature&#39;</span><span class="p">,</span>
+            <span class="n">replica_key</span><span class="o">=</span><span class="s1">&#39;replica&#39;</span><span class="p">)</span>
+<span class="n">emc</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">starting_step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">total_steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="gibbs-ensemble-ge-emc-bulk">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Gibbs ensemble (GE-EMC) — bulk</a><a class="headerlink" href="#gibbs-ensemble-ge-emc-bulk" title="Link to this heading">¶</a></h2>
+<p>GE-EMC coordinates exchanges (insert/remove/mutation) between cells and can run in NPT (use <cite>pressure=…</cite>) or NVT (<cite>pressure=None</cite>) modes. GE-EMC also supports crossover, replica-exchange across assigned temperatures, and optional MD/relaxation.</p>
+<p><strong>Required inputs</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">*_input_pop.traj</span></code> with replica metadata.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">calculation_script</span></code> for computing fitness per structure.</p></li>
+<li><p>Calculator models accessible by the worker nodes.</p></li>
+</ul>
+<p><strong>Example: run GE-EMC (full example)</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">catemc.geemc</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEEMC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+<span class="n">gpu_devices</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">ppg</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;CUDA_VISIBLE_DEVICES&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">gpu_devices</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">input_pop</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="s1">&#39;Co_bulk_input_pop.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+<span class="n">emc</span> <span class="o">=</span> <span class="n">GEEMC</span><span class="p">(</span><span class="s1">&#39;Co_bulk_run&#39;</span><span class="p">,</span>
+            <span class="n">calculation_dir</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span>
+            <span class="n">calculation_script</span><span class="o">=</span><span class="s1">&#39;calculate_fitness.py&#39;</span><span class="p">,</span>
+            <span class="n">input_pop</span><span class="o">=</span><span class="n">input_pop</span><span class="p">,</span>
+            <span class="n">fix_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">trim_generation</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">pressure</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>         <span class="c1"># NPT-like if nonzero; set None for NVT</span>
+            <span class="n">md_generation</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+            <span class="n">exchange_generation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">bias_starting_step</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+            <span class="n">crossover_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">metal_interswap_rate</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+            <span class="n">nonmetal_interswap_rate</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+            <span class="n">intraswap_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">metal_element_pool</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Co&#39;</span><span class="p">,</span><span class="s1">&#39;Ni&#39;</span><span class="p">,</span><span class="s1">&#39;Mg&#39;</span><span class="p">,</span><span class="s1">&#39;Zn&#39;</span><span class="p">,</span><span class="s1">&#39;Mn&#39;</span><span class="p">,</span><span class="s1">&#39;Al&#39;</span><span class="p">],</span>
+            <span class="n">nonmetal_element_pool</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;O&#39;</span><span class="p">,</span><span class="s1">&#39;X&#39;</span><span class="p">],</span>
+            <span class="n">raw_score_cutoff</span><span class="o">=-</span><span class="mf">10000.</span><span class="p">,</span>
+            <span class="n">temperature_key</span><span class="o">=</span><span class="s1">&#39;temperature&#39;</span><span class="p">,</span>
+            <span class="n">replica_key</span><span class="o">=</span><span class="s1">&#39;replica&#39;</span><span class="p">,</span>
+            <span class="n">acceptance_key</span><span class="o">=</span><span class="s1">&#39;accepted&#39;</span><span class="p">,</span>
+            <span class="n">gpu_devices</span><span class="o">=</span><span class="n">gpu_devices</span><span class="p">,</span>
+            <span class="n">procs_per_device</span><span class="o">=</span><span class="n">ppg</span><span class="p">)</span>
+<span class="n">emc</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">starting_step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">total_steps</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="calculation-script-template-ge-emc">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Calculation script template (GE-EMC)</a><a class="headerlink" href="#calculation-script-template-ge-emc" title="Link to this heading">¶</a></h3>
+<p>Keep the header unchanged — the engine calls the script using these position args:</p>
+<p>argv[1] = trajectory path
+argv[2] = run_md (0/1)
+argv[3] = gpu_device
+argv[4] = fix_indices (comma-separated or ‘None’)</p>
+<p>Example template:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">catemc.calculation_templates</span><span class="w"> </span><span class="kn">import</span> <span class="n">calculate_bulk_fitness</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">catemc.repulsive</span><span class="w"> </span><span class="kn">import</span> <span class="n">RepulsivePotential</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mace.calculators.mace</span><span class="w"> </span><span class="kn">import</span> <span class="n">MACECalculator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase</span><span class="w"> </span><span class="kn">import</span> <span class="n">units</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span><span class="p">,</span> <span class="n">write</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span>
+
+<span class="c1">#======================Don&#39;t change this=====================</span>
+<span class="n">traj_path</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">run_md</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+<span class="n">gpu_device</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;None&#39;</span><span class="p">:</span>
+    <span class="n">fix_indices</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">fix_indices</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)]</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;CUDA_VISIBLE_DEVICES&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">gpu_device</span><span class="p">)</span>
+<span class="n">dir_name</span> <span class="o">=</span> <span class="s1">&#39;/&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">traj_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">atoms</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="n">traj_path</span><span class="p">,</span> <span class="n">index</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">atoms</span><span class="o">.</span><span class="n">wrap</span><span class="p">()</span>
+<span class="c1">#=========</span>
+
+<span class="n">calc1</span> <span class="o">=</span> <span class="n">RepulsivePotential</span><span class="p">()</span>
+<span class="n">fmax1</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="n">calc2</span> <span class="o">=</span> <span class="n">MACECalculator</span><span class="p">(</span><span class="n">model_paths</span><span class="o">=</span><span class="s2">&quot;/path/to/mace.model&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">,</span> <span class="n">default_dtype</span><span class="o">=</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span>
+<span class="n">fmax2</span> <span class="o">=</span> <span class="mf">0.05</span>
+
+<span class="n">calculate_bulk_fitness</span><span class="p">(</span>
+    <span class="n">atoms</span><span class="p">,</span> <span class="n">traj_path</span><span class="o">=</span><span class="n">traj_path</span><span class="p">,</span>
+    <span class="n">calculator_list</span><span class="o">=</span><span class="p">[</span><span class="n">calc1</span><span class="p">,</span> <span class="n">calc2</span><span class="p">],</span>
+    <span class="n">fmax_list</span><span class="o">=</span><span class="p">[</span><span class="n">fmax1</span><span class="p">,</span> <span class="n">fmax2</span><span class="p">],</span>
+    <span class="n">target_metal_species</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Co&#39;</span><span class="p">,</span><span class="s1">&#39;Ni&#39;</span><span class="p">,</span><span class="s1">&#39;Mg&#39;</span><span class="p">,</span><span class="s1">&#39;Zn&#39;</span><span class="p">,</span><span class="s1">&#39;Mn&#39;</span><span class="p">,</span><span class="s1">&#39;Al&#39;</span><span class="p">],</span>
+    <span class="n">run_md</span><span class="o">=</span><span class="n">run_md</span><span class="p">,</span>
+    <span class="n">md_timestep</span><span class="o">=</span><span class="mi">1</span><span class="o">*</span><span class="n">units</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span>
+    <span class="n">md_steps</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">md_write_interval</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">pressure</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+    <span class="n">fix_indices</span><span class="o">=</span><span class="n">fix_indices</span><span class="p">,</span>
+    <span class="n">neighbor_cutoff</span><span class="o">=</span><span class="mf">3.5</span><span class="p">,</span>
+    <span class="n">raw_score_cutoff</span><span class="o">=-</span><span class="mf">10000.</span><span class="p">,</span>
+    <span class="n">temperature_key</span><span class="o">=</span><span class="s1">&#39;temperature&#39;</span><span class="p">,</span>
+    <span class="n">replica_key</span><span class="o">=</span><span class="s1">&#39;replica&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="grand-canonical-gc-emc-surface">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Grand-canonical (GC-EMC) — surface</a><a class="headerlink" href="#grand-canonical-gc-emc-surface" title="Link to this heading">¶</a></h2>
+<p>GC-EMC is designed for surface simulations where adsorbates are inserted/removed
+and the system is reweighted across a reaction-condition (μ) grid.</p>
+<p><strong>Required inputs</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">*_input_pop.traj</span></code> with μ-window metadata.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">calculation_script</span></code> for surface fitness (template below).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">temperature_dmu_map</span></code> from GE-EMC MBAR (optional but recommended).</p></li>
+<li><p>Reaction-condition grid array (<code class="docutils literal notranslate"><span class="pre">reaction_conditions</span></code>).</p></li>
+</ul>
+<p><strong>Example: launching GC-EMC (abridged)</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">catemc.gcemc</span><span class="w"> </span><span class="kn">import</span> <span class="n">GCEMC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.adsorption_sites</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlabAdsorptionSites</span>
+
+<span class="c1"># GPU setup passed via sys.argv in typical cluster usage:</span>
+<span class="n">gpu_devices</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">di</span><span class="p">)</span> <span class="k">for</span> <span class="n">di</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)]</span>
+<span class="n">ppg</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;CUDA_VISIBLE_DEVICES&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">gpu_devices</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">comp</span> <span class="o">=</span> <span class="s1">&#39;Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5&#39;</span>
+<span class="n">surface</span> <span class="o">=</span> <span class="s1">&#39;311&#39;</span>
+<span class="n">system_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">comp</span><span class="si">}</span><span class="s1">COH_</span><span class="si">{</span><span class="n">surface</span><span class="si">}</span><span class="s1">&#39;</span>
+<span class="n">dir_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;/mnt/nfs/emc_tutorial/</span><span class="si">{</span><span class="n">comp</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">surface</span><span class="si">}</span><span class="s1">&#39;</span>
+<span class="n">input_pop</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">dir_name</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">system_name</span><span class="si">}</span><span class="s1">_input_pop.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+<span class="n">template</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">dir_name</span><span class="si">}</span><span class="s1">/template_</span><span class="si">{</span><span class="n">comp</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">surface</span><span class="si">}</span><span class="s1">_slab_mace_opt.traj&#39;</span><span class="p">)</span>
+
+<span class="c1"># Build reaction_conditions (mu_C, mu_O, mu_H, T)</span>
+<span class="n">E_C</span> <span class="o">=</span> <span class="o">-</span><span class="mf">9.944</span>    <span class="c1"># Etot per atom graphite PBE</span>
+<span class="n">E_O2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">8.768</span> <span class="o">+</span> <span class="mf">0.101</span>   <span class="c1"># Etot incl. ZPE PBE</span>
+<span class="n">E_H2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">6.773</span> <span class="o">+</span> <span class="mf">0.267</span>   <span class="c1"># Etot incl. ZPE PBE</span>
+<span class="n">dmu_C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">2.001</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+<span class="n">dmu_O</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">4.</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.999</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+<span class="n">dmu_H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+<span class="n">temperatures</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;temperature&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">input_pop</span><span class="p">})</span>
+<span class="n">reaction_conditions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">dmu_C</span><span class="p">,</span> <span class="n">dmu_O</span><span class="p">,</span> <span class="n">dmu_H</span><span class="p">,</span> <span class="n">temperatures</span><span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+<span class="n">element_column_map</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;C&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;H&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+<span class="n">element_eref_map</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;C&#39;</span><span class="p">:</span> <span class="n">E_C</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span> <span class="n">E_O2</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;H&#39;</span><span class="p">:</span> <span class="n">E_H2</span><span class="o">/</span><span class="mi">2</span><span class="p">}</span>
+<span class="n">element_y2x_map</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;C&#39;</span><span class="p">:</span> <span class="mf">0.</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;H&#39;</span><span class="p">:</span> <span class="mf">0.</span><span class="p">}</span>
+
+<span class="c1"># Load Δμ map and internal species data</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;/path/to/bulk_wls_dmu_estimates.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">tdmu_map</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">dir_name</span><span class="si">}</span><span class="s1">/COH_internal_data.pkl&#39;</span><span class="p">,</span><span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+    <span class="n">tsi_map</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+<span class="n">sas</span> <span class="o">=</span> <span class="n">SlabAdsorptionSites</span><span class="p">(</span><span class="n">template</span><span class="p">,</span> <span class="n">surface</span><span class="o">=</span><span class="s1">&#39;autoadsorbate&#39;</span><span class="p">,</span> <span class="n">composition_effect</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_sites</span><span class="o">=</span><span class="s1">&#39;bridge&#39;</span><span class="p">)</span>
+
+<span class="n">emc</span> <span class="o">=</span> <span class="n">GCEMC</span><span class="p">(</span><span class="n">system_name</span><span class="p">,</span> <span class="n">calculation_dir</span><span class="o">=</span><span class="n">dir_name</span><span class="p">,</span> <span class="n">calculation_script</span><span class="o">=</span><span class="s1">&#39;calculate_fitness.py&#39;</span><span class="p">,</span>
+            <span class="n">input_pop</span><span class="o">=</span><span class="n">input_pop</span><span class="p">,</span> <span class="n">fix_indices</span><span class="o">=</span><span class="n">fix_ids</span><span class="p">,</span> <span class="n">trim_generation</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">md_generation</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+            <span class="n">mu_walk_generation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">exchange_generation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">bias_starting_step</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+            <span class="n">mbar_starting_step</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">mbar_sample_stride</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">crossover_rate</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+            <span class="n">interswap_rate</span><span class="o">=</span><span class="mf">100.1</span><span class="p">,</span> <span class="n">slab_intraswap_rate</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span> <span class="n">slab_mutation_rate</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+            <span class="n">adsorbate_insertion_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">adsorbate_removal_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">adsorbate_displacement_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">adsorbate_mutation_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">adsorbate_surface_dmax</span><span class="o">=</span><span class="mf">2.5</span><span class="p">,</span> <span class="n">adsorbate_adsorbate_dmin</span><span class="o">=</span><span class="mf">2.</span><span class="p">,</span>
+            <span class="n">max_adsorbate_species</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">max_adsorbate_coverage</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">metal_element_pool</span><span class="o">=</span><span class="n">target_metal_species</span><span class="p">,</span>
+            <span class="n">nonmetal_element_pool</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;O&#39;</span><span class="p">,</span><span class="s1">&#39;X&#39;</span><span class="p">],</span> <span class="n">bulk_metal_composition</span><span class="o">=</span><span class="n">target_metal_composition</span><span class="p">,</span>
+            <span class="n">adsorbate_species</span><span class="o">=</span><span class="n">adsorbate_species</span><span class="p">,</span> <span class="n">mutable_metal_indices</span><span class="o">=</span><span class="n">mut_metal_indices</span><span class="p">,</span>
+            <span class="n">mutable_nonmetal_indices</span><span class="o">=</span><span class="n">mut_nonmetal_indices</span><span class="p">,</span> <span class="n">slab_indices</span><span class="o">=</span><span class="n">slab_indices</span><span class="p">,</span> <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
+            <span class="n">reaction_conditions</span><span class="o">=</span><span class="n">reaction_conditions</span><span class="p">,</span> <span class="n">element_column_map</span><span class="o">=</span><span class="n">element_column_map</span><span class="p">,</span>
+            <span class="n">element_eref_map</span><span class="o">=</span><span class="n">element_eref_map</span><span class="p">,</span> <span class="n">element_y2x_map</span><span class="o">=</span><span class="n">element_y2x_map</span><span class="p">,</span>
+            <span class="n">temperature_dmu_map</span><span class="o">=</span><span class="n">tdmu_map</span><span class="p">,</span> <span class="n">temperature_species_internal_map</span><span class="o">=</span><span class="n">tsi_map</span><span class="p">,</span>
+            <span class="n">adsorption_sites</span><span class="o">=</span><span class="n">sas</span><span class="p">,</span> <span class="n">temperature_key</span><span class="o">=</span><span class="s1">&#39;temperature&#39;</span><span class="p">,</span> <span class="n">replica_key</span><span class="o">=</span><span class="s1">&#39;replica&#39;</span><span class="p">,</span>
+            <span class="n">acceptance_key</span><span class="o">=</span><span class="s1">&#39;accepted&#39;</span><span class="p">,</span> <span class="n">raw_score_cutoff</span><span class="o">=-</span><span class="mf">10000.</span><span class="p">,</span> <span class="n">gpu_devices</span><span class="o">=</span><span class="n">gpu_devices</span><span class="p">,</span>
+            <span class="n">procs_per_device</span><span class="o">=</span><span class="n">ppg</span><span class="p">)</span>
+
+<span class="n">emc</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">starting_step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">total_steps</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="calculation-script-template-gc-emc">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Calculation script template (GC-EMC)</a><a class="headerlink" href="#calculation-script-template-gc-emc" title="Link to this heading">¶</a></h3>
+<p>Header and argv parsing expected (engine passes same args as GE-EMC plus slab indices):</p>
+<p>argv[1] = trajectory path
+argv[2] = run_md (0/1)
+argv[3] = gpu_device
+argv[4] = fix_indices
+argv[5] = slab_indices</p>
+<p>A template is included in the repo and mirrors the bulk template with additional surface-specific calculators and neighbor checks.</p>
+</section>
+</section>
+<section id="best-practices-for-production-runs">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Best practices for production runs</a><a class="headerlink" href="#best-practices-for-production-runs" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Use a repulsive potential to stabilize vacancy insertions.</p></li>
+<li><p>Keep <code class="docutils literal notranslate"><span class="pre">trim_generation</span></code> such that DB backups are frequent enough to avoid losing long runs.</p></li>
+<li><p>For GC-EMC prefer multi-try μ-walk (multiple candidate insertions) for robustness.</p></li>
+<li><p>If using GPU models (MACE), ensure the cluster or node has the correct drivers/models available and guard script calls to work in CPU-only debugging mode if needed.</p></li>
+</ul>
+</section>
+</section>
+
+</main>
+                        <nav aria-label="Page navigation" class="py-4 my-5 clearfix font-weight-bold border-top">
+    <a class="float-left" href="initial_replica_generation.html" title="Previous">
+        <span aria-hidden="true">←&nbsp;</span>Initial replica generation
+    </a>
+    <a class="float-right" href="mbar_analysis.html" title="Next">
+        MBAR analysis: Δμ estimation &amp; structural ensemble averages <span aria-hidden="true">&nbsp;→</span>
+    </a>
+</nav>
+                    </div>
+                    
+                    <nav class="col-12 col-lg-3 pb-4">
+                        <div class="sticky-top toc page-toc" aria-labelledby="page-toc-heading">
+                            <p class="font-weight-bold" id="page-toc-heading">Page contents</p>
+                            <ul>
+<li><a class="reference internal" href="#">EMC simulations: canonical, Gibbs &amp; grand-canonical</a><ul>
+<li><a class="reference internal" href="#canonical-nvt-usage">Canonical (NVT) usage</a></li>
+<li><a class="reference internal" href="#gibbs-ensemble-ge-emc-bulk">Gibbs ensemble (GE-EMC) — bulk</a><ul>
+<li><a class="reference internal" href="#calculation-script-template-ge-emc">Calculation script template (GE-EMC)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#grand-canonical-gc-emc-surface">Grand-canonical (GC-EMC) — surface</a><ul>
+<li><a class="reference internal" href="#calculation-script-template-gc-emc">Calculation script template (GC-EMC)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#best-practices-for-production-runs">Best practices for production runs</a></li>
+</ul>
+</li>
+</ul>
+
+                        </div>
+                    </nav>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid bg-primary text-light">
+        <div class="container">
+            <div class="row">
+        <div class="col p-4">
+            
+                <nav aria-label="Footer">
+                    <ul class="nav justify-content-center mb-2">
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/features/">Features</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/about-wagtail/"> About Wagtail</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/services/"> Services</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/blog/"> Blog</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/packages/"> Packages</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/developers/"> Developers</a></li>
+                        
+                    </ul>
+                </nav>
+            
+            <div class="text-center">
+                    &copy; Copyright 
+            </div>
+            <div class="text-center text-white-50 font-italic mt-3">
+                <small>Last updated: Oct 13, 2025</small>
+                <small>
+                    Created using
+                    <a class="text-white" href="https://github.com/wagtail/sphinx_wagtail_theme" rel="nofollow" target="_blank">
+                        Sphinx Wagtail Theme 6.5.0
+                    </a>
+                    and
+                    <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
+                        Sphinx 8.2.3
+                    </a>
+                </small>
+            </div>
+        </div>
+    </div>
+        </div>
+    </footer>
+        <script src="_static/documentation_options.js?v=8d563738"></script>
+        <script src="_static/doctools.js?v=9bcbadda"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+        <script src="_static/copybutton.js?v=f281be69"></script>
+        <script type="text/javascript" src="_static/dist/theme.js"></script>
+        <script type="text/javascript" src="_static/dist/vendor.js"></script>
+        <script type="text/javascript" src="_static/searchtools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() { Search.loadIndex("searchindex.js"); });
+        </script>
+        <script type="text/javascript" id="searchindexloader"></script>
+    </body>
+</html>
