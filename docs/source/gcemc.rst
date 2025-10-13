@@ -89,20 +89,15 @@ Example: generate a surface population and assign μ-windows
            input_images.append(atoms)
            rep += 1
 
-   # Build μ-grid (example for CH4/O/H)
-   E_CH4 = -24.047 + 0.104
-   E_O2 = -8.768 + 0.009
-   E_H2 = -6.773 + 0.004
-
-   dmu_CH4 = np.arange(-2.8, -1.299, 0.1)
-   dmu_O  = np.arange(-3.5, -1.999, 0.1)
-   dmu_H  = np.arange(-1.0, 0.001, 0.05)
-
-   grid = np.array(np.meshgrid(dmu_CH4, dmu_O, dmu_H)).T.reshape(-1, 3)
-   mu_C = grid[:, 0] + E_CH4 - 4*(grid[:, 2] + E_H2/2)
-   grid = np.hstack([grid, mu_C.reshape(-1, 1)])
-
-   element_column_map = {'C': 3, 'O': 1, 'H': 2}
+   # Build μ-grid (example for C/O/H)
+   E_C = -9.944    # Etot per atom graphite PBE
+   E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+   E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
+   dmu_C = np.arange(0., 2.001, 0.1)
+   dmu_O  = np.arange(-4., -2.999, 0.1)
+   dmu_H  = np.arange(-1., 0.001, 0.05)
+   grid = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H)).T.reshape(-1, 3)
+   element_column_map = {'C': 0, 'O': 1, 'H': 2}
 
    # Assign μ-windows to replicas
    assigned_input_pop = assign_mu_windows(
@@ -162,17 +157,15 @@ Example: launching GC-EMC (abridged)
    input_pop = read(f'{dir_name}/{system_name}_input_pop.traj', index=':')
    template = read(f'{dir_name}/template_{comp}_{surface}_slab_mace_opt.traj')
 
-   # Build reaction_conditions (mu_CH4, mu_O, mu_H, T, mu_C)
-   dmu_CH4 = np.arange(-2.8, -1.299, 0.1)
-   dmu_O  = np.arange(-3.5, -1.999, 0.1)
-   dmu_H  = np.arange(-1.0, 0.001, 0.05)
+   # Build reaction_conditions (mu_C, mu_O, mu_H, T)
+   dmu_C = np.arange(0., 2.001, 0.1)
+   dmu_O  = np.arange(-4., -2.999, 0.1)
+   dmu_H  = np.arange(-1., 0.001, 0.05)
    temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})
-   grid = np.array(np.meshgrid(dmu_CH4, dmu_O, dmu_H, temperatures)).T.reshape(-1, 4)
-   reaction_conditions = np.hstack([grid, (grid[:,0] + E_CH4 - 4*(grid[:,2] + E_H2/2)).reshape(-1,1)])
-   reaction_conditions[:, [3, 4]] = reaction_conditions[:, [4, 3]]  # swap columns to (T, mu_C) ordering
+   reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)).T.reshape(-1, 4)
 
-   element_column_map = {'C': 3, 'O': 1, 'H': 2}
-   element_eref_map = {'C': 0., 'O': E_O2/2, 'H': E_H2/2}
+   element_column_map = {'C': 0, 'O': 1, 'H': 2}
+   element_eref_map = {'C': E_C, 'O': E_O2/2, 'H': E_H2/2}
    element_y2x_map = {'C': 0., 'O': 4/3, 'H': 0.}
 
    # Load Δμ map and internal species data
@@ -243,9 +236,8 @@ Below is the calculation script template used by the engine; keep the header (ar
    fmax2 = 0.25
    calc3 = MACECalculator(model_paths="/path/to/custom_mace.model", dispersion=False, device='cuda', default_dtype='float64')
    fmax3 = 0.05
-
-   E_O2 = -8.768 + 0.009
-   E_H2 = -6.773 + 0.004
+   E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
+   E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 
    calculate_surface_fitness(
        atoms, traj_path=traj_path,
@@ -260,8 +252,8 @@ Below is the calculation script template used by the engine; keep the header (ar
        md_steps=50,
        md_write_interval=10,
        temperature_dmu_map=tdmu_map,
-       element_column_map={'C': 3, 'O': 1, 'H': 2},
-       element_eref_map={'C': 0., 'O': E_O2/2, 'H': E_H2/2},
+       element_column_map={'C': 0, 'O': 1, 'H': 2},
+       element_eref_map={'C': E_C, 'O': E_O2/2, 'H': E_H2/2},
        element_y2x_map={'C': 0., 'O': 4/3, 'H': 0.},
        adsorption_sites=sas,
        slab_indices=slab_indices,
