@@ -75,15 +75,27 @@ class GEEMC(EMC):
         The rate of performing intraswap operations in the catalyst slab.
 
     metal_element_pool: list of strs, default None
-        The list of target metal elements that should be mutable during the EMC run.
-
-    nonmetal_element_pool: list of strs, default None
-        The list of target non-metal elements (including vacancy 'X') that should be 
+        The list of target metal elements (including vacancy 'X') that should be 
         mutable during the EMC run.
 
+    nonmetal_element_pool: list of strs, default None
+        The list of target non-metal elements (including vacancy 'X') that should 
+        be mutable during the EMC run.
+
+    mutable_metal_indices: list of ints, default None
+        The list of metal atom (or 'X' which represents vacancy) indices that are 
+        allowed to mutate during the EMC run. Default None means all metal indices 
+        are mutable.
+
+    mutable_nonmetal_indices: list of ints, default None
+        The list of non-metal (or 'X' which represents vacancy) indices that are
+        allowed to mutate during the EMC run. Default None means all non-metal 
+        indices are mutable.
+
     raw_score_cutoff: float, default -10000.
-        The fitness score for candidates that are should not be considered in the sampling.
-        This could be structures that are unphysical / failed to relax by the calculator.
+        The fitness score for candidates that are should not be considered in the 
+        sampling. This could be structures that are unphysical / failed to relax by 
+        the calculator.
 
     temperature_key: str, default 'temperature'
         Keyword for the temperature stored in each configuration.
@@ -98,8 +110,8 @@ class GEEMC(EMC):
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
     procs_per_device: int, default 1
-        The number of processes to run in parallel on each GPU/CPU device. Defaul is to
-        run in serial.
+        The number of processes to run in parallel on each GPU/CPU device. Defaul is 
+        to run in serial.
 
     batching: bool, default False
         Whether to run batch relaxation and MD using torch-sim. Default is False.
@@ -122,6 +134,8 @@ class GEEMC(EMC):
             intraswap_rate=0.,
             metal_element_pool=None,
             nonmetal_element_pool=None,
+            mutable_metal_indices=None,
+            mutable_nonmetal_indices=None,
             raw_score_cutoff=-10000.,
             temperature_key='temperature',
             replica_key='replica',
@@ -142,6 +156,8 @@ class GEEMC(EMC):
                 exchange_generation=exchange_generation,
                 metal_element_pool=metal_element_pool,
                 nonmetal_element_pool=nonmetal_element_pool,
+                mutable_metal_indices=mutable_metal_indices,
+                mutable_nonmetal_indices=mutable_nonmetal_indices,
                 raw_score_cutoff=raw_score_cutoff,
                 temperature_key=temperature_key,
                 replica_key=replica_key,
@@ -266,9 +282,14 @@ class GEEMC(EMC):
                     if parents[0].info['data']['for_operation'] == 'crossover':
                         if self.nonmetal_element_pool is None:
                             element_pool = self.metal_element_pool
+                            allowed_indices = self.mutable_metal_indices
                         else:
                             element_pool = self.metal_element_pool + self.nonmetal_element_pool
-                        operator = EMCCutSpliceCrossover(elements=element_pool, keep_composition=True)
+                            if (self.mutable_metal_indices is None) or (self.mutable_nonmetal_indices is None):
+                                allowed_indices = None
+                            else:
+                                allowed_indices = self.mutable_metal_indices + self.mutable_nonmetal_indices
+                        operator = EMCCutSpliceCrossover(allowed_indices=allowed_indices, elements=element_pool, keep_composition=True)
                     elif parents[0].info['data']['for_operation'] == 'interswap':
                         if self.nonmetal_element_pool is None:
                             do_metal = True
@@ -276,12 +297,13 @@ class GEEMC(EMC):
                             do_metal = random.choices(population=[True, False], weights=[self.metal_interswap_rate, self.nonmetal_interswap_rate])[0]
                         if do_metal and (self.bias_starting_step is not None) and (gen_num + gi >= self.bias_starting_step):
                             operator = EMCInterSwap(
+                                    allowed_indices=self.mutable_metal_indices, 
                                     element_pools=self.metal_element_pool,
                                     element_probabilities={s: 1/len(self.metal_element_pool) for s in self.metal_element_pool})
                         elif do_metal:
-                            operator = EMCInterSwap(element_pools=self.metal_element_pool)
+                            operator = EMCInterSwap(allowed_indices=self.mutable_metal_indices, element_pools=self.metal_element_pool)
                         else:
-                            operator = EMCInterSwap(element_pools=self.nonmetal_element_pool)
+                            operator = EMCInterSwap(allowed_indices=self.mutable_nonmetal_indices, element_pools=self.nonmetal_element_pool)
                     offsprings, desc = operator.get_new_individual(parents)
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
@@ -298,10 +320,15 @@ class GEEMC(EMC):
                     if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
                         continue
                     if self.nonmetal_element_pool is None:
+                        allowed_indices = self.mutable_metal_indices
                         element_pools = self.metal_element_pool
                     else:
+                        if (self.mutable_metal_indices is None) or (self.mutable_nonmetal_indices is None):
+                            allowed_indices = None
+                        else:
+                            allowed_indices = [self.mutable_metal_indices, self.mutable_nonmetal_indices]
                         element_pools = [self.metal_element_pool, self.nonmetal_element_pool]
-                    operator = EMCIntraSwap(element_pools=element_pools)
+                    operator = EMCIntraSwap(allowed_indices=allowed_indices, element_pools=element_pools)
                     offspring, desc = operator.get_new_individual(parents)
                     if offspring == parents[0]:
                         warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')

@@ -128,7 +128,8 @@ class GCEMC(EMC):
         during the EMC run.
 
     metal_element_pool: list of strs, default None
-        The list of target metal elements that should be mutable during the EMC run.
+        The list of target metal elements (including 'X' which represents vacancy) 
+        that should be mutable during the EMC run.
 
     nonmetal_element_pool: list of strs, default None
         The list of target non-metal elements (including 'X' which represents 
@@ -149,11 +150,14 @@ class GCEMC(EMC):
         temperature_species_internal_map.
 
     mutable_metal_indices: list of ints, default None
-        The list of metal atom indices that are allowed to mutate during the EMC run.
+        The list of metal atom (or 'X' which represents vacancy) indices that are 
+        allowed to mutate during the EMC run. Default None means all metal indices 
+        are mutable.
 
     mutable_nonmetal_indices: list of ints, default None
         The list of non-metal (or 'X' which represents vacancy) indices that are
-        allwoede to mutate during the EMC run.
+        allowed to mutate during the EMC run. Default None means all non-metal 
+        indices are mutable.
 
     slab_indices: list of ints, default None
         The list of atom indices that corresponds to the catalyst slab. Note that 
@@ -204,12 +208,14 @@ class GCEMC(EMC):
        in the first step. In most cases not needed.
 
     ignore_sites: str or list of strs, default None
-        The catalyst surface adsorption sites that should not be considered for adsorbate
-        insertion. Common practice is to ignore 'bridge' sites to accelerate the EMC run.
+        The catalyst surface adsorption sites that should not be considered for 
+        adsorbate insertion. Common practice is to ignore 'bridge' sites to accelerate 
+        the EMC run.
 
     raw_score_cutoff: float, default -10000.
-        The fitness score for candidates that are should not be considered in the sampling.
-        This could be structures that are unphysical / failed to relax by the calculator.
+        The fitness score for candidates that are should not be considered in the 
+        sampling. This could be structures that are unphysical / failed to relax by 
+        the calculator.
 
     temperature_key: str, default 'temperature'
         Keyword for the temperature stored in each configuration.
@@ -224,8 +230,8 @@ class GCEMC(EMC):
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
     procs_per_device: int, default 1
-        The number of processes to run in parallel on each GPU/CPU device. Defaul is to
-        run in serial.
+        The number of processes to run in parallel on each GPU/CPU device. Defaul is 
+        to run in serial.
 
     batching: bool, default False
         Whether to run batch relaxation and MD using torch-sim. Default is False.
@@ -293,6 +299,8 @@ class GCEMC(EMC):
                 exchange_generation=exchange_generation,
                 metal_element_pool=metal_element_pool,
                 nonmetal_element_pool=nonmetal_element_pool,
+                mutable_metal_indices=mutable_metal_indices,
+                mutable_nonmetal_indices=mutable_nonmetal_indices,
                 raw_score_cutoff=raw_score_cutoff,
                 temperature_key=temperature_key,
                 replica_key=replica_key,
@@ -321,8 +329,6 @@ class GCEMC(EMC):
         self.bulk_metal_composition = bulk_metal_composition
         self.adsorbate_species = adsorbate_species
         self.other_adsorbate_species = other_adsorbate_species
-        self.mutable_metal_indices = mutable_metal_indices
-        self.mutable_nonmetal_indices = mutable_nonmetal_indices
         self.slab_indices = slab_indices
         self.volume = volume
         self.reaction_conditions = reaction_conditions
@@ -693,8 +699,7 @@ class GCEMC(EMC):
                     relaxed_candidates += self.pop.evaluate_offsprings(
                             parents, [relaxed_offspring1, relaxed_offspring2], prefactor='gc', volume=self.volume,
                             nonmetal_species=self.adsorbate_species, temperature_species_internal_map=self.tsi_map,
-                            no_internal_indices=self.mutable_nonmetal_indices, mutable_indices=self.mutable_metal_indices,
-                            raw_score_cutoff=self.raw_score_cutoff)
+                            no_internal_indices=self.mutable_nonmetal_indices, raw_score_cutoff=self.raw_score_cutoff)
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
                     relaxed_offspring = relaxed_offsprings[replicas.index(rep)]
@@ -706,7 +711,6 @@ class GCEMC(EMC):
                             temperature_species_internal_map=self.tsi_map,
                             no_internal_indices=self.mutable_nonmetal_indices, 
                             metal_species_probabilities=self.bulk_metal_composition, 
-                            mutable_indices=self.mutable_metal_indices,
                             raw_score_cutoff=self.raw_score_cutoff)
             
             # Update the population to allow new candidates to enter

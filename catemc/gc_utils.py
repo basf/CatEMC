@@ -104,16 +104,10 @@ def compute_intramove_prefactor(
 
 
 def compute_interswap_prefactor(
-        atoms1, atoms2, trial_atoms1, trial_atoms2=None, 
-        mutable_indices=None):
+        atoms1, atoms2, trial_atoms1, trial_atoms2=None):
 
     ect11, ect12 = Counter(atoms1.symbols), Counter(trial_atoms1.symbols)
-    if mutable_indices is None:
-        mutated_elements = [k for k, v in ect11.items() if (v != ect12[k]) and
-                            (k != 'X')]
-    else:
-        mutated_elements = [k for k, v in ect11.items() if (v != ect12[k]) and 
-                            (k != 'X') and (k in set(atoms1.symbols[mutable_indices]))]
+    mutated_elements = [k for k, v in ect11.items() if v != ect12[k]]
     mutated_elements.sort(key=lambda x: ect12[x] - ect11[x])
     m1, m2 = mutated_elements
     N11 = len([a for a in atoms1 if a.symbol == m1])
@@ -130,7 +124,7 @@ def compute_crossover_prefactor(
         nonmetal_species=None, 
         temperature_species_internal_map=None,
         no_internal_indices=None,
-        temperature_key='temperature',):
+        temperature_key='temperature'):
 
     real_indices1 = [a.index for a in atoms1 if a.symbol != 'X']
     atoms1 = atoms1[real_indices1]

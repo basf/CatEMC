@@ -61,15 +61,27 @@ class EMC(object):
         The rate of performing intraswap operations in the catalyst slab.
 
     metal_element_pool: list of strs, default None
-        The list of target metal elements that should be mutable during the EMC run.
-
-    nonmetal_element_pool: list of strs, default None
-        The list of target non-metal elements (including vacancy 'X') that should be 
+        The list of target metal elements (including vacancy 'X') that should be 
         mutable during the EMC run.
 
+    nonmetal_element_pool: list of strs, default None
+        The list of target non-metal elements (including vacancy 'X') that should 
+        be mutable during the EMC run.
+
+    mutable_metal_indices: list of ints, default None
+        The list of metal atom (or 'X' which represents vacancy) indices that are 
+        allowed to mutate during the EMC run. Default None means all metal indices 
+        are mutable.
+
+    mutable_nonmetal_indices: list of ints, default None
+        The list of non-metal (or 'X' which represents vacancy) indices that are
+        allowed to mutate during the EMC run. Default None means all non-metal 
+        indices are mutable.
+
     raw_score_cutoff: float, default -10000.
-        The fitness score for candidates that are should not be considered in the sampling.
-        This could be structures that are unphysical / failed to relax by the calculator.
+        The fitness score for candidates that are should not be considered in the 
+        sampling. This could be structures that are unphysical / failed to relax by 
+        the calculator.
 
     temperature_key: str, default 'temperature'
         Keyword for the temperature stored in each configuration.
@@ -84,8 +96,8 @@ class EMC(object):
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
     procs_per_device: int, default 1
-        The number of processes to run in parallel on each GPU/CPU device. Defaul is to
-        run in serial.
+        The number of processes to run in parallel on each GPU/CPU device. Defaul is 
+        to run in serial.
 
     batching: bool, default False
         Whether to run batch relaxation and MD using torch-sim. Default is False.
@@ -104,6 +116,8 @@ class EMC(object):
             intraswap_rate=0.,
             metal_element_pool=None,
             nonmetal_element_pool=None,
+            mutable_metal_indices=None,
+            mutable_nonmetal_indices=None,
             raw_score_cutoff=-10000.,
             temperature_key='temperature',
             replica_key='replica',
@@ -125,6 +139,8 @@ class EMC(object):
         self.intraswap_rate = intraswap_rate
         self.metal_element_pool = metal_element_pool
         self.nonmetal_element_pool = nonmetal_element_pool
+        self.mutable_metal_indices = mutable_metal_indices
+        self.mutable_nonmetal_indices = mutable_nonmetal_indices
         self.raw_score_cutoff = raw_score_cutoff
         self.temperature_key = temperature_key
         self.replica_key = replica_key
@@ -366,9 +382,14 @@ class EMC(object):
                 if len(parents) == 2:
                     if self.nonmetal_element_pool is None:
                         element_pool = self.metal_element_pool
+                        allowed_indices = self.mutable_metal_indices
                     else:
                         element_pool = self.metal_element_pool + self.nonmetal_element_pool
-                    operator = EMCCutSpliceCrossover(elements=element_pool, keep_composition=True)
+                        if (self.mutable_metal_indices is None) or (self.mutable_nonmetal_indices is None):
+                            allowed_indices = None
+                        else:
+                            allowed_indices = self.mutable_metal_indices + self.mutable_nonmetal_indices
+                    operator = EMCCutSpliceCrossover(allowed_indices=allowed_indices, elements=element_pool, keep_composition=True)
                     offsprings, desc = operator.get_new_individual(parents)
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
@@ -385,10 +406,15 @@ class EMC(object):
                     if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
                         continue
                     if self.nonmetal_element_pool is None:
+                        allowed_indices = self.mutable_metal_indices
                         element_pools = self.metal_element_pool
                     else:
+                        if (self.mutable_metal_indices is None) or (self.mutable_nonmetal_indices is None):
+                            allowed_indices = None
+                        else:
+                            allowed_indices = [self.mutable_metal_indices, self.mutable_nonmetal_indices]
                         element_pools = [self.metal_element_pool, self.nonmetal_element_pool]
-                    operator = EMCIntraSwap(element_pools=element_pools)
+                    operator = EMCIntraSwap(allowed_indices=allowed_indices, element_pools=element_pools)
                     offspring, desc = operator.get_new_individual(parents)
                     if offspring == parents[0]:
                         warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
