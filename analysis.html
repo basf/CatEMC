@@ -229,9 +229,8 @@ expectations.</p>
 
 <span class="n">ana</span><span class="o">.</span><span class="n">prepare_data</span><span class="p">(</span><span class="n">use_exist</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">raw_score_cutoff</span><span class="o">=-</span><span class="mf">10000.</span><span class="p">)</span>
 
-<span class="n">E_O2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">8.768</span> <span class="o">+</span> <span class="mf">0.009</span>
-<span class="n">E_H2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">6.773</span> <span class="o">+</span> <span class="mf">0.004</span>
-
+<span class="n">E_O2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">8.768</span> <span class="o">+</span> <span class="mf">0.101</span>   <span class="c1"># Etot incl. ZPE PBE</span>
+<span class="n">E_H2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">6.773</span> <span class="o">+</span> <span class="mf">0.267</span>   <span class="c1"># Etot incl. ZPE PBE</span>
 <span class="n">dmu_O</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">5.</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.999</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
 <span class="n">dmu_H</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)</span>
 <span class="n">sim_temperatures</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1023</span><span class="p">,]</span>

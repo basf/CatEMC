@@ -938,7 +938,7 @@
                         <span class="n">temperature</span><span class="o">=</span><span class="n">temps</span><span class="p">,</span>
                         <span class="n">timestep</span><span class="o">=</span><span class="n">timestep_ps</span><span class="p">,</span>
                         <span class="n">integrator</span><span class="o">=</span><span class="n">ts</span><span class="o">.</span><span class="n">integrators</span><span class="o">.</span><span class="n">nvt_langevin</span><span class="p">,</span>
-                        <span class="n">autobatcher</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">autobatcher</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                         <span class="n">trajectory_reporter</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">filenames</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">.traj&#39;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tmp_atoms_list</span><span class="p">))],</span>
                                                  <span class="n">state_frequency</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">md_write_interval</span><span class="p">)),</span>
                     <span class="p">)</span>
@@ -952,7 +952,7 @@
                         <span class="n">timestep</span><span class="o">=</span><span class="n">timestep_ps</span><span class="p">,</span>
                         <span class="n">integrator</span><span class="o">=</span><span class="n">ts</span><span class="o">.</span><span class="n">integrators</span><span class="o">.</span><span class="n">npt_langevin</span><span class="p">,</span>
                         <span class="n">pressure</span><span class="o">=</span><span class="n">pressure</span><span class="p">,</span>
-                        <span class="n">autobatcher</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">autobatcher</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                         <span class="n">trajectory_reporter</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">filenames</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">.traj&#39;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tmp_atoms_list</span><span class="p">))],</span>
                                                  <span class="n">state_frequency</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">md_write_interval</span><span class="p">)),</span>
                     <span class="p">)</span>
@@ -966,7 +966,7 @@
                     <span class="n">model</span><span class="o">=</span><span class="n">ts_model</span><span class="p">,</span>
                     <span class="n">optimizer</span><span class="o">=</span><span class="n">ts</span><span class="o">.</span><span class="n">Optimizer</span><span class="o">.</span><span class="n">fire</span><span class="p">,</span>
                     <span class="n">convergence_fn</span><span class="o">=</span><span class="n">conv</span><span class="p">,</span>
-                    <span class="n">autobatcher</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">autobatcher</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Frechet cell + applied pressure for cell relaxation</span>
@@ -975,7 +975,7 @@
                     <span class="n">model</span><span class="o">=</span><span class="n">ts_model</span><span class="p">,</span>
                     <span class="n">optimizer</span><span class="o">=</span><span class="n">ts</span><span class="o">.</span><span class="n">Optimizer</span><span class="o">.</span><span class="n">fire</span><span class="p">,</span>
                     <span class="n">convergence_fn</span><span class="o">=</span><span class="n">conv</span><span class="p">,</span>
-                    <span class="n">autobatcher</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">autobatcher</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                     <span class="n">init_kwargs</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">cell_filter</span><span class="o">=</span><span class="n">ts</span><span class="o">.</span><span class="n">CellFilter</span><span class="o">.</span><span class="n">frechet</span><span class="p">,</span> <span class="n">pressure</span><span class="o">=</span><span class="n">pressure</span><span class="p">),</span>
                 <span class="p">)</span>
 
@@ -1101,7 +1101,7 @@
                     <span class="n">temperature</span><span class="o">=</span><span class="n">temps</span><span class="p">,</span>
                     <span class="n">timestep</span><span class="o">=</span><span class="n">timestep_ps</span><span class="p">,</span>
                     <span class="n">integrator</span><span class="o">=</span><span class="n">ts</span><span class="o">.</span><span class="n">integrators</span><span class="o">.</span><span class="n">nvt_langevin</span><span class="p">,</span>
-                    <span class="n">autobatcher</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">autobatcher</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                     <span class="n">trajectory_reporter</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">filenames</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">.traj&#39;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tmp_atoms_list</span><span class="p">))],</span>
                                              <span class="n">state_frequency</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">md_write_interval</span><span class="p">)),</span>
                 <span class="p">)</span>
@@ -1114,7 +1114,7 @@
                 <span class="n">model</span><span class="o">=</span><span class="n">ts_model</span><span class="p">,</span>
                 <span class="n">optimizer</span><span class="o">=</span><span class="n">ts</span><span class="o">.</span><span class="n">Optimizer</span><span class="o">.</span><span class="n">fire</span><span class="p">,</span>
                 <span class="n">convergence_fn</span><span class="o">=</span><span class="n">conv</span><span class="p">,</span>
-                <span class="n">autobatcher</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">autobatcher</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">last_relaxed_state</span><span class="p">,</span> <span class="s1">&#39;to_atoms&#39;</span><span class="p">):</span>
                 <span class="n">tmp_atoms_list</span> <span class="o">=</span> <span class="n">last_relaxed_state</span><span class="o">.</span><span class="n">to_atoms</span><span class="p">()</span>
