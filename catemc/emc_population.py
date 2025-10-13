@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Implementation for evolutionary Monte Carlo (EMC)"""
+"""Implementation for evolutionary Monte Carlo (EMC) population"""
 from .gc_utils import *
 from collections import defaultdict, Counter
 from functools import partial
