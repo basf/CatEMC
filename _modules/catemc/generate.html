@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en" data-content_root="../../">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+        <title>catemc.generate &mdash; CatEMC 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" type="text/css" href="../../_static/dist/fontawesome.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/dist/theme.css?v=310cf088" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+            <link rel="index" title="Index" href="../../genindex.html" />
+            <link rel="search" title="Search" href="../../search.html" />
+            <link rel="top" title="CatEMC 1.0.0 documentation" href="#" />
+            <link rel="up" title="Module code" href="../index.html" />
+    </head>
+<body>
+    <script type="text/javascript" src="../../_static/dist/blocking.js"></script>
+    <header class="container-fluid bg-primary">
+        <a class="btn btn-sm btn-light skip-to-content-link" href="#main">Skip to content</a>
+        <div class="container-fluid">
+            <div class="navbar navbar-expand-lg navbar-dark font-weight-bold">
+                    <a href="../../index.html"
+                        title="Wagtail"
+                        class="logo navbar-brand"
+                    >
+                        <img src="../../_static/img/wagtail-logo-circle.svg" width="45" height="59" alt="Wagtail"
+                            class="logo-img"
+                        />
+                        Sphinx Wagtail Theme
+                    </a>
+                
+                
+                <button class="navbar-toggler btn btn-primary d-lg-none" type="button" data-toggle="collapse" data-target="#collapseSidebar" aria-expanded="false" aria-controls="collapseExample">
+                    <span class="navbar-toggler-icon"></span>
+                    <span class="sr-only">menu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 sidebar-container">
+                <div id="collapseSidebar" class="collapse sticky-top d-lg-block pt-5 pr-lg-4">
+<div id="searchbox" class="searchbox mb-6 px-1" role="search">
+    <form id="search-form" action="../../search.html" autocomplete="off" method="get" role="search">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <div class="input-group-text border-right-0 bg-white py-3 pl-3 pr-2"><span class="fas fa-search"></span></div>
+            </div>
+            <input class="form-control py-3 pr-3 pl-1 h-100 border-left-0" type="search" name="q" placeholder="Search documentation" aria-label="Search documentation" id="searchinput" />
+        </div>
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div><div class="site-toc">
+    <nav class="toc mt-3" aria-label="Main menu">
+        
+    </nav>
+    <template data-toggle-item-template>
+        <button class="btn btn-sm btn-link toctree-expand" type="button">
+            <span class="sr-only">Toggle menu contents</span>
+        </button>
+    </template>
+</div>
+                    <div class="d-lg-none border-bottom">
+                        
+                    </div>
+                </div>
+            </aside>
+            <div class="col-12 col-lg-9 pt-5">
+                <header class="row align-items-baseline">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+    <ol class="breadcrumb m-0 p-0 bg-transparent">
+        <li class="breadcrumb-item"><a href="../../index.html">Docs</a></li>
+            <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+        <li class="breadcrumb-item active" aria-current="page">catemc.generate</li>
+    </ol>
+</nav>
+                    </div>
+                    <div class="col-sm-12 col-lg-auto mt-3 mt-lg-3">
+                        <noscript>
+                            <p>JavaScript is required to toggle light/dark mode..</p>
+                        </noscript>
+                        <button id="wagtail-theme" class="btn btn-sm btn-light text-decoration-none" type="button">
+                            <span class="dark-only"><i class="fas fa-sun"></i> Light mode</span>
+                            <span class="light-only"><i class="fas fa-moon"></i> Dark mode</span>
+                        </button>
+    <a class="btn btn-sm btn-light text-decoration-none" href="https://github.com/wagtail/sphinx_wagtail_theme/blob/main/docs/_modules/catemc/generate" rel="nofollow">
+        <span class="btn-icon"><span class="fab fa-github"></span></span>
+        <span class="btn-text">Edit on GitHub</span>
+    </a>
+                        
+                    </div>
+                </header>
+                <div class="row" >
+                    <div class="col-12">
+                        <hr class="w-100 my-4">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-lg-9 order-last order-lg-first rst-content">
+                        <main role="main" id="main">
+    <h1>Source code for catemc.generate</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.ordering</span><span class="w"> </span><span class="kn">import</span> <span class="n">RandomOrderingGenerator</span> <span class="k">as</span> <span class="n">ROG</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.ordering</span><span class="w"> </span><span class="kn">import</span> <span class="n">SymmetricSlabOrderingGenerator</span> <span class="k">as</span> <span class="n">SSOG</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.adsorption_sites</span><span class="w"> </span><span class="kn">import</span> <span class="n">SlabAdsorptionSites</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.adlayer</span><span class="w"> </span><span class="kn">import</span> <span class="n">min_dist_coverage_pattern</span> <span class="k">as</span> <span class="n">mindcp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.adlayer</span><span class="w"> </span><span class="kn">import</span> <span class="n">max_dist_coverage_pattern</span> <span class="k">as</span> <span class="n">maxdcp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span><span class="p">,</span> <span class="n">write</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+
+<div class="viewcode-block" id="generate_population">
+<a class="viewcode-back" href="../../catemc.html#catemc.generate.generate_population">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_population</span><span class="p">(</span>
+        <span class="n">template</span><span class="p">,</span>
+        <span class="n">pop_size</span><span class="p">,</span>
+        <span class="n">input_type</span><span class="o">=</span><span class="s1">&#39;slab&#39;</span><span class="p">,</span>
+        <span class="n">target_metal_species</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">target_metal_composition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">target_nonmetal_species</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">target_nonmetal_composition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">allowed_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">valences</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">adsorbate_species</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">adsorbate_coverage</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">adsorbate_adsorbate_dmin</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">max_adsorbate_species</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">adsorption_sites</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">adsorption_dict</span><span class="o">=</span><span class="p">{},</span>
+        <span class="n">symmetry_constraint</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">symmetry_dict</span><span class="o">=</span><span class="p">{},</span>
+        <span class="n">trajectory</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">append_trajectory</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate a population of random bulk/slab configurations.</span>
+
+<span class="sd">    inputs:</span>
+<span class="sd">        structures (list): a list of structures (ase.Atoms or pymatgen.core.Structure) </span>
+<span class="sd">                         as the initial GA population. Generate random structures if</span>
+<span class="sd">                         the structures are not provided (or complete the population </span>
+<span class="sd">                         if only part of structures are provided).</span>
+<span class="sd">        pop_size (int): GA population size</span>
+<span class="sd">        target_metal_species (list or str): a list of possible metal species to present</span>
+<span class="sd">                         in the catalyst.</span>
+<span class="sd">        target_metal_composition (dict): a dictionary that maps each metal species to</span>
+<span class="sd">                         the corresponding concentration.</span>
+<span class="sd">        target_nonmetal_species (list or str): a list of possible non-metal species to </span>
+<span class="sd">                         present in the catalyst.</span>
+<span class="sd">        target_nonmetal_composition (dict): a dictionary that maps each non-metal </span>
+<span class="sd">                         species to the corresponding concentrations.</span>
+<span class="sd">        allowed_indices (list): a list of atom indices that are allowed to mutate.</span>
+<span class="sd">        valences (dict): a dictionary that maps the each species to the corresponding </span>
+<span class="sd">                         charge state to ensure charge neutrality of the structures.</span>
+<span class="sd">        adsorbate_species (list or str): a list of possible adsorbate species to adsorb</span>
+<span class="sd">                         on the catalyst surface.</span>
+<span class="sd">        adsorbate_coverage (float): fix to this adsorbate coverage.</span>
+<span class="sd">        adsorbate_adsorbate_dmin (float): the radius of the sphere inside which no other </span>
+<span class="sd">                         adsorbates should be found. </span>
+<span class="sd">        max_adsorbate_species (int): the maximum allowed types of adsorbate species </span>
+<span class="sd">                         (excluding vacancies) for a single structure. Allow all </span>
+<span class="sd">                         adsorbatae species if not specified.</span>
+<span class="sd">        adsorption_sites (acat.adsorption_sites.Cluster/SlabAdsorptionSites object or </span>
+<span class="sd">                         the corresponding pickle file path, default None): provide the </span>
+<span class="sd">                         ACAT built-in adsorption sites class to accelerate the adlayer </span>
+<span class="sd">                         pattern generation.</span>
+<span class="sd">        adsorption_dict (dict): parameters for identifying adsorption sites.</span>
+<span class="sd">        symmetry_constraint (bool): whether to apply symmetry constraint. Currently only</span>
+<span class="sd">                         support generating symmetric clusters.</span>
+<span class="sd">        symmetry_dict (bool): paramters for generating symmetric clusters.</span>
+<span class="sd">        trajectory (str): path for saving the structures in the inital population.</span>
+<span class="sd">        seed (int): random seed for reproducibility. </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">seed</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span><span class="p">)</span>
+    <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+    <span class="n">images</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">ngen</span> <span class="o">=</span> <span class="n">pop_size</span>
+
+    <span class="k">if</span> <span class="n">target_metal_species</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">target_metal_species</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target_metal_species</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">target_metal_species</span> <span class="o">=</span> <span class="p">[</span><span class="n">target_metal_species</span><span class="p">]</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">target_nonmetal_species</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target_nonmetal_species</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">target_nonmetal_species</span> <span class="o">=</span> <span class="p">[</span><span class="n">target_nonmetal_species</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">ngen</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">gen_images</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">target_metal_species</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># Distinguish metal and non-metal atoms</span>
+        <span class="n">metal_ids</span><span class="p">,</span> <span class="n">nonmetal_ids</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">atom</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">template</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">atom</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">in</span> <span class="n">target_metal_species</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">allowed_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">allowed_indices</span><span class="p">):</span>
+                    <span class="n">metal_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">nonmetal_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nonmetal_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">metal_atoms</span> <span class="o">=</span> <span class="n">template</span><span class="p">[</span><span class="n">metal_ids</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">nonmetal_ids</span><span class="p">:</span>
+            <span class="n">nonmetal_atoms</span> <span class="o">=</span> <span class="n">template</span><span class="p">[</span><span class="n">nonmetal_ids</span><span class="p">]</span>
+            <span class="c1"># Prepare sorted_ids for sorting atomic indices back to original order</span>
+            <span class="n">sorted_ids</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">template</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">metal_ids</span> <span class="o">+</span> <span class="n">nonmetal_ids</span><span class="p">):</span>
+                <span class="n">sorted_ids</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">symmetry_constraint</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.ordering</span><span class="w"> </span><span class="kn">import</span> <span class="n">RandomOrderingGenerator</span> <span class="k">as</span> <span class="n">ROG</span>
+            <span class="n">gen</span> <span class="o">=</span> <span class="n">ROG</span><span class="p">(</span><span class="n">metal_atoms</span><span class="p">,</span> <span class="n">elements</span><span class="o">=</span><span class="n">target_metal_species</span><span class="p">,</span>
+                      <span class="n">composition</span><span class="o">=</span><span class="n">target_metal_composition</span><span class="p">,</span>
+                      <span class="n">trajectory</span><span class="o">=</span><span class="s1">&#39;metal_orderings.traj&#39;</span><span class="p">)</span>
+            <span class="n">gen</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">num_gen</span><span class="o">=</span><span class="n">ngen</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">input_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;cluster&#39;</span><span class="p">]:</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.ordering</span><span class="w"> </span><span class="kn">import</span> <span class="n">SymmetricClusterOrderingGenerator</span> <span class="k">as</span> <span class="n">SCOG</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;atoms&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">metal_atoms</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;elements&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">target_metal_species</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;composition&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">target_metal_composition</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;trajectory&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;metal_orderings.traj&#39;</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;save_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">gen</span> <span class="o">=</span> <span class="n">SCOG</span><span class="p">(</span><span class="o">**</span><span class="n">symmetry_dict</span><span class="p">)</span>
+                <span class="n">gen</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">max_gen</span><span class="o">=</span><span class="n">ngen</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">input_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;slab&#39;</span><span class="p">,</span> <span class="s1">&#39;slab+ads&#39;</span><span class="p">,</span> <span class="s1">&#39;surface&#39;</span><span class="p">]:</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.ordering</span><span class="w"> </span><span class="kn">import</span> <span class="n">SymmetricSlabOrderingGenerator</span> <span class="k">as</span> <span class="n">SSOG</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;atoms&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">metal_atoms</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;elements&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">target_metal_species</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;composition&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">target_metal_composition</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;trajectory&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;metal_orderings.traj&#39;</span>
+                <span class="n">symmetry_dict</span><span class="p">[</span><span class="s1">&#39;save_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">gen</span> <span class="o">=</span> <span class="n">SSOG</span><span class="p">(</span><span class="o">**</span><span class="n">symmetry_dict</span><span class="p">)</span>
+                <span class="n">gen</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">max_gen</span><span class="o">=</span><span class="n">ngen</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+        <span class="n">gen_images</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="s1">&#39;metal_orderings.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">nonmetal_ids</span><span class="p">:</span>
+            <span class="n">gen_images</span> <span class="o">=</span> <span class="p">[(</span><span class="n">a</span> <span class="o">+</span> <span class="n">nonmetal_atoms</span><span class="p">)[</span><span class="n">sorted_ids</span><span class="p">]</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">gen_images</span><span class="p">]</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s1">&#39;metal_orderings.traj&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">target_metal_composition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">valences</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">max_anion_valence</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nonmetal_ids</span><span class="p">)</span> <span class="o">*</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">valences</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">gen_images</span><span class="p">:</span>
+                <span class="n">ctr</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">atoms</span><span class="o">.</span><span class="n">symbols</span><span class="p">)</span>
+                <span class="n">cation_valence</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">ctr</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">valences</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">])</span>
+                <span class="n">sorted_tups</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">valences</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">while</span> <span class="n">cation_valence</span> <span class="o">&gt;</span> <span class="n">max_anion_valence</span><span class="p">:</span>
+                    <span class="n">sorted_ids</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sorted_tups</span><span class="p">)),</span> <span class="mi">2</span><span class="p">))</span>
+                    <span class="n">metal_pair</span> <span class="o">=</span> <span class="p">[</span><span class="n">sorted_tups</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sorted_ids</span><span class="p">]</span>
+                    <span class="n">metal1_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">index</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="n">metal_pair</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+                    <span class="k">if</span> <span class="n">allowed_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">metal1_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">metal1_ids</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">allowed_indices</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">metal1_ids</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">mut_id</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">metal1_ids</span><span class="p">)</span>
+                    <span class="n">atoms</span><span class="p">[</span><span class="n">mut_id</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span> <span class="o">=</span> <span class="n">metal_pair</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">ctr</span><span class="p">[</span><span class="n">metal_pair</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">ctr</span><span class="p">[</span><span class="n">metal_pair</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">-=</span> <span class="mi">1</span>
+                    <span class="n">cation_valence</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">ctr</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">valences</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">gen_images</span> <span class="o">=</span> <span class="p">[</span><span class="n">template</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ngen</span><span class="p">)]</span>
+
+    <span class="k">if</span> <span class="n">target_nonmetal_species</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Distinguish metal and non-metal atoms                                                </span>
+        <span class="n">nonmetal_ids</span><span class="p">,</span> <span class="n">metal_ids</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">atom</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">template</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">atom</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">in</span> <span class="n">target_nonmetal_species</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">allowed_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">allowed_indices</span><span class="p">):</span>
+                    <span class="n">nonmetal_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">metal_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">metal_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">nonmetal_atoms</span> <span class="o">=</span> <span class="n">template</span><span class="p">[</span><span class="n">nonmetal_ids</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">metal_ids</span><span class="p">:</span>
+            <span class="n">metal_images</span> <span class="o">=</span> <span class="p">[</span><span class="n">atoms</span><span class="p">[</span><span class="n">metal_ids</span><span class="p">]</span> <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">gen_images</span><span class="p">]</span>
+            <span class="c1"># Prepare sorted_ids for sorting atomic indices back to original order</span>
+            <span class="n">sorted_ids</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">template</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nonmetal_ids</span> <span class="o">+</span> <span class="n">metal_ids</span><span class="p">):</span>
+                <span class="n">sorted_ids</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">acat.build.ordering</span><span class="w"> </span><span class="kn">import</span> <span class="n">RandomOrderingGenerator</span> <span class="k">as</span> <span class="n">ROG</span>
+        <span class="n">gen</span> <span class="o">=</span> <span class="n">ROG</span><span class="p">(</span><span class="n">nonmetal_atoms</span><span class="p">,</span> <span class="n">elements</span><span class="o">=</span><span class="n">target_nonmetal_species</span><span class="p">,</span>
+                  <span class="n">composition</span><span class="o">=</span><span class="n">target_nonmetal_composition</span><span class="p">,</span>
+                  <span class="n">trajectory</span><span class="o">=</span><span class="s1">&#39;nonmetal_orderings.traj&#39;</span><span class="p">)</span>
+        <span class="n">gen</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">num_gen</span><span class="o">=</span><span class="n">ngen</span><span class="p">)</span>
+        <span class="n">nonmetal_images</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="s1">&#39;nonmetal_orderings.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">metal_ids</span><span class="p">:</span>
+            <span class="n">gen_images</span> <span class="o">=</span> <span class="p">[(</span><span class="n">a</span> <span class="o">+</span> <span class="n">metal_images</span><span class="p">[</span><span class="n">i</span><span class="p">])[</span><span class="n">sorted_ids</span><span class="p">]</span> <span class="k">for</span>
+                          <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nonmetal_images</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">gen_images</span> <span class="o">=</span> <span class="n">nonmetal_images</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s1">&#39;nonmetal_orderings.traj&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">valences</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">valences</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">gen_images</span><span class="p">:</span>
+                <span class="n">ctr</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">atoms</span><span class="o">.</span><span class="n">symbols</span><span class="p">)</span>
+                <span class="n">cation_valence</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">ctr</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">valences</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">])</span>
+                <span class="n">anion</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">valences</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">anion_valence</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">ctr</span><span class="p">[</span><span class="n">anion</span><span class="p">]</span> <span class="o">*</span> <span class="n">valences</span><span class="p">[</span><span class="n">anion</span><span class="p">])</span>
+                <span class="n">nadd</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">cation_valence</span> <span class="o">-</span> <span class="n">anion_valence</span><span class="p">)</span> <span class="o">/</span> <span class="nb">abs</span><span class="p">(</span><span class="n">valences</span><span class="p">[</span><span class="n">anion</span><span class="p">]))</span>
+                <span class="k">if</span> <span class="n">nadd</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">index</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="s1">&#39;X&#39;</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">allowed_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">allowed_indices</span><span class="p">]</span>
+                    <span class="n">add_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="n">nadd</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">atoms</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">add_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">anion</span>
+                <span class="k">elif</span> <span class="n">nadd</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">index</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="n">anion</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">allowed_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">options</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">allowed_indices</span><span class="p">]</span>
+                    <span class="n">del_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="o">-</span><span class="n">nadd</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">atoms</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">del_ids</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;X&#39;</span>
+
+    <span class="k">if</span> <span class="n">adsorbate_species</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">adsorption_sites</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="kc">True</span> <span class="ow">in</span> <span class="n">template</span><span class="o">.</span><span class="n">pbc</span><span class="p">:</span>
+                <span class="n">sas</span> <span class="o">=</span> <span class="n">SlabAdsorptionSites</span><span class="p">(</span><span class="n">template</span><span class="p">,</span> <span class="o">**</span><span class="n">adsorption_dict</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sas</span> <span class="o">=</span> <span class="n">ClusterAdsorptionSites</span><span class="p">(</span><span class="n">template</span><span class="p">,</span> <span class="o">**</span><span class="n">adsorption_dict</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">adsorption_sites</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">adsorption_sites</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">sas</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sas</span> <span class="o">=</span> <span class="n">adsorption_sites</span>
+
+        <span class="k">if</span> <span class="n">adsorbate_adsorbate_dmin</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">adsorbate_adsorbate_dmin</span> <span class="o">=</span> <span class="mf">2.</span>
+
+        <span class="n">tmp_images</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">gen_images</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">max_adsorbate_species</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">ads_species</span> <span class="o">=</span> <span class="n">adsorbate_species</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ads_species</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">adsorbate_species</span><span class="p">)[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
+                        <span class="nb">len</span><span class="p">(</span><span class="n">adsorbate_species</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="n">max_adsorbate_species</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">)])</span>
+            <span class="k">if</span> <span class="n">adsorbate_coverage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">dmin</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">adsorbate_adsorbate_dmin</span><span class="p">,</span> <span class="mf">5.</span><span class="p">)</span> 
+                <span class="n">pattern</span> <span class="o">=</span> <span class="n">mindcp</span><span class="p">(</span><span class="n">atoms</span><span class="p">,</span> <span class="n">ads_species</span><span class="p">,</span>
+                                 <span class="n">min_adsorbate_distance</span><span class="o">=</span><span class="n">dmin</span><span class="p">,</span>
+                                 <span class="n">adsorption_sites</span><span class="o">=</span><span class="n">sas</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pattern</span> <span class="o">=</span> <span class="n">maxdcp</span><span class="p">(</span><span class="n">atoms</span><span class="p">,</span> <span class="n">ads_species</span><span class="p">,</span>
+                                 <span class="n">coverage</span><span class="o">=</span><span class="n">adsorbate_coverage</span><span class="p">,</span>
+                                 <span class="n">adsorption_sites</span><span class="o">=</span><span class="n">sas</span><span class="p">)</span>
+            <span class="n">tmp_images</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+        <span class="n">gen_images</span> <span class="o">=</span> <span class="n">tmp_images</span>
+
+    <span class="n">input_pop</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">images</span> <span class="o">+</span> <span class="n">gen_images</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;seed&#39;</span><span class="p">):</span>
+            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;seed&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">seed</span>
+        <span class="n">input_pop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">trajectory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">append_trajectory</span><span class="p">:</span>
+            <span class="n">input_pop</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="n">trajectory</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">input_pop</span>
+        <span class="n">write</span><span class="p">(</span><span class="n">trajectory</span><span class="p">,</span> <span class="n">input_pop</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">input_pop</span></div>
+
+
+
+<div class="viewcode-block" id="assign_mu_windows">
+<a class="viewcode-back" href="../../catemc.html#catemc.generate.assign_mu_windows">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">assign_mu_windows</span><span class="p">(</span><span class="n">input_pop</span><span class="p">,</span> <span class="n">reaction_conditions</span><span class="p">,</span> <span class="n">element_column_map</span><span class="p">,</span> <span class="n">round_decimals</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Assign μ-windows to a list of ase.Atoms objects based on their non-metal counts.</span>
+<span class="sd">    Modify each Atoms.info[&#39;data&#39;] to include:</span>
+<span class="sd">        - &#39;mu&#39;        : numpy array (center mu for that replica)</span>
+<span class="sd">        - &#39;mu_window&#39; : numpy array (rows assigned to that replica)</span>
+<span class="sd">    The μ-windows are divided evenly from the whole chemical potential space.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_pop: list of ase.Atoms objects</span>
+<span class="sd">        list of ase.Atoms objects (replicas).</span>
+
+<span class="sd">    reaction_conditions: numpy.ndarray</span>
+<span class="sd">        2D numpy array, shape (n_conditions, n_elements). Each row is a μ-point.</span>
+
+<span class="sd">    element_column_map: dict of (str, int) pairs</span>
+<span class="sd">        Dict mapping non-metal element names to column indices in reaction_conditions,</span>
+
+<span class="sd">    round_decimals: int, default 3</span>
+<span class="sd">        Number of decimals to round the chosen center μ stored in atoms.info[&#39;data&#39;][&#39;mu&#39;].</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">atoms_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">input_pop</span><span class="p">)</span>
+    <span class="n">n_images</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">atoms_list</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n_images</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">atoms_list</span>
+
+    <span class="n">reaction_conditions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reaction_conditions</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">reaction_conditions</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;reaction_conditions must be a 2D array (n_points, n_cols)&#39;</span><span class="p">)</span>
+    <span class="n">n_grid</span> <span class="o">=</span> <span class="n">reaction_conditions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># 1) Count nonmetal atoms in each structure using element_column_map keys as species list</span>
+    <span class="n">nonmetal_species</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">element_column_map</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">atoms_list</span><span class="p">):</span>
+        <span class="n">cnt</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">in</span> <span class="n">nonmetal_species</span><span class="p">)</span>
+        <span class="n">counts</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">cnt</span><span class="p">))</span>
+
+    <span class="c1"># 2) sort structures by increasing nonmetal counts (same behavior as your script)</span>
+    <span class="n">counts_sorted</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">sorted_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">idx</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">counts_sorted</span><span class="p">]</span>
+
+    <span class="c1"># 3) equal-ish split of μ-points among structures</span>
+    <span class="n">points_per_structure</span> <span class="o">=</span> <span class="n">n_grid</span> <span class="o">//</span> <span class="n">n_images</span>
+    <span class="n">remainder</span> <span class="o">=</span> <span class="n">n_grid</span> <span class="o">%</span> <span class="n">n_images</span>
+
+    <span class="c1"># 4) Sort μ-grid by sum over the provided element columns</span>
+    <span class="n">sort_cols</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">element_column_map</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+    <span class="n">sort_key</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">reaction_conditions</span><span class="p">[:,</span> <span class="n">sort_cols</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">grid_sorted</span> <span class="o">=</span> <span class="n">reaction_conditions</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">sort_key</span><span class="p">)]</span>
+
+    <span class="c1"># 5) Allocate contiguous windows (low -&gt; high) to structures in the order of sorted_indices</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">img_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sorted_indices</span><span class="p">):</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">points_per_structure</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">rank</span> <span class="o">&lt;</span> <span class="n">remainder</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">size</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">mu_window</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">reaction_conditions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">center_mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">reaction_conditions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mu_window</span> <span class="o">=</span> <span class="n">grid_sorted</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">start</span><span class="o">+</span><span class="n">size</span><span class="p">]</span>
+            <span class="n">start</span> <span class="o">+=</span> <span class="n">size</span>
+            <span class="n">center_row</span> <span class="o">=</span> <span class="n">mu_window</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">mu_window</span><span class="p">)</span><span class="o">//</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">center_mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">center_row</span><span class="p">,</span> <span class="n">round_decimals</span><span class="p">)</span>
+
+        <span class="c1"># set atoms.info[&#39;data&#39;] entries in-place</span>
+        <span class="n">ai</span> <span class="o">=</span> <span class="n">atoms_list</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ai</span><span class="p">,</span> <span class="s1">&#39;info&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">ai</span><span class="o">.</span><span class="n">info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ai</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">:</span> <span class="p">{},</span> <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{}}</span>
+        <span class="k">if</span> <span class="s1">&#39;data&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ai</span><span class="o">.</span><span class="n">info</span> <span class="ow">or</span> <span class="n">ai</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ai</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">ai</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;mu&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">center_mu</span><span class="p">)</span>
+        <span class="n">ai</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;mu_window&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">mu_window</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">atoms_list</span></div>
+
+</pre></div>
+</main>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid bg-primary text-light">
+        <div class="container">
+            <div class="row">
+        <div class="col p-4">
+            
+                <nav aria-label="Footer">
+                    <ul class="nav justify-content-center mb-2">
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/features/">Features</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/about-wagtail/"> About Wagtail</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/services/"> Services</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/blog/"> Blog</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/packages/"> Packages</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/developers/"> Developers</a></li>
+                        
+                    </ul>
+                </nav>
+            
+            <div class="text-center">
+                    &copy; Copyright 
+            </div>
+            <div class="text-center text-white-50 font-italic mt-3">
+                <small>Last updated: Oct 13, 2025</small>
+                <small>
+                    Created using
+                    <a class="text-white" href="https://github.com/wagtail/sphinx_wagtail_theme" rel="nofollow" target="_blank">
+                        Sphinx Wagtail Theme 6.5.0
+                    </a>
+                    and
+                    <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
+                        Sphinx 8.2.3
+                    </a>
+                </small>
+            </div>
+        </div>
+    </div>
+        </div>
+    </footer>
+        <script src="../../_static/documentation_options.js?v=8d563738"></script>
+        <script src="../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+        <script src="../../_static/copybutton.js?v=f281be69"></script>
+        <script type="text/javascript" src="../../_static/dist/theme.js"></script>
+        <script type="text/javascript" src="../../_static/dist/vendor.js"></script>
+        <script type="text/javascript" src="../../_static/searchtools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() { Search.loadIndex("../../searchindex.js"); });
+        </script>
+        <script type="text/javascript" id="searchindexloader"></script>
+    </body>
+</html>

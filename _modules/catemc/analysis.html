@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en" data-content_root="../../">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+        <title>catemc.analysis &mdash; CatEMC 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" type="text/css" href="../../_static/dist/fontawesome.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/dist/theme.css?v=310cf088" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+            <link rel="index" title="Index" href="../../genindex.html" />
+            <link rel="search" title="Search" href="../../search.html" />
+            <link rel="top" title="CatEMC 1.0.0 documentation" href="#" />
+            <link rel="up" title="Module code" href="../index.html" />
+    </head>
+<body>
+    <script type="text/javascript" src="../../_static/dist/blocking.js"></script>
+    <header class="container-fluid bg-primary">
+        <a class="btn btn-sm btn-light skip-to-content-link" href="#main">Skip to content</a>
+        <div class="container-fluid">
+            <div class="navbar navbar-expand-lg navbar-dark font-weight-bold">
+                    <a href="../../index.html"
+                        title="Wagtail"
+                        class="logo navbar-brand"
+                    >
+                        <img src="../../_static/img/wagtail-logo-circle.svg" width="45" height="59" alt="Wagtail"
+                            class="logo-img"
+                        />
+                        Sphinx Wagtail Theme
+                    </a>
+                
+                
+                <button class="navbar-toggler btn btn-primary d-lg-none" type="button" data-toggle="collapse" data-target="#collapseSidebar" aria-expanded="false" aria-controls="collapseExample">
+                    <span class="navbar-toggler-icon"></span>
+                    <span class="sr-only">menu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 sidebar-container">
+                <div id="collapseSidebar" class="collapse sticky-top d-lg-block pt-5 pr-lg-4">
+<div id="searchbox" class="searchbox mb-6 px-1" role="search">
+    <form id="search-form" action="../../search.html" autocomplete="off" method="get" role="search">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <div class="input-group-text border-right-0 bg-white py-3 pl-3 pr-2"><span class="fas fa-search"></span></div>
+            </div>
+            <input class="form-control py-3 pr-3 pl-1 h-100 border-left-0" type="search" name="q" placeholder="Search documentation" aria-label="Search documentation" id="searchinput" />
+        </div>
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div><div class="site-toc">
+    <nav class="toc mt-3" aria-label="Main menu">
+        
+    </nav>
+    <template data-toggle-item-template>
+        <button class="btn btn-sm btn-link toctree-expand" type="button">
+            <span class="sr-only">Toggle menu contents</span>
+        </button>
+    </template>
+</div>
+                    <div class="d-lg-none border-bottom">
+                        
+                    </div>
+                </div>
+            </aside>
+            <div class="col-12 col-lg-9 pt-5">
+                <header class="row align-items-baseline">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+    <ol class="breadcrumb m-0 p-0 bg-transparent">
+        <li class="breadcrumb-item"><a href="../../index.html">Docs</a></li>
+            <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+        <li class="breadcrumb-item active" aria-current="page">catemc.analysis</li>
+    </ol>
+</nav>
+                    </div>
+                    <div class="col-sm-12 col-lg-auto mt-3 mt-lg-3">
+                        <noscript>
+                            <p>JavaScript is required to toggle light/dark mode..</p>
+                        </noscript>
+                        <button id="wagtail-theme" class="btn btn-sm btn-light text-decoration-none" type="button">
+                            <span class="dark-only"><i class="fas fa-sun"></i> Light mode</span>
+                            <span class="light-only"><i class="fas fa-moon"></i> Dark mode</span>
+                        </button>
+    <a class="btn btn-sm btn-light text-decoration-none" href="https://github.com/wagtail/sphinx_wagtail_theme/blob/main/docs/_modules/catemc/analysis" rel="nofollow">
+        <span class="btn-icon"><span class="fab fa-github"></span></span>
+        <span class="btn-text">Edit on GitHub</span>
+    </a>
+                        
+                    </div>
+                </header>
+                <div class="row" >
+                    <div class="col-12">
+                        <hr class="w-100 my-4">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-lg-9 order-last order-lg-first rst-content">
+                        <main role="main" id="main">
+    <h1>Source code for catemc.analysis</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">.gc_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_phi</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.geometry.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">Analysis</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.neighborlist</span><span class="w"> </span><span class="kn">import</span> <span class="n">natural_cutoffs</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parprint</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span><span class="p">,</span> <span class="n">write</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase</span><span class="w"> </span><span class="kn">import</span> <span class="n">units</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">Counter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">combinations</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+
+<div class="viewcode-block" id="GEEMCAnalysis">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GEEMCAnalysis">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GEEMCAnalysis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Analysis class for bulk GE-EMC simulations.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span>
+            <span class="n">calculation_dir</span><span class="p">,</span>
+            <span class="n">pop_size</span><span class="p">,</span>
+            <span class="n">target_metal_species</span><span class="p">,</span>
+            <span class="n">trim_generation</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">temperature_key</span><span class="o">=</span><span class="s1">&#39;temperature&#39;</span><span class="p">,</span>
+            <span class="n">replica_key</span><span class="o">=</span><span class="s1">&#39;replica&#39;</span><span class="p">,</span>
+            <span class="n">acceptance_key</span><span class="o">=</span><span class="s1">&#39;accepted&#39;</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span> <span class="o">=</span> <span class="n">calculation_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span> <span class="o">=</span> <span class="n">pop_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span> <span class="o">=</span> <span class="n">target_metal_species</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trim_generation</span> <span class="o">=</span> <span class="n">trim_generation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span> <span class="o">=</span> <span class="n">temperature_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span> <span class="o">=</span> <span class="n">replica_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span> <span class="o">=</span> <span class="n">acceptance_key</span>
+
+<div class="viewcode-block" id="GEEMCAnalysis.prepare_data">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GEEMCAnalysis.prepare_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">prepare_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starting_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ending_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">use_exist</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">raw_score_cutoff</span><span class="o">=-</span><span class="mf">10000.</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prepare GE-EMC potential energy and Widom samples. Set the pressure </span>
+<span class="sd">        for NpT GE-EMC simulations&quot;&quot;&quot;</span>
+
+        <span class="n">collect_data</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">use_exist</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_widom_data.pkl&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_data.pkl&#39;</span><span class="p">):</span>                
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_widom_data.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_data.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+                <span class="n">collect_data</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Cannot find MBAR data file, collect data instead.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">collect_data</span><span class="p">:</span>
+            <span class="c1"># initialize containers (no pre-defined temperatures)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span> <span class="o">=</span> <span class="p">{}</span>      <span class="c1"># T -&gt; {key -&gt; list_of_step_lists}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># T -&gt; {rep -&gt; list_of_step_values}</span>
+
+            <span class="c1"># normalize starting_step</span>
+            <span class="k">if</span> <span class="n">starting_step</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">starting_step</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="n">rep_latest_step_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">rep</span><span class="p">:</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span><span class="p">)}</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_bak</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">.db&#39;</span><span class="p">):</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="c1"># skip entire backup if its block is before starting_step</span>
+                <span class="k">if</span> <span class="p">((</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">trim_generation</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">starting_step</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">db</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_bak</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">.db&#39;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;relaxed=1&#39;</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">&gt;=</span> <span class="n">starting_step</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">raw_score</span> <span class="o">&lt;=</span> <span class="n">raw_score_cutoff</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">ending_step</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">&gt;</span> <span class="n">ending_step</span><span class="p">):</span>
+                            <span class="k">continue</span>
+                        <span class="c1"># obtain temperature from the row and ensure containers exist for it</span>
+                        <span class="n">T</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">T</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+                        <span class="k">if</span> <span class="n">T</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+                        <span class="n">dU</span> <span class="o">=</span> <span class="o">-</span><span class="n">row</span><span class="o">.</span><span class="n">delta</span>
+                        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dU</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">100.</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dU</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="n">atoms</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">toatoms</span><span class="p">()</span>
+                        <span class="n">U</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">potential_energy</span>
+                        <span class="n">is_widom</span> <span class="o">=</span> <span class="p">((</span><span class="n">row</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s1">&#39;interswap&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="s1">&#39;mutated_elements&#39;</span> <span class="ow">in</span> <span class="n">row</span><span class="o">.</span><span class="n">data</span><span class="p">))</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">or</span> <span class="n">is_widom</span><span class="p">:</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">:</span> <span class="p">{</span>
+                                              <span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> 
+                                              <span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">],</span>
+                                              <span class="s1">&#39;potential_energy&#39;</span><span class="p">:</span> <span class="n">U</span><span class="p">},</span> 
+                                          <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{}}</span>
+                            <span class="n">rep_latest_step_map</span><span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">emc_step</span>
+                            <span class="k">if</span> <span class="n">pressure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                                <span class="n">V</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span>
+                                <span class="n">U</span> <span class="o">+=</span> <span class="n">pressure</span> <span class="o">*</span> <span class="n">V</span>
+                                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;enthalpy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">U</span>
+                                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;NlnV&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+                            <span class="c1"># ensure replica list exists and is long enough, then set energy</span>
+                            <span class="n">rep</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                            <span class="n">rep_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">rep</span><span class="p">,</span> <span class="p">[])</span>
+                            <span class="n">needed</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">rep_list</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">needed</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                                <span class="n">rep_list</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">needed</span><span class="p">)</span> 
+                            <span class="n">rep_list</span><span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">emc_step</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">atoms</span>
+
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_widom</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="n">m1</span><span class="p">,</span> <span class="n">m2</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mutated_elements</span>
+                        <span class="n">N1</span> <span class="o">=</span> <span class="nb">len</span><span class="p">([</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="n">m1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+                        <span class="n">N2plus1</span> <span class="o">=</span> <span class="nb">len</span><span class="p">([</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="n">m2</span><span class="p">])</span>
+                        <span class="n">W_prefactor</span> <span class="o">=</span> <span class="n">N1</span> <span class="o">/</span> <span class="n">N2plus1</span>
+                        <span class="k">if</span> <span class="n">pressure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">W_prefactor</span> <span class="o">*=</span> <span class="n">row</span><span class="o">.</span><span class="n">volume_ratio</span><span class="o">**</span><span class="nb">len</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+                        <span class="n">latest_acc_step</span> <span class="o">=</span> <span class="n">rep_latest_step_map</span><span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]]</span>
+                        <span class="c1"># ensure dmu key list exists and is long enough, then append the tuple</span>
+                        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">&#39;</span>
+                        <span class="n">key_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">[])</span>
+                        <span class="n">needed</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_list</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">needed</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">key_list</span><span class="o">.</span><span class="n">extend</span><span class="p">([[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">needed</span><span class="p">)])</span>  <span class="c1"># distinct empty lists</span>
+                        <span class="n">key_list</span><span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">emc_step</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                <span class="p">(</span><span class="n">U</span><span class="p">,</span> <span class="n">dU</span><span class="p">,</span> <span class="n">W_prefactor</span><span class="p">,</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">],</span> <span class="n">latest_acc_step</span><span class="p">)</span>
+                        <span class="p">)</span>
+
+            <span class="c1"># Assign the previous energy if energy is None at a step (forward-fill per replica)</span>
+            <span class="k">for</span> <span class="n">T</span><span class="p">,</span> <span class="n">dd</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">dd</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                    <span class="n">atoms_prev</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="n">newlist</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">dd</span><span class="p">[</span><span class="n">rep</span><span class="p">]:</span>
+                        <span class="k">if</span> <span class="n">atoms</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">atoms_prev</span> <span class="o">=</span> <span class="n">atoms</span>
+                            <span class="n">newlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">newlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms_prev</span><span class="p">)</span>
+                    <span class="n">dd</span><span class="p">[</span><span class="n">rep</span><span class="p">]</span> <span class="o">=</span> <span class="n">newlist</span>
+
+            <span class="c1"># save pickles</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_widom_data.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_data.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GEEMCAnalysis.get_trajectory">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GEEMCAnalysis.get_trajectory">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_trajectory</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">replica</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the EMC trajectory of a given replica number.&quot;&quot;&quot;</span>
+
+        <span class="n">traj</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">T</span><span class="p">,</span> <span class="n">dd</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">replica</span> <span class="ow">in</span> <span class="n">dd</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">dd</span><span class="p">[</span><span class="n">replica</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">atoms</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">traj</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+
+        <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_geemc_</span><span class="si">{</span><span class="n">replica</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">traj</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GEEMCAnalysis.get_dmu_estimates">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GEEMCAnalysis.get_dmu_estimates">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_dmu_estimates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starting_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ending_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_stride</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> 
+                          <span class="n">target_temperatures</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">volume_correction</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">wls_correction</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the MBAR-estimated chemical potential differences between all </span>
+<span class="sd">           metal pairs with/without WLS correction. Turn on volume_correction</span>
+<span class="sd">           for NpT GE-EMC simulations.&quot;&quot;&quot;</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pymbar</span><span class="w"> </span><span class="kn">import</span> <span class="n">MBAR</span>
+        <span class="n">sim_temperatures</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="k">if</span> <span class="n">target_temperatures</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">target_temperatures</span> <span class="o">=</span> <span class="n">sim_temperatures</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">target_temperatures</span> <span class="o">+=</span> <span class="n">sim_temperatures</span>
+            <span class="n">target_temperatures</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">target_temperatures</span><span class="p">))</span>
+        <span class="n">rep_temp_map</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">sim_temperatures</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">rep_temp_map</span><span class="p">[</span><span class="n">rep</span><span class="p">]</span> <span class="o">=</span> <span class="n">T</span>
+        <span class="n">metal_pairs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">combinations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+        <span class="n">K</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">target_temperatures</span><span class="p">)</span>  <span class="c1"># No. target of temperatures  </span>
+        <span class="c1"># Build MBAR inputs  </span>
+        <span class="n">temp_step_idx_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">T</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">sim_temperatures</span><span class="p">}</span>
+        <span class="n">samples_per_T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>  
+
+        <span class="c1"># Fill energy matrix and widom data</span>
+        <span class="k">if</span> <span class="n">starting_step</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">starting_step</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">ending_step</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_steps</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">T</span><span class="p">,</span> <span class="n">rep_dict</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">rep</span><span class="p">,</span> <span class="n">lst</span> <span class="ow">in</span> <span class="n">rep_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">lst</span><span class="p">:</span>
+                        <span class="n">max_steps</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_steps</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">lst</span><span class="p">))</span>
+            <span class="n">ending_step</span> <span class="o">=</span> <span class="n">max_step</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Ending step: </span><span class="si">{</span><span class="n">ending_step</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="n">betas</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">kB</span> <span class="o">*</span> <span class="n">T</span><span class="p">)</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">]</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">volume_samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">sim_temperatures</span><span class="p">:</span>
+            <span class="n">samples_T</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">volume_samples_T</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">n_minus_1</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ending_step</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">n_minus_1</span> <span class="o">&gt;=</span> <span class="n">starting_step</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">volume_correction</span><span class="p">:</span>
+                            <span class="n">H</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">lst</span><span class="p">[</span><span class="n">n_minus_1</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;enthalpy&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">lst</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+                            <span class="n">NlnV</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">lst</span><span class="p">[</span><span class="n">n_minus_1</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;NlnV&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">lst</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">U</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">lst</span><span class="p">[</span><span class="n">n_minus_1</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;potential_energy&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">lst</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+                    <span class="k">except</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="n">temp_step_idx_map</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="n">n_minus_1</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">idx</span>
+                    <span class="k">if</span> <span class="n">volume_correction</span><span class="p">:</span>
+                        <span class="n">samples_T</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">H</span><span class="p">)</span>
+                        <span class="n">volume_samples_T</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">NlnV</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">samples_T</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">U</span><span class="p">)</span>
+                    <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">samples_per_T</span><span class="p">[</span><span class="n">target_temperatures</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">T</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">samples_T</span><span class="p">)</span>
+            <span class="n">samples</span> <span class="o">+=</span> <span class="n">samples_T</span>
+            <span class="k">if</span> <span class="n">volume_correction</span><span class="p">:</span>
+                <span class="n">volume_samples</span> <span class="o">+=</span> <span class="n">volume_samples_T</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>
+        <span class="n">U_kn</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># Reduced energy matrix (K x N_total)</span>
+        <span class="n">NlnV_kn</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">T</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">target_temperatures</span><span class="p">):</span>
+            <span class="n">U_kn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">betas</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">*</span> <span class="n">samples</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">volume_correction</span><span class="p">:</span>
+                <span class="n">NlnV_kn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">volume_samples</span><span class="p">)</span>
+        <span class="n">U_kn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">U_kn</span><span class="p">)</span>  <span class="c1"># Shape (K, N_total)</span>
+        <span class="k">if</span> <span class="n">volume_correction</span><span class="p">:</span>
+            <span class="n">U_kn</span> <span class="o">-=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">N_lnV_kn</span><span class="p">)</span>
+        <span class="n">mbar</span> <span class="o">=</span> <span class="n">MBAR</span><span class="p">(</span><span class="n">U_kn</span><span class="p">,</span> <span class="n">samples_per_T</span><span class="p">,</span> <span class="n">relative_tolerance</span><span class="o">=</span><span class="mf">1e-7</span><span class="p">,</span> 
+                    <span class="n">solver_protocol</span><span class="o">=</span><span class="s1">&#39;robust&#39;</span><span class="p">,</span> <span class="n">maximum_iterations</span><span class="o">=</span><span class="mi">30000</span><span class="p">)</span>  
+        <span class="n">w_nk</span> <span class="o">=</span> <span class="n">mbar</span><span class="o">.</span><span class="n">weights</span><span class="p">()</span>
+
+        <span class="c1"># Compute Δμ_{m→n} for each pair</span>
+        <span class="n">dmu_estimates</span> <span class="o">=</span> <span class="p">{</span><span class="n">T</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">}</span>
+        <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">m1</span><span class="p">,</span> <span class="n">m2</span> <span class="ow">in</span> <span class="n">metal_pairs</span><span class="p">:</span>
+                <span class="n">dmu_estimates</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="n">dmu_estimates</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">m1</span><span class="p">,</span> <span class="n">m2</span> <span class="ow">in</span> <span class="n">metal_pairs</span><span class="p">:</span>
+            <span class="c1"># Precompute W_{m→n} for ALL configs, replicas, and target betas</span>
+            <span class="n">lot_m12m2</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">sim_temperatures</span> <span class="k">for</span> <span class="n">lot</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">lot</span><span class="p">]</span>
+            <span class="n">dd_temp_m12m2</span> <span class="o">=</span> <span class="p">{</span><span class="n">T</span><span class="p">:</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">U_new</span><span class="p">,</span> <span class="n">dU</span><span class="p">,</span> <span class="n">W_prefactor</span><span class="p">,</span> <span class="n">rep</span><span class="p">,</span> <span class="n">latest_acc_step</span> <span class="ow">in</span> <span class="n">lot_m12m2</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">latest_acc_step</span> <span class="o">&gt;</span> <span class="n">starting_step</span><span class="p">:</span>
+                    <span class="n">T_origin</span> <span class="o">=</span> <span class="n">rep_temp_map</span><span class="p">[</span><span class="n">rep</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">:</span>
+                        <span class="n">W</span> <span class="o">=</span> <span class="n">W_prefactor</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">dU</span> <span class="o">/</span> <span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">kB</span><span class="o">*</span><span class="n">T</span><span class="p">))</span>
+                        <span class="n">dd_temp_m12m2</span><span class="p">[</span><span class="n">T</span><span class="p">][(</span><span class="n">T_origin</span><span class="p">,</span> <span class="n">latest_acc_step</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">W</span><span class="p">)</span>
+            <span class="n">lot_m22m1</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">sim_temperatures</span> <span class="k">for</span> <span class="n">lot</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">widom_data</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">lot</span><span class="p">]</span>
+            <span class="n">dd_temp_m22m1</span> <span class="o">=</span> <span class="p">{</span><span class="n">T</span><span class="p">:</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">U_new</span><span class="p">,</span> <span class="n">dU</span><span class="p">,</span> <span class="n">W_prefactor</span><span class="p">,</span> <span class="n">rep</span><span class="p">,</span> <span class="n">latest_acc_step</span> <span class="ow">in</span> <span class="n">lot_m22m1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">latest_acc_step</span> <span class="o">&gt;</span> <span class="n">starting_step</span><span class="p">:</span>
+                    <span class="n">T_origin</span> <span class="o">=</span> <span class="n">rep_temp_map</span><span class="p">[</span><span class="n">rep</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">:</span>
+                        <span class="n">W</span> <span class="o">=</span> <span class="n">W_prefactor</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">dU</span> <span class="o">/</span> <span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">kB</span><span class="o">*</span><span class="n">T</span><span class="p">))</span>
+                        <span class="n">dd_temp_m22m1</span><span class="p">[</span><span class="n">T</span><span class="p">][(</span><span class="n">T_origin</span><span class="p">,</span> <span class="n">latest_acc_step</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">W</span><span class="p">)</span>
+
+            <span class="c1"># SUBSAMPLE BY SIMULATION-STEP BIN WIDTH = sample_stride</span>
+            <span class="c1"># Keep the first sample in each integer bin of width `sample_stride`</span>
+            <span class="c1"># (binning applied separately for each T_origin).</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">sample_stride</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">sample_stride</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">def</span><span class="w"> </span><span class="nf">subsample_dd_by_step</span><span class="p">(</span><span class="n">dd_temp</span><span class="p">):</span>
+                    <span class="n">dd_sub</span> <span class="o">=</span> <span class="p">{</span><span class="n">T</span><span class="p">:</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">}</span>
+                    <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">target_temperatures</span><span class="p">:</span>
+                        <span class="c1"># group keys by T_origin</span>
+                        <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">dd_temp</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>  <span class="c1"># each key = (T_origin, step)</span>
+                        <span class="n">by_origin</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="p">(</span><span class="n">T_origin</span><span class="p">,</span> <span class="n">step</span><span class="p">)</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+                            <span class="n">by_origin</span><span class="p">[</span><span class="n">T_origin</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+                        <span class="c1"># for each origin, bin steps and pick representative step in each bin</span>
+                        <span class="k">for</span> <span class="n">T_origin</span><span class="p">,</span> <span class="n">steps</span> <span class="ow">in</span> <span class="n">by_origin</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                            <span class="n">steps_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">steps</span><span class="p">))</span>
+                            <span class="k">if</span> <span class="n">steps_arr</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                                <span class="k">continue</span>
+                            <span class="c1"># compute bins relative to starting_step so bins align with emc steps</span>
+                            <span class="n">bins</span> <span class="o">=</span> <span class="p">((</span><span class="n">steps_arr</span> <span class="o">-</span> <span class="n">starting_step</span><span class="p">)</span> <span class="o">//</span> <span class="nb">int</span><span class="p">(</span><span class="n">sample_stride</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+                            <span class="c1"># pick first sample in each unique bin</span>
+                            <span class="c1">#_, first_idx = np.unique(bins, return_index=True)</span>
+                            <span class="c1">#keep_steps = steps_arr[first_idx]</span>
+                            <span class="c1"># pick last sample in each unique bin</span>
+                            <span class="n">unique_bins</span><span class="p">,</span> <span class="n">last_pos_rev</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">bins</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                            <span class="n">last_pos</span> <span class="o">=</span> <span class="n">bins</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">last_pos_rev</span>
+                            <span class="n">keep_steps</span> <span class="o">=</span> <span class="n">steps_arr</span><span class="p">[</span><span class="n">last_pos</span><span class="p">]</span>
+                            <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">keep_steps</span><span class="p">:</span>
+                                <span class="n">dd_sub</span><span class="p">[</span><span class="n">T</span><span class="p">][(</span><span class="n">T_origin</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">step</span><span class="p">))]</span> <span class="o">=</span> <span class="n">dd_temp</span><span class="p">[</span><span class="n">T</span><span class="p">][(</span><span class="n">T_origin</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">step</span><span class="p">))]</span>
+                    <span class="k">return</span> <span class="n">dd_sub</span>
+
+                <span class="n">dd_temp_m12m2</span> <span class="o">=</span> <span class="n">subsample_dd_by_step</span><span class="p">(</span><span class="n">dd_temp_m12m2</span><span class="p">)</span>
+                <span class="n">dd_temp_m22m1</span> <span class="o">=</span> <span class="n">subsample_dd_by_step</span><span class="p">(</span><span class="n">dd_temp_m22m1</span><span class="p">)</span>
+
+            <span class="c1"># Compute valid ids and MBAR expectations</span>
+            <span class="n">valid_m12m2_ids</span><span class="p">,</span> <span class="n">valid_m22m1_ids</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+            <span class="n">valid_W_m12m2</span><span class="p">,</span> <span class="n">valid_W_m22m1</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)],</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)]</span>
+            <span class="n">valid_w_m12m2_kn</span><span class="p">,</span> <span class="n">valid_w_m22m1_kn</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)],</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)]</span>
+            <span class="n">Wbar_m12m2_lol</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">U_kn</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)]</span>
+            <span class="n">Wbar_m22m1_lol</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">U_kn</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)]</span>
+            <span class="n">valid_m12m2_samples_per_T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+            <span class="n">valid_m22m1_samples_per_T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">T</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">target_temperatures</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">tup</span><span class="p">,</span> <span class="n">W_lst</span> <span class="ow">in</span> <span class="n">dd_temp_m12m2</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">T_origin</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">tup</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">idx</span> <span class="o">=</span> <span class="n">temp_step_idx_map</span><span class="p">[</span><span class="n">T_origin</span><span class="p">][</span><span class="n">n</span><span class="p">]</span>
+                    <span class="k">except</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">W_lst</span><span class="p">),</span> <span class="n">w_nk</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span><span class="n">k</span><span class="p">]</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">W_lst</span><span class="p">))</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                    <span class="n">valid_W_m12m2</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">W_lst</span>
+                    <span class="n">valid_w_m12m2_kn</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">weights</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">valid_m12m2_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                    <span class="n">Wbar_m12m2_lol</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">W_lst</span><span class="p">)</span> <span class="c1"># Average W per sample</span>
+                    <span class="k">if</span> <span class="n">T</span> <span class="o">==</span> <span class="n">T_origin</span><span class="p">:</span>
+                        <span class="c1"># Count the samples from origin T</span>
+                        <span class="n">valid_m12m2_samples_per_T</span><span class="p">[</span><span class="n">target_temperatures</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">T_origin</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span> 
+                <span class="k">for</span> <span class="n">tup</span><span class="p">,</span> <span class="n">W_lst</span> <span class="ow">in</span> <span class="n">dd_temp_m22m1</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">T_origin</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">tup</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">idx</span> <span class="o">=</span> <span class="n">temp_step_idx_map</span><span class="p">[</span><span class="n">T_origin</span><span class="p">][</span><span class="n">n</span><span class="p">]</span>
+                    <span class="k">except</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">W_lst</span><span class="p">),</span> <span class="n">w_nk</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span><span class="n">k</span><span class="p">]</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">W_lst</span><span class="p">))</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                    <span class="n">valid_W_m22m1</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">W_lst</span>
+                    <span class="n">valid_w_m22m1_kn</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">+=</span> <span class="n">weights</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">valid_m22m1_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                    <span class="n">Wbar_m22m1_lol</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">W_lst</span><span class="p">)</span> <span class="c1"># Average W per sample</span>
+                    <span class="k">if</span> <span class="n">T</span> <span class="o">==</span> <span class="n">T_origin</span><span class="p">:</span>
+                        <span class="c1"># Count the samples from origin T</span>
+                        <span class="n">valid_m22m1_samples_per_T</span><span class="p">[</span><span class="n">target_temperatures</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">T_origin</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span> 
+
+            <span class="n">valid_m12m2_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">Wbar</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">Wbar_m12m2_lol</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="n">Wbar</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="n">valid_m22m1_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">Wbar</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">Wbar_m22m1_lol</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="n">Wbar</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="n">Wbar_m12m2_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Wbar_m12m2_lol</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)[:,</span><span class="n">valid_m12m2_ids</span><span class="p">]</span>
+            <span class="n">Wbar_m22m1_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Wbar_m22m1_lol</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)[:,</span><span class="n">valid_m22m1_ids</span><span class="p">]</span>
+            <span class="c1"># Reweighting at temperature T</span>
+            <span class="n">mbar_m12m2</span> <span class="o">=</span> <span class="n">MBAR</span><span class="p">(</span><span class="n">U_kn</span><span class="p">[:,</span><span class="n">valid_m12m2_ids</span><span class="p">],</span> <span class="n">valid_m12m2_samples_per_T</span><span class="p">,</span> 
+                              <span class="n">relative_tolerance</span><span class="o">=</span><span class="mf">1e-7</span><span class="p">,</span> <span class="n">solver_protocol</span><span class="o">=</span><span class="s1">&#39;robust&#39;</span><span class="p">,</span> <span class="n">maximum_iterations</span><span class="o">=</span><span class="mi">30000</span><span class="p">)</span>
+            <span class="c1"># Compute expectation with MBAR</span>
+            <span class="n">res_m12m2</span> <span class="o">=</span> <span class="n">mbar_m12m2</span><span class="o">.</span><span class="n">compute_expectations</span><span class="p">(</span><span class="n">Wbar_m12m2_arr</span><span class="p">,</span> <span class="n">compute_uncertainty</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">state_dependent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">E_W_m12m2</span><span class="p">,</span> <span class="n">sigma_W_m12m2</span> <span class="o">=</span> <span class="n">res_m12m2</span><span class="p">[</span><span class="s1">&#39;mu&#39;</span><span class="p">],</span> <span class="n">res_m12m2</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">]</span>
+            <span class="c1">#W_mbar_m12m2 = mbar_m12m2.weights()</span>
+            <span class="n">mbar_m22m1</span> <span class="o">=</span> <span class="n">MBAR</span><span class="p">(</span><span class="n">U_kn</span><span class="p">[:,</span><span class="n">valid_m22m1_ids</span><span class="p">],</span> <span class="n">valid_m22m1_samples_per_T</span><span class="p">,</span> 
+                              <span class="n">relative_tolerance</span><span class="o">=</span><span class="mf">1e-7</span><span class="p">,</span> <span class="n">solver_protocol</span><span class="o">=</span><span class="s1">&#39;robust&#39;</span><span class="p">,</span> <span class="n">maximum_iterations</span><span class="o">=</span><span class="mi">30000</span><span class="p">)</span>  
+            <span class="c1"># Compute expectation with MBAR                                                                   </span>
+            <span class="n">res_m22m1</span> <span class="o">=</span> <span class="n">mbar_m22m1</span><span class="o">.</span><span class="n">compute_expectations</span><span class="p">(</span><span class="n">Wbar_m22m1_arr</span><span class="p">,</span> <span class="n">compute_uncertainty</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">state_dependent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">E_W_m22m1</span><span class="p">,</span> <span class="n">sigma_W_m22m1</span> <span class="o">=</span> <span class="n">res_m22m1</span><span class="p">[</span><span class="s1">&#39;mu&#39;</span><span class="p">],</span> <span class="n">res_m22m1</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">]</span>
+
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">T</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">target_temperatures</span><span class="p">):</span>
+                <span class="n">beta_target</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">kB</span> <span class="o">*</span> <span class="n">T</span><span class="p">)</span>
+                <span class="n">E_W_m12m2_T</span><span class="p">,</span> <span class="n">Var_W_m12m2_T</span> <span class="o">=</span> <span class="n">E_W_m12m2</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">sigma_W_m12m2</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+                <span class="n">E_W_m22m1_T</span><span class="p">,</span> <span class="n">Var_W_m22m1_T</span> <span class="o">=</span> <span class="n">E_W_m22m1</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">sigma_W_m22m1</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+                <span class="c1"># Delta method</span>
+                <span class="n">Var_dmu_m12m2_T</span> <span class="o">=</span> <span class="n">Var_W_m12m2_T</span> <span class="o">/</span> <span class="p">(</span><span class="n">beta_target</span> <span class="o">*</span> <span class="n">E_W_m12m2_T</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+                <span class="n">Var_dmu_m22m1_T</span> <span class="o">=</span> <span class="n">Var_W_m22m1_T</span> <span class="o">/</span> <span class="p">(</span><span class="n">beta_target</span> <span class="o">*</span> <span class="n">E_W_m22m1_T</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+                <span class="n">dmu_m12m2_T</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">beta_target</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">E_W_m12m2_T</span><span class="p">)</span>
+                <span class="n">dmu_m22m1_T</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">beta_target</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">E_W_m22m1_T</span><span class="p">)</span>
+                <span class="n">w_m12m2_T</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">Var_dmu_m12m2_T</span>
+                <span class="n">w_m22m1_T</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">Var_dmu_m22m1_T</span>
+                <span class="n">dmu_estimates</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">][</span><span class="s1">&#39;weight&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">w_m12m2_T</span>
+                <span class="n">dmu_estimates</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">][</span><span class="s1">&#39;estimate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dmu_m12m2_T</span>
+                <span class="n">dmu_estimates</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">][</span><span class="s1">&#39;weight&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">w_m22m1_T</span>
+                <span class="n">dmu_estimates</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">][</span><span class="s1">&#39;estimate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dmu_m22m1_T</span>
+
+        <span class="k">if</span> <span class="n">wls_correction</span><span class="p">:</span>
+            <span class="n">M</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">)</span>
+            <span class="n">temperatures</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dmu_estimates</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="n">wls_dmu_estimates</span> <span class="o">=</span> <span class="p">{</span><span class="n">T</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">T</span> <span class="ow">in</span> <span class="n">temperatures</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">T</span><span class="p">,</span> <span class="n">dd</span> <span class="ow">in</span> <span class="n">dmu_estimates</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="c1"># Initialize Laplacian and RHS</span>
+                <span class="n">L</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">M</span><span class="p">,</span> <span class="n">M</span><span class="p">))</span>
+                <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">M</span><span class="p">)</span>
+                <span class="c1"># iterate over the raw directed entries present in dd</span>
+                <span class="c1"># assume keys are like &#39;Co2Ni&#39; representing Co -&gt; Ni</span>
+                <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">dd</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="c1"># parse species</span>
+                    <span class="n">m1</span><span class="p">,</span> <span class="n">m2</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;2&#39;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">m1</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">m2</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">):</span>
+                        <span class="k">continue</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">m1</span><span class="p">)</span>
+                    <span class="n">j</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">m2</span><span class="p">)</span>
+                    <span class="c1"># get the directed estimate d_k</span>
+                    <span class="n">w</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;weight&#39;</span><span class="p">)</span>
+                    <span class="n">dmu_raw</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;estimate&#39;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">dmu_raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="c1"># Update Laplacian L and RHS b</span>
+                    <span class="n">L</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">w</span>
+                    <span class="n">L</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">w</span>
+                    <span class="n">L</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">-=</span> <span class="n">w</span>
+                    <span class="n">L</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">-=</span> <span class="n">w</span>
+                    <span class="c1"># Update RHS: add contributions for directed eq mu_j - mu_i = dmu_raw</span>
+                    <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-=</span> <span class="n">w</span> <span class="o">*</span> <span class="n">dmu_raw</span>
+                    <span class="n">b</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">w</span> <span class="o">*</span> <span class="n">dmu_raw</span>
+            
+                <span class="c1"># Reference constraint μ_Co = 0  (keep same reference index)</span>
+                <span class="n">ref_idx</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">keep_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">M</span><span class="p">)</span> <span class="o">!=</span> <span class="n">ref_idx</span>
+                <span class="n">L_red</span> <span class="o">=</span> <span class="n">L</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">,</span> <span class="p">:][:,</span> <span class="n">keep_mask</span><span class="p">]</span>
+                <span class="n">b_red</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">]</span> <span class="o">-</span> <span class="n">L</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">,</span> <span class="n">ref_idx</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.0</span>
+                <span class="c1"># Solve reduced system robustly</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">mu_red</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">L_red</span><span class="p">,</span> <span class="n">b_red</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+                    <span class="n">mu_red</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">lstsq</span><span class="p">(</span><span class="n">L_red</span><span class="p">,</span> <span class="n">b_red</span><span class="p">,</span> <span class="n">rcond</span><span class="o">=</span><span class="kc">None</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="c1"># combine into full mu vector</span>
+                <span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">M</span><span class="p">)</span>
+                <span class="n">mu</span><span class="p">[</span><span class="n">ref_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+                <span class="n">mu</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">]</span> <span class="o">=</span> <span class="n">mu_red</span>
+            
+                <span class="c1"># produce corrected differences for all unordered pairs</span>
+                <span class="k">for</span> <span class="n">m1</span><span class="p">,</span> <span class="n">m2</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">m1</span><span class="p">)</span>
+                    <span class="n">j</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">m2</span><span class="p">)</span>
+                    <span class="n">wls_dmu_estimates</span><span class="p">[</span><span class="n">T</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">2</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mu</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">-</span> <span class="n">mu</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">dmu_estimates</span> <span class="o">=</span> <span class="n">wls_dmu_estimates</span>
+                    
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_dmu_estimates.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">dmu_estimates</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="GCEMCAnalysis">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GCEMCAnalysis">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GCEMCAnalysis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span>
+            <span class="n">calculation_dir</span><span class="p">,</span>
+            <span class="n">pop_size</span><span class="p">,</span>
+            <span class="n">target_metal_species</span><span class="p">,</span>
+            <span class="n">target_metal_composition</span><span class="p">,</span>
+            <span class="n">adsorbate_species</span><span class="p">,</span>
+            <span class="n">trim_generation</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">temperature_key</span><span class="o">=</span><span class="s1">&#39;temperature&#39;</span><span class="p">,</span>
+            <span class="n">replica_key</span><span class="o">=</span><span class="s1">&#39;replica&#39;</span><span class="p">,</span>
+            <span class="n">acceptance_key</span><span class="o">=</span><span class="s1">&#39;accepted&#39;</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span> <span class="o">=</span> <span class="n">calculation_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span> <span class="o">=</span> <span class="n">pop_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span> <span class="o">=</span> <span class="n">target_metal_species</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_composition</span> <span class="o">=</span> <span class="n">target_metal_composition</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">adsorbate_species</span> <span class="o">=</span> <span class="n">adsorbate_species</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trim_generation</span> <span class="o">=</span> <span class="n">trim_generation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span> <span class="o">=</span> <span class="n">temperature_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span> <span class="o">=</span> <span class="n">replica_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span> <span class="o">=</span> <span class="n">acceptance_key</span>
+
+<div class="viewcode-block" id="GCEMCAnalysis.prepare_data">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GCEMCAnalysis.prepare_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">prepare_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starting_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ending_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                     <span class="n">use_exist</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">raw_score_cutoff</span><span class="o">=-</span><span class="mf">10000.</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prepare GC-EMC potential energy samples.&quot;&quot;&quot;</span>
+
+        <span class="n">collect_data</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">use_exist</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_data.pkl&#39;</span><span class="p">):</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_data.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+                <span class="n">collect_data</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Cannot find MBAR data file, collect data instead.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">collect_data</span><span class="p">:</span>
+            <span class="c1"># initialize containers (no pre-defined temperatures)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># T -&gt; {rep -&gt; list_of_step_values}</span>
+            <span class="c1"># normalize starting_step</span>
+            <span class="k">if</span> <span class="n">starting_step</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">starting_step</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="n">rep_latest_step_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">rep</span><span class="p">:</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span><span class="p">)}</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_bak</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">.db&#39;</span><span class="p">):</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="c1"># skip entire backup if its block is before starting_step</span>
+                <span class="k">if</span> <span class="p">((</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">trim_generation</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">starting_step</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">db</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_bak</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">.db&#39;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;relaxed=1&#39;</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">&gt;=</span> <span class="n">starting_step</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">raw_score</span> <span class="o">&lt;=</span> <span class="n">raw_score_cutoff</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">ending_step</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">&gt;</span> <span class="n">ending_step</span><span class="p">):</span>
+                            <span class="k">continue</span>
+                        <span class="c1"># obtain temperature from the row and ensure containers exist for it</span>
+                        <span class="n">T</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">T</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+                        <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                            <span class="n">atoms</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">toatoms</span><span class="p">()</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">:</span> <span class="p">{</span>
+                                              <span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> 
+                                              <span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">],</span>
+                                              <span class="s1">&#39;potential_energy&#39;</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">potential_energy</span><span class="p">},</span> 
+                                          <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{}}</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;mu&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mu</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;mu_window&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mu_window</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;fragments&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fragments</span>
+                            <span class="c1"># ensure replica list exists and is long enough, then set energy</span>
+                            <span class="n">rep</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                            <span class="n">rep_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">rep</span><span class="p">,</span> <span class="p">[])</span>
+                            <span class="n">needed</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">rep_list</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">needed</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                                <span class="n">rep_list</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">needed</span><span class="p">)</span>  <span class="c1"># None is immutable, multiplication is safe</span>
+                            <span class="n">rep_list</span><span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">emc_step</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">atoms</span>
+
+            <span class="c1"># Assign the previous energy if energy is None at a step (forward-fill per replica)</span>
+            <span class="k">for</span> <span class="n">T</span><span class="p">,</span> <span class="n">dd</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">dd</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                    <span class="n">atoms_prev</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="n">newlist</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">dd</span><span class="p">[</span><span class="n">rep</span><span class="p">]:</span>
+                        <span class="k">if</span> <span class="n">atoms</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">atoms_prev</span> <span class="o">=</span> <span class="n">atoms</span>
+                            <span class="n">newlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">newlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms_prev</span><span class="p">)</span>
+                    <span class="n">dd</span><span class="p">[</span><span class="n">rep</span><span class="p">]</span> <span class="o">=</span> <span class="n">newlist</span>
+
+            <span class="c1"># save pickle</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_data.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GCEMCAnalysis.get_trajectory">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GCEMCAnalysis.get_trajectory">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_trajectory</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">replica</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the EMC trajectory of a given replica number.&quot;&quot;&quot;</span>
+
+        <span class="n">traj</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">T</span><span class="p">,</span> <span class="n">dd</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">replica</span> <span class="ow">in</span> <span class="n">dd</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">dd</span><span class="p">[</span><span class="n">replica</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">atoms</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">traj</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+
+        <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_gcemc_</span><span class="si">{</span><span class="n">replica</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">traj</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GCEMCAnalysis.get_structural_expectations">
+<a class="viewcode-back" href="../../catemc.html#catemc.analysis.GCEMCAnalysis.get_structural_expectations">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_structural_expectations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z_surf</span><span class="p">,</span> <span class="n">reaction_conditions</span><span class="p">,</span> <span class="n">temperature_dmu_map</span><span class="p">,</span> 
+                                    <span class="n">element_column_map</span><span class="p">,</span> <span class="n">element_eref_map</span><span class="p">,</span> <span class="n">element_y2x_map</span><span class="p">,</span>
+                                    <span class="n">starting_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ending_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_stride</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> 
+                                    <span class="n">vacancy_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the MBAR-estimated expectations of surface structural properties </span>
+<span class="sd">        depending on a user-defined surface region (&gt; z_surf) and reaction conditions. </span>
+<span class="sd">        The reaction conditions is supposed to emcompass all the reaction condition</span>
+<span class="sd">        grid considered in the EMC simulation, including last column as temperature.</span>
+<span class="sd">        You can also add more rows to reaction_conditions to consider states that are</span>
+<span class="sd">        not included in the simulation.&quot;&quot;&quot;</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pymbar</span><span class="w"> </span><span class="kn">import</span> <span class="n">MBAR</span>
+        <span class="n">sim_temperatures</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="n">all_species</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">element_column_map</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">metal_pairs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">combinations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="n">all_atom_pairs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">combinations</span><span class="p">(</span><span class="n">all_species</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="p">[(</span><span class="n">m</span><span class="p">,</span><span class="n">m</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">all_species</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">vacancy_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">vacancy_indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="n">reaction_conditions</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Number of states: </span><span class="si">{</span><span class="n">K</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Build MBAR inputs</span>
+        <span class="n">samples_per_state</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="c1"># Fill energy matrix</span>
+        <span class="n">phi_kn</span><span class="p">,</span> <span class="n">images</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+        <span class="n">sample_state</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># length = total number of appended samples, gives state index for each column in phi_kn</span>
+        <span class="n">sample_steps</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># record the original simulation step (n_minus_1) for each appended sample</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">T</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sim_temperatures</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">rep</span><span class="p">,</span> <span class="n">lol</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">T</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">n_minus_1</span><span class="p">,</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lol</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">n_minus_1</span> <span class="o">&gt;=</span> <span class="n">starting_step</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">atoms</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar.traj&#39;</span><span class="p">):</span>
+                            <span class="n">surf_num_dict</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">atoms</span><span class="p">[[</span><span class="n">a</span><span class="o">.</span><span class="n">index</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span>
+                                    <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">position</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">z_surf</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">)]]</span><span class="o">.</span><span class="n">symbols</span><span class="p">)</span>
+                            <span class="n">n_surf_metals</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">surf_num_dict</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+                            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">:</span>
+                                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;x_surf_</span><span class="si">{</span><span class="n">m</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">surf_num_dict</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">/</span> <span class="n">n_surf_metals</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;x_surf_metals&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                                    <span class="p">[</span><span class="n">surf_num_dict</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">/</span> <span class="n">n_surf_metals</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">])</span>
+                            <span class="n">fragments</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;fragments&#39;</span><span class="p">]</span>
+                            <span class="n">lattice_nonmetal_symbols</span> <span class="o">=</span> <span class="p">[]</span>
+                            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">element_column_map</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                                <span class="n">lattice_nonmetal_symbols</span> <span class="o">+=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">vacancy_indices</span> <span class="k">if</span> <span class="n">atoms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="n">k</span><span class="p">]</span>
+                            <span class="n">adsorbates</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="n">Counter</span><span class="p">(</span><span class="n">fragments</span><span class="p">)</span> <span class="o">-</span> <span class="n">Counter</span><span class="p">(</span><span class="n">lattice_nonmetal_symbols</span><span class="p">))</span><span class="o">.</span><span class="n">elements</span><span class="p">())</span>
+                            <span class="n">ads_num_dict</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">adsorbates</span><span class="p">)</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;ads_coverages&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">ads</span><span class="p">)</span> <span class="o">/</span> <span class="n">n_surf_metals</span> <span class="k">for</span> <span class="n">ads</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">adsorbate_species</span><span class="p">])</span>
+                            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;ads_coverage&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">adsorbates</span><span class="p">)</span> <span class="o">/</span> <span class="n">n_surf_metals</span>
+                            <span class="k">for</span> <span class="n">ads</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">adsorbate_species</span><span class="p">:</span>
+                                <span class="k">if</span> <span class="n">ads</span> <span class="ow">in</span> <span class="n">ads_num_dict</span><span class="p">:</span>
+                                    <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;ads_coverage_</span><span class="si">{</span><span class="n">ads</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ads_num_dict</span><span class="p">[</span><span class="n">ads</span><span class="p">]</span> <span class="o">/</span> <span class="n">n_surf_metals</span>
+                                <span class="k">else</span><span class="p">:</span>
+                                    <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;ads_coverage_</span><span class="si">{</span><span class="n">ads</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+                            <span class="k">if</span> <span class="n">vacancy_indices</span><span class="p">:</span>
+                                <span class="n">x_vac</span> <span class="o">=</span> <span class="nb">len</span><span class="p">([</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="o">==</span> <span class="s1">&#39;X&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">position</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">z_surf</span><span class="p">)])</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">vacancy_indices</span><span class="p">)</span>
+                                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;x_lattice_vac&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">x_vac</span>
+                            <span class="n">surf_atoms</span> <span class="o">=</span> <span class="n">atoms</span><span class="p">[[</span><span class="n">a</span><span class="o">.</span><span class="n">index</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="o">!=</span> <span class="s1">&#39;X&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">position</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">z_surf</span><span class="p">)]]</span>
+                            <span class="n">surf_atoms</span><span class="o">.</span><span class="n">pbc</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">surf_num_dict</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">surf_atoms</span><span class="o">.</span><span class="n">symbols</span><span class="p">)</span>
+                            <span class="n">cutoffs</span> <span class="o">=</span> <span class="n">natural_cutoffs</span><span class="p">(</span><span class="n">surf_atoms</span><span class="p">,</span> <span class="n">mult</span><span class="o">=</span><span class="mf">1.1</span><span class="p">)</span>
+                            <span class="n">ana</span> <span class="o">=</span> <span class="n">Analysis</span><span class="p">(</span><span class="n">surf_atoms</span><span class="p">,</span> <span class="n">cutoffs</span><span class="o">=</span><span class="n">cutoffs</span><span class="p">)</span>
+                            <span class="n">surf_atom_pairs</span> <span class="o">=</span> <span class="p">[]</span>
+                            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">nblst</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ana</span><span class="o">.</span><span class="n">unique_bonds</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">nblst</span><span class="p">:</span>
+                                    <span class="n">surf_atom_pairs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">surf_atoms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span><span class="p">,</span> <span class="n">surf_atoms</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span><span class="p">]))</span>
+                            <span class="k">for</span> <span class="n">pair</span> <span class="ow">in</span> <span class="n">all_atom_pairs</span><span class="p">:</span>
+                                <span class="n">m1</span><span class="p">,</span> <span class="n">m2</span> <span class="o">=</span> <span class="n">pair</span>
+                                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m1</span><span class="si">}</span><span class="s1">-</span><span class="si">{</span><span class="n">m2</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">surf_atom_pairs</span> <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="nb">set</span><span class="p">(</span><span class="n">pair</span><span class="p">)])</span>
+                            <span class="n">images</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+ 
+                        <span class="n">epot</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;potential_energy&#39;</span><span class="p">]</span>
+                        <span class="n">num_metal</span> <span class="o">=</span> <span class="nb">len</span><span class="p">([</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">])</span>
+                        <span class="n">num_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">m</span><span class="p">,</span> <span class="nb">len</span><span class="p">([</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">atoms</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">symbol</span><span class="o">==</span><span class="n">m</span><span class="p">]))</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">all_species</span><span class="p">)</span>
+ 
+                        <span class="n">sample_cond</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;mu&#39;</span><span class="p">],</span> <span class="n">T</span><span class="p">)</span>
+                        <span class="n">idx_match</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">grid</span><span class="o">-</span><span class="n">sample_cond</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">tol</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">idx_match</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">parprint</span><span class="p">(</span><span class="s1">&#39;No matching state found for sample:&#39;</span><span class="p">,</span> <span class="n">sample_cond</span><span class="p">)</span>
+                            <span class="k">continue</span>
+                        <span class="n">state_idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">idx_match</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                        <span class="n">samples_per_state</span><span class="p">[</span><span class="n">state_idx</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+                        <span class="n">sample_state</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state_idx</span><span class="p">)</span>
+                        <span class="n">sample_steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n_minus_1</span><span class="p">)</span>
+                        <span class="n">phi</span> <span class="o">=</span> <span class="n">compute_phi</span><span class="p">(</span>
+                                <span class="n">num_dict</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_species</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_metal_composition</span><span class="p">,</span> 
+                                <span class="n">temperature_dmu_map</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">element_column_map</span><span class="p">,</span> <span class="n">element_eref_map</span><span class="p">,</span> 
+                                <span class="n">element_y2x_map</span><span class="p">,</span> <span class="n">num_metal</span><span class="p">,</span> <span class="n">epot</span><span class="p">,</span> <span class="n">dimensionless</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                        <span class="n">phi_kn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">phi</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar.traj&#39;</span><span class="p">):</span>
+            <span class="n">images</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar.traj&#39;</span><span class="p">,</span> <span class="n">images</span><span class="p">)</span>
+ 
+        <span class="n">phi_kn</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">phi_kn</span><span class="p">)</span>  <span class="c1"># Shape (K, N_total)</span>
+        <span class="c1"># Build numpy array of which state produced each sample (global column index)</span>
+        <span class="n">sample_state</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sample_state</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>  <span class="c1"># shape (N_total,)</span>
+        <span class="n">sample_steps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sample_steps</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>  <span class="c1"># shape (N_total,)</span>
+        <span class="n">N_total</span> <span class="o">=</span> <span class="n">sample_state</span><span class="o">.</span><span class="n">size</span>
+        <span class="n">kept_indices_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">present_states</span><span class="p">,</span> <span class="n">present_counts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">sample_state</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="n">present_states</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2"> occupied states (out of </span><span class="si">{</span><span class="n">K</span><span class="si">}</span><span class="s2">). Subsampling each occupied state&#39;s series...&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">n_k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">present_states</span><span class="p">,</span> <span class="n">present_counts</span><span class="p">):</span>
+            <span class="n">idx_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">sample_state</span> <span class="o">==</span> <span class="n">s</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>     <span class="c1"># global indices of samples from state s (chronological)</span>
+            <span class="k">if</span> <span class="n">n_k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">sample_stride</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Interpret stride as simulation-step bin width: use original simulation steps (sample_steps)</span>
+                <span class="n">stride_int</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">sample_stride</span><span class="p">)</span>
+                <span class="n">steps_k</span> <span class="o">=</span> <span class="n">sample_steps</span><span class="p">[</span><span class="n">idx_k</span><span class="p">]</span>           <span class="c1"># original n_minus_1 values for samples of this state</span>
+                <span class="n">bins</span> <span class="o">=</span> <span class="n">steps_k</span> <span class="o">//</span> <span class="n">stride_int</span>
+                <span class="c1"># pick the first sample that appears in each bin (preserves chronology)</span>
+                <span class="c1">#unique_bins, first_pos = np.unique(bins, return_index=True)</span>
+                <span class="c1">#subs_global = idx_k[first_pos]           # convert to global indices</span>
+                <span class="c1"># take last occurrence per bin instead of first</span>
+                <span class="n">unique_bins</span><span class="p">,</span> <span class="n">last_pos_rev</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">bins</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">last_pos</span> <span class="o">=</span> <span class="n">bins</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">last_pos_rev</span>
+                <span class="n">subs_global</span> <span class="o">=</span> <span class="n">idx_k</span><span class="p">[</span><span class="n">last_pos</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Let pymbar compute statistical inefficiency and return per-state local indices</span>
+                <span class="n">series</span> <span class="o">=</span> <span class="n">phi_kn</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">idx_k</span><span class="p">]</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">local_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">timeseries</span><span class="o">.</span><span class="n">subsample_correlated_data</span><span class="p">(</span><span class="n">series</span><span class="p">))</span>  <span class="c1"># indices into series</span>
+                    <span class="n">subs_global</span> <span class="o">=</span> <span class="n">idx_k</span><span class="p">[</span><span class="n">local_idx</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;  warning: subsample_correlated_data failed for state </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">; keeping all samples for this state&#39;</span><span class="p">)</span>
+                    <span class="n">subs_global</span> <span class="o">=</span> <span class="n">idx_k</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">subs_global</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;  state </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s1">: no subsampled indices -&gt; skipping&#39;</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="n">kept_indices_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">subs_global</span><span class="p">)</span>
+            <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39; state </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s1">: n_k=</span><span class="si">{</span><span class="n">n_k</span><span class="si">}</span><span class="s1">, kept=</span><span class="si">{</span><span class="n">subs_global</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+ 
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kept_indices_list</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">uniq</span><span class="p">,</span> <span class="n">counts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">sample_state</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No subsampled indices found for any occupied state. &#39;</span> <span class="o">+</span> 
+                               <span class="sa">f</span><span class="s1">&#39;Present states: </span><span class="si">{</span><span class="n">uniq</span><span class="si">}</span><span class="s1">, counts: </span><span class="si">{</span><span class="n">counts</span><span class="si">}</span><span class="s1">. phi_kn.shape=</span><span class="si">{</span><span class="n">phi_kn</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">kept_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">kept_indices_list</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">kept_indices</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_sampled_indices.npy&#39;</span><span class="p">,</span> <span class="n">kept_indices</span><span class="p">)</span>
+        <span class="n">parprint</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Original total samples: </span><span class="si">{</span><span class="n">N_total</span><span class="si">}</span><span class="s1">, subsampled total: </span><span class="si">{</span><span class="n">kept_indices</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+ 
+        <span class="c1"># make subsampled phi_kn and per-state counts for MBAR</span>
+        <span class="n">phi_kn_sub</span> <span class="o">=</span> <span class="n">phi_kn</span><span class="p">[:,</span> <span class="n">kept_indices</span><span class="p">]</span>
+        <span class="n">samples_per_state_sub</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sample_state</span><span class="p">[</span><span class="n">kept_indices</span><span class="p">]</span> <span class="o">==</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="c1">#parprint(f&#39;New per-state sample counts (subsampled): {samples_per_state_sub}&#39;)</span>
+        <span class="n">images_sub</span> <span class="o">=</span> <span class="p">[</span><span class="n">images</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">kept_indices</span><span class="p">]</span>
+ 
+        <span class="c1"># Compute expectation with MBAR</span>
+        <span class="n">mbar</span> <span class="o">=</span> <span class="n">MBAR</span><span class="p">(</span><span class="n">phi_kn_sub</span><span class="p">,</span> <span class="n">samples_per_state_sub</span><span class="p">,</span> <span class="n">relative_tolerance</span><span class="o">=</span><span class="mf">1e-7</span><span class="p">,</span>
+                    <span class="n">solver_protocol</span><span class="o">=</span><span class="s1">&#39;robust&#39;</span><span class="p">,</span> <span class="n">maximum_iterations</span><span class="o">=</span><span class="mi">30000</span><span class="p">)</span>
+        <span class="n">w_nk</span> <span class="o">=</span> <span class="n">mbar</span><span class="o">.</span><span class="n">weights</span><span class="p">()</span>
+        <span class="n">w_nk</span> <span class="o">/=</span> <span class="n">w_nk</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+ 
+        <span class="n">expectations</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">cv</span> <span class="ow">in</span> <span class="n">images_sub</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">cv</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;fragments&#39;</span><span class="p">,</span> <span class="s1">&#39;x_surf_metals&#39;</span><span class="p">,</span> <span class="s1">&#39;ads_coverages&#39;</span><span class="p">,</span> <span class="s1">&#39;raw_scores&#39;</span><span class="p">,</span> <span class="s1">&#39;mu&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_window&#39;</span><span class="p">]:</span>
+                <span class="k">continue</span>
+            <span class="n">A_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">a</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="n">cv</span><span class="p">]</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">images_sub</span><span class="p">])</span>
+            <span class="n">E_k</span> <span class="o">=</span> <span class="n">w_nk</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">A_n</span>
+            <span class="n">expectations</span><span class="p">[</span><span class="n">cv</span><span class="p">]</span> <span class="o">=</span> <span class="n">E_k</span>
+ 
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">_mbar_expectations.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">expectations</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+</main>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid bg-primary text-light">
+        <div class="container">
+            <div class="row">
+        <div class="col p-4">
+            
+                <nav aria-label="Footer">
+                    <ul class="nav justify-content-center mb-2">
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/features/">Features</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/about-wagtail/"> About Wagtail</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/services/"> Services</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/blog/"> Blog</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/packages/"> Packages</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/developers/"> Developers</a></li>
+                        
+                    </ul>
+                </nav>
+            
+            <div class="text-center">
+                    &copy; Copyright 
+            </div>
+            <div class="text-center text-white-50 font-italic mt-3">
+                <small>Last updated: Oct 13, 2025</small>
+                <small>
+                    Created using
+                    <a class="text-white" href="https://github.com/wagtail/sphinx_wagtail_theme" rel="nofollow" target="_blank">
+                        Sphinx Wagtail Theme 6.5.0
+                    </a>
+                    and
+                    <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
+                        Sphinx 8.2.3
+                    </a>
+                </small>
+            </div>
+        </div>
+    </div>
+        </div>
+    </footer>
+        <script src="../../_static/documentation_options.js?v=8d563738"></script>
+        <script src="../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+        <script src="../../_static/copybutton.js?v=f281be69"></script>
+        <script type="text/javascript" src="../../_static/dist/theme.js"></script>
+        <script type="text/javascript" src="../../_static/dist/vendor.js"></script>
+        <script type="text/javascript" src="../../_static/searchtools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() { Search.loadIndex("../../searchindex.js"); });
+        </script>
+        <script type="text/javascript" id="searchindexloader"></script>
+    </body>
+</html>

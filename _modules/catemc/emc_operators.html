@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en" data-content_root="../../">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+        <title>catemc.emc_operators &mdash; CatEMC 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" type="text/css" href="../../_static/dist/fontawesome.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/dist/theme.css?v=310cf088" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+            <link rel="index" title="Index" href="../../genindex.html" />
+            <link rel="search" title="Search" href="../../search.html" />
+            <link rel="top" title="CatEMC 1.0.0 documentation" href="#" />
+            <link rel="up" title="Module code" href="../index.html" />
+    </head>
+<body>
+    <script type="text/javascript" src="../../_static/dist/blocking.js"></script>
+    <header class="container-fluid bg-primary">
+        <a class="btn btn-sm btn-light skip-to-content-link" href="#main">Skip to content</a>
+        <div class="container-fluid">
+            <div class="navbar navbar-expand-lg navbar-dark font-weight-bold">
+                    <a href="../../index.html"
+                        title="Wagtail"
+                        class="logo navbar-brand"
+                    >
+                        <img src="../../_static/img/wagtail-logo-circle.svg" width="45" height="59" alt="Wagtail"
+                            class="logo-img"
+                        />
+                        Sphinx Wagtail Theme
+                    </a>
+                
+                
+                <button class="navbar-toggler btn btn-primary d-lg-none" type="button" data-toggle="collapse" data-target="#collapseSidebar" aria-expanded="false" aria-controls="collapseExample">
+                    <span class="navbar-toggler-icon"></span>
+                    <span class="sr-only">menu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 sidebar-container">
+                <div id="collapseSidebar" class="collapse sticky-top d-lg-block pt-5 pr-lg-4">
+<div id="searchbox" class="searchbox mb-6 px-1" role="search">
+    <form id="search-form" action="../../search.html" autocomplete="off" method="get" role="search">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <div class="input-group-text border-right-0 bg-white py-3 pl-3 pr-2"><span class="fas fa-search"></span></div>
+            </div>
+            <input class="form-control py-3 pr-3 pl-1 h-100 border-left-0" type="search" name="q" placeholder="Search documentation" aria-label="Search documentation" id="searchinput" />
+        </div>
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div><div class="site-toc">
+    <nav class="toc mt-3" aria-label="Main menu">
+        
+    </nav>
+    <template data-toggle-item-template>
+        <button class="btn btn-sm btn-link toctree-expand" type="button">
+            <span class="sr-only">Toggle menu contents</span>
+        </button>
+    </template>
+</div>
+                    <div class="d-lg-none border-bottom">
+                        
+                    </div>
+                </div>
+            </aside>
+            <div class="col-12 col-lg-9 pt-5">
+                <header class="row align-items-baseline">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+    <ol class="breadcrumb m-0 p-0 bg-transparent">
+        <li class="breadcrumb-item"><a href="../../index.html">Docs</a></li>
+            <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+        <li class="breadcrumb-item active" aria-current="page">catemc.emc_operators</li>
+    </ol>
+</nav>
+                    </div>
+                    <div class="col-sm-12 col-lg-auto mt-3 mt-lg-3">
+                        <noscript>
+                            <p>JavaScript is required to toggle light/dark mode..</p>
+                        </noscript>
+                        <button id="wagtail-theme" class="btn btn-sm btn-light text-decoration-none" type="button">
+                            <span class="dark-only"><i class="fas fa-sun"></i> Light mode</span>
+                            <span class="light-only"><i class="fas fa-moon"></i> Dark mode</span>
+                        </button>
+    <a class="btn btn-sm btn-light text-decoration-none" href="https://github.com/wagtail/sphinx_wagtail_theme/blob/main/docs/_modules/catemc/emc_operators" rel="nofollow">
+        <span class="btn-icon"><span class="fab fa-github"></span></span>
+        <span class="btn-text">Edit on GitHub</span>
+    </a>
+                        
+                    </div>
+                </header>
+                <div class="row" >
+                    <div class="col-12">
+                        <hr class="w-100 my-4">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-lg-9 order-last order-lg-first rst-content">
+                        <main role="main" id="main">
+    <h1>Source code for catemc.emc_operators</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;Implementation for evolutionary Monte Carlo (EMC) operators&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.ga.offspring_creator</span><span class="w"> </span><span class="kn">import</span> <span class="n">OffspringCreator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.ga.particle_crossovers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimpleCutSpliceCrossover</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.ga.adsorbate_operators</span><span class="w"> </span><span class="kn">import</span> <span class="n">CatalystAdsorbateCrossover</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acat.ga.slab_operators</span><span class="w"> </span><span class="kn">import</span> <span class="n">RandomSlabMutation</span><span class="p">,</span> <span class="n">RandomSlabPermutation</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+
+
+<div class="viewcode-block" id="EMCCutSpliceCrossover">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCCutSpliceCrossover">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMCCutSpliceCrossover</span><span class="p">(</span><span class="n">SimpleCutSpliceCrossover</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">elements</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                 <span class="n">keep_composition</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> 
+                 <span class="n">allowed_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="n">SimpleCutSpliceCrossover</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">elements</span><span class="o">=</span><span class="n">elements</span><span class="p">,</span>
+                <span class="n">keep_composition</span><span class="o">=</span><span class="n">keep_composition</span><span class="p">,</span>
+                <span class="n">allowed_indices</span><span class="o">=</span><span class="n">allowed_indices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">=</span> <span class="s1">&#39;EMCCutSpliceCrossover&#39;</span>
+
+<div class="viewcode-block" id="EMCCutSpliceCrossover.get_new_individual">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCCutSpliceCrossover.get_new_individual">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_new_individual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parents</span><span class="p">):</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="n">parents</span><span class="p">,</span> <span class="n">return_both</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="EMCCatalystAdsorbateCrossover">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCCatalystAdsorbateCrossover">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMCCatalystAdsorbateCrossover</span><span class="p">(</span><span class="n">CatalystAdsorbateCrossover</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_by_sites</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">catalyst_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="n">CatalystAdsorbateCrossover</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">group_by_sites</span><span class="o">=</span><span class="n">group_by_sites</span><span class="p">,</span>
+                <span class="n">catalyst_indices</span><span class="o">=</span><span class="n">catalyst_indices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">=</span> <span class="s1">&#39;EMCCatalystAdsorbateCrossover&#39;</span>
+
+<div class="viewcode-block" id="EMCCatalystAdsorbateCrossover.get_new_individual">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCCatalystAdsorbateCrossover.get_new_individual">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_new_individual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parents</span><span class="p">):</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="n">parents</span><span class="p">,</span> <span class="n">return_both</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="EMCInterSwap">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCInterSwap">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMCInterSwap</span><span class="p">(</span><span class="n">OffspringCreator</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element_pools</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">element_probabilities</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                 <span class="n">allowed_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">distribution_correction_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">filter_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="n">OffspringCreator</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_muts</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">=</span> <span class="s1">&#39;EMCInterSwap&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span> <span class="o">=</span> <span class="n">element_pools</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">element_probabilities</span> <span class="o">=</span> <span class="n">element_probabilities</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">allowed_indices</span> <span class="o">=</span> <span class="n">allowed_indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dcf</span> <span class="o">=</span> <span class="n">distribution_correction_function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ff</span> <span class="o">=</span> <span class="n">filter_function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_inputs</span> <span class="o">=</span> <span class="mi">2</span>
+        
+<div class="viewcode-block" id="EMCInterSwap.get_new_individual">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCInterSwap.get_new_individual">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_new_individual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parents</span><span class="p">):</span>
+        <span class="n">f</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="n">parents</span> 
+        <span class="n">parent_message</span> <span class="o">=</span> <span class="s1">&#39;:Parents </span><span class="si">{0}</span><span class="s1"> </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;confid&#39;</span><span class="p">],</span>
+                                                   <span class="n">m</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;confid&#39;</span><span class="p">])</span>
+        <span class="n">options1</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">element_pool</span> <span class="o">=</span> <span class="nb">list</span><span class="p">({</span><span class="n">e</span> <span class="k">for</span> <span class="n">pool</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">pool</span><span class="p">})</span>
+            <span class="n">options1</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options1</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">in</span> <span class="n">element_pool</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">options1</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options1</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_indices</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_probabilities</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">i1</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">options1</span><span class="p">)</span> 
+            <span class="n">sym1</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i1</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sym_set</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">options1</span><span class="p">])])</span>
+            <span class="n">composition_rsv</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_probabilities</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">sym_set</span><span class="p">}</span>
+            <span class="n">composition_rsv_p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">composition_rsv</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+            <span class="n">sym1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">composition_rsv</span><span class="o">.</span><span class="n">keys</span><span class="p">())),</span> 
+                                    <span class="n">p</span><span class="o">=</span><span class="n">composition_rsv_p</span><span class="o">/</span><span class="n">composition_rsv_p</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+        <span class="n">options2</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">m</span><span class="p">))</span> <span class="k">if</span> <span class="n">m</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span> <span class="o">!=</span> <span class="n">sym1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">element_pool</span> <span class="o">=</span> <span class="nb">list</span><span class="p">({</span><span class="n">e</span> <span class="k">for</span> <span class="n">pool</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">pool</span><span class="p">})</span>
+            <span class="n">options2</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options2</span> <span class="k">if</span> <span class="n">m</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span> <span class="ow">in</span> <span class="n">element_pool</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">options2</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options2</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_indices</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_probabilities</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">i2</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">options2</span><span class="p">)</span>
+            <span class="n">sym2</span> <span class="o">=</span> <span class="n">m</span><span class="p">[</span><span class="n">i2</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sym_set</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">options2</span><span class="p">])])</span>
+            <span class="n">composition_rsv</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_probabilities</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">sym_set</span><span class="p">}</span>
+            <span class="n">composition_rsv_p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">composition_rsv</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+            <span class="n">sym2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">composition_rsv</span><span class="o">.</span><span class="n">keys</span><span class="p">())),</span> 
+                                    <span class="n">p</span><span class="o">=</span><span class="n">composition_rsv_p</span><span class="o">/</span><span class="n">composition_rsv_p</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+        <span class="n">op1</span> <span class="o">=</span> <span class="n">EMCMutation</span><span class="p">(</span><span class="n">element_pools</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span><span class="p">,</span>
+                      <span class="n">allowed_indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">allowed_indices</span><span class="p">,</span>
+                      <span class="n">distribution_correction_function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dcf</span><span class="p">,</span>
+                      <span class="n">filter_function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ff</span><span class="p">,</span>
+                      <span class="n">from_element</span><span class="o">=</span><span class="n">sym1</span><span class="p">,</span> <span class="n">to_element</span><span class="o">=</span><span class="n">sym2</span><span class="p">)</span>
+        <span class="n">op2</span> <span class="o">=</span> <span class="n">EMCMutation</span><span class="p">(</span><span class="n">element_pools</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">element_pools</span><span class="p">,</span>
+                      <span class="n">allowed_indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">allowed_indices</span><span class="p">,</span>
+                      <span class="n">distribution_correction_function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dcf</span><span class="p">,</span>
+                      <span class="n">filter_function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ff</span><span class="p">,</span>
+                      <span class="n">from_element</span><span class="o">=</span><span class="n">sym2</span><span class="p">,</span> <span class="n">to_element</span><span class="o">=</span><span class="n">sym1</span><span class="p">)</span>
+        <span class="n">indi</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">op1</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">([</span><span class="n">f</span><span class="p">])</span>
+        <span class="n">indi2</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">op2</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">([</span><span class="n">m</span><span class="p">])</span>
+
+        <span class="n">indi</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;parents&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;confid&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">]</span> 
+        <span class="n">indi</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;operation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;interswap&#39;</span>
+        <span class="n">indi2</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;parents&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;confid&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">]</span>
+        <span class="n">indi2</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;operation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;intraswap&#39;</span>
+
+        <span class="k">return</span> <span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">finalize_individual</span><span class="p">(</span><span class="n">indi</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">finalize_individual</span><span class="p">(</span><span class="n">indi2</span><span class="p">)],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">+</span> <span class="n">parent_message</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="EMCIntraSwap">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCIntraSwap">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMCIntraSwap</span><span class="p">(</span><span class="n">RandomSlabPermutation</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element_pools</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">allowed_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">distribution_correction_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">filter_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,):</span>
+
+        <span class="n">RandomSlabPermutation</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
+                <span class="n">num_muts</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                <span class="n">element_pools</span><span class="o">=</span><span class="n">element_pools</span><span class="p">,</span>
+                <span class="n">allowed_indices</span><span class="o">=</span><span class="n">allowed_indices</span><span class="p">,</span>
+                <span class="n">distribution_correction_function</span><span class="o">=</span><span class="n">distribution_correction_function</span><span class="p">,</span>
+                <span class="n">filter_function</span><span class="o">=</span><span class="n">filter_function</span><span class="p">,</span>
+                <span class="p">)</span>
+                                        
+        <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">=</span> <span class="s1">&#39;EMCIntraSwap&#39;</span>
+
+<div class="viewcode-block" id="EMCIntraSwap.get_new_individual">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCIntraSwap.get_new_individual">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_new_individual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parents</span><span class="p">):</span>
+
+        <span class="n">indi</span><span class="p">,</span> <span class="n">msg</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="n">parents</span><span class="p">)</span>
+
+        <span class="n">indi</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;parents&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;confid&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">]</span> 
+        <span class="n">indi</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;operation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;intraswap&#39;</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">indi</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="EMCMutation">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCMutation">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMCMutation</span><span class="p">(</span><span class="n">RandomSlabMutation</span><span class="p">):</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element_pools</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">element_probabilities</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">allowed_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">distribution_correction_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">filter_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">from_element</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">to_element</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="n">RandomSlabMutation</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
+                <span class="n">num_muts</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                <span class="n">element_pools</span><span class="o">=</span><span class="n">element_pools</span><span class="p">,</span>
+                <span class="n">element_probabilities</span><span class="o">=</span><span class="n">element_probabilities</span><span class="p">,</span>
+                <span class="n">allowed_indices</span><span class="o">=</span><span class="n">allowed_indices</span><span class="p">,</span>
+                <span class="n">distribution_correction_function</span><span class="o">=</span><span class="n">distribution_correction_function</span><span class="p">,</span>
+                <span class="n">filter_function</span><span class="o">=</span><span class="n">filter_function</span><span class="p">,</span>
+                <span class="n">from_element</span><span class="o">=</span><span class="n">from_element</span><span class="p">,</span>
+                <span class="n">to_element</span><span class="o">=</span><span class="n">to_element</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">=</span> <span class="s1">&#39;EMCMutation&#39;</span>
+
+<div class="viewcode-block" id="EMCMutation.get_new_individual">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc_operators.EMCMutation.get_new_individual">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_new_individual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parents</span><span class="p">):</span>
+
+        <span class="n">indi</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">mutated_elements</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">(</span>
+                <span class="n">parents</span><span class="o">=</span><span class="n">parents</span><span class="p">,</span> <span class="n">return_mutated_elements</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">indi</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;parents&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;confid&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">]</span> 
+        <span class="n">indi</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;operation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;mutation&#39;</span>
+        <span class="n">indi</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;mutated_elements&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mutated_elements</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">indi</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+</main>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid bg-primary text-light">
+        <div class="container">
+            <div class="row">
+        <div class="col p-4">
+            
+                <nav aria-label="Footer">
+                    <ul class="nav justify-content-center mb-2">
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/features/">Features</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/about-wagtail/"> About Wagtail</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/services/"> Services</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/blog/"> Blog</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/packages/"> Packages</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/developers/"> Developers</a></li>
+                        
+                    </ul>
+                </nav>
+            
+            <div class="text-center">
+                    &copy; Copyright 
+            </div>
+            <div class="text-center text-white-50 font-italic mt-3">
+                <small>Last updated: Oct 13, 2025</small>
+                <small>
+                    Created using
+                    <a class="text-white" href="https://github.com/wagtail/sphinx_wagtail_theme" rel="nofollow" target="_blank">
+                        Sphinx Wagtail Theme 6.5.0
+                    </a>
+                    and
+                    <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
+                        Sphinx 8.2.3
+                    </a>
+                </small>
+            </div>
+        </div>
+    </div>
+        </div>
+    </footer>
+        <script src="../../_static/documentation_options.js?v=8d563738"></script>
+        <script src="../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+        <script src="../../_static/copybutton.js?v=f281be69"></script>
+        <script type="text/javascript" src="../../_static/dist/theme.js"></script>
+        <script type="text/javascript" src="../../_static/dist/vendor.js"></script>
+        <script type="text/javascript" src="../../_static/searchtools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() { Search.loadIndex("../../searchindex.js"); });
+        </script>
+        <script type="text/javascript" id="searchindexloader"></script>
+    </body>
+</html>

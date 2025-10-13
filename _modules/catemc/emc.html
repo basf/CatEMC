@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en" data-content_root="../../">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+        <title>catemc.emc &mdash; CatEMC 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" type="text/css" href="../../_static/dist/fontawesome.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/dist/theme.css?v=310cf088" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+            <link rel="index" title="Index" href="../../genindex.html" />
+            <link rel="search" title="Search" href="../../search.html" />
+            <link rel="top" title="CatEMC 1.0.0 documentation" href="#" />
+            <link rel="up" title="Module code" href="../index.html" />
+    </head>
+<body>
+    <script type="text/javascript" src="../../_static/dist/blocking.js"></script>
+    <header class="container-fluid bg-primary">
+        <a class="btn btn-sm btn-light skip-to-content-link" href="#main">Skip to content</a>
+        <div class="container-fluid">
+            <div class="navbar navbar-expand-lg navbar-dark font-weight-bold">
+                    <a href="../../index.html"
+                        title="Wagtail"
+                        class="logo navbar-brand"
+                    >
+                        <img src="../../_static/img/wagtail-logo-circle.svg" width="45" height="59" alt="Wagtail"
+                            class="logo-img"
+                        />
+                        Sphinx Wagtail Theme
+                    </a>
+                
+                
+                <button class="navbar-toggler btn btn-primary d-lg-none" type="button" data-toggle="collapse" data-target="#collapseSidebar" aria-expanded="false" aria-controls="collapseExample">
+                    <span class="navbar-toggler-icon"></span>
+                    <span class="sr-only">menu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 sidebar-container">
+                <div id="collapseSidebar" class="collapse sticky-top d-lg-block pt-5 pr-lg-4">
+<div id="searchbox" class="searchbox mb-6 px-1" role="search">
+    <form id="search-form" action="../../search.html" autocomplete="off" method="get" role="search">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <div class="input-group-text border-right-0 bg-white py-3 pl-3 pr-2"><span class="fas fa-search"></span></div>
+            </div>
+            <input class="form-control py-3 pr-3 pl-1 h-100 border-left-0" type="search" name="q" placeholder="Search documentation" aria-label="Search documentation" id="searchinput" />
+        </div>
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div><div class="site-toc">
+    <nav class="toc mt-3" aria-label="Main menu">
+        
+    </nav>
+    <template data-toggle-item-template>
+        <button class="btn btn-sm btn-link toctree-expand" type="button">
+            <span class="sr-only">Toggle menu contents</span>
+        </button>
+    </template>
+</div>
+                    <div class="d-lg-none border-bottom">
+                        
+                    </div>
+                </div>
+            </aside>
+            <div class="col-12 col-lg-9 pt-5">
+                <header class="row align-items-baseline">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+    <ol class="breadcrumb m-0 p-0 bg-transparent">
+        <li class="breadcrumb-item"><a href="../../index.html">Docs</a></li>
+            <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+        <li class="breadcrumb-item active" aria-current="page">catemc.emc</li>
+    </ol>
+</nav>
+                    </div>
+                    <div class="col-sm-12 col-lg-auto mt-3 mt-lg-3">
+                        <noscript>
+                            <p>JavaScript is required to toggle light/dark mode..</p>
+                        </noscript>
+                        <button id="wagtail-theme" class="btn btn-sm btn-light text-decoration-none" type="button">
+                            <span class="dark-only"><i class="fas fa-sun"></i> Light mode</span>
+                            <span class="light-only"><i class="fas fa-moon"></i> Dark mode</span>
+                        </button>
+    <a class="btn btn-sm btn-light text-decoration-none" href="https://github.com/wagtail/sphinx_wagtail_theme/blob/main/docs/_modules/catemc/emc" rel="nofollow">
+        <span class="btn-icon"><span class="fab fa-github"></span></span>
+        <span class="btn-text">Edit on GitHub</span>
+    </a>
+                        
+                    </div>
+                </header>
+                <div class="row" >
+                    <div class="col-12">
+                        <hr class="w-100 my-4">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-lg-9 order-last order-lg-first rst-content">
+                        <main role="main" id="main">
+    <h1>Source code for catemc.emc</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;Algorithm for canonical evolutionary Monte Carlo (EMC) run&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.emc_population</span><span class="w"> </span><span class="kn">import</span> <span class="n">EMCPopulation</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.emc_operators</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">EMCCutSpliceCrossover</span><span class="p">,</span>
+        <span class="n">EMCIntraSwap</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span><span class="p">,</span> <span class="n">write</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io.trajectory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trajectory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.ga.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataConnection</span><span class="p">,</span> <span class="n">PrepareDB</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parprint</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+
+<div class="viewcode-block" id="EMC">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc.EMC">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMC</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Main algorithm for canonical evolutionary Monte Carlo (EMC).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name: str</span>
+<span class="sd">        Name of the target system.</span>
+
+<span class="sd">    calculation_dir: str</span>
+<span class="sd">        Path of the calculation directory.</span>
+
+<span class="sd">    calculation_script: str</span>
+<span class="sd">        The name of the Python script for calculating the fitness of each</span>
+<span class="sd">        configuration. The script must be inside calculation_dir.</span>
+
+<span class="sd">    input_pop: list of ase.Atoms objects</span>
+<span class="sd">        Input population for the EMC run.</span>
+
+<span class="sd">    fix_indices: list of ints, default None</span>
+<span class="sd">        A list of atom indices that should be immutable and fixed in positions</span>
+<span class="sd">        throughout the EMC run. Nothing is fixed by default.</span>
+
+<span class="sd">    trim_generation: int, default 100</span>
+<span class="sd">        To trim database (with backup) every N steps. The database file would be</span>
+<span class="sd">        too large and adding new data would be too slow without trimming.</span>
+
+<span class="sd">    md_generation: int, default 10</span>
+<span class="sd">        To perform molecular dynamics every N steps.</span>
+
+<span class="sd">    exchange_generation: int, defatul 1</span>
+<span class="sd">        To perform replica exchange every N steps.</span>
+
+<span class="sd">    crossover_rate: float, default 0.</span>
+<span class="sd">        The rate of performing crossover operations.</span>
+
+<span class="sd">    intraswap_rate: float, default 0.</span>
+<span class="sd">        The rate of performing intraswap operations in the catalyst slab.</span>
+
+<span class="sd">    metal_element_pool: list of strs, default None</span>
+<span class="sd">        The list of target metal elements (including vacancy &#39;X&#39;) that should be </span>
+<span class="sd">        mutable during the EMC run.</span>
+
+<span class="sd">    nonmetal_element_pool: list of strs, default None</span>
+<span class="sd">        The list of target non-metal elements (including vacancy &#39;X&#39;) that should </span>
+<span class="sd">        be mutable during the EMC run.</span>
+
+<span class="sd">    mutable_metal_indices: list of ints, default None</span>
+<span class="sd">        The list of metal atom (or &#39;X&#39; which represents vacancy) indices that are </span>
+<span class="sd">        allowed to mutate during the EMC run. Default None means all metal indices </span>
+<span class="sd">        are mutable.</span>
+
+<span class="sd">    mutable_nonmetal_indices: list of ints, default None</span>
+<span class="sd">        The list of non-metal (or &#39;X&#39; which represents vacancy) indices that are</span>
+<span class="sd">        allowed to mutate during the EMC run. Default None means all non-metal </span>
+<span class="sd">        indices are mutable.</span>
+
+<span class="sd">    raw_score_cutoff: float, default -10000.</span>
+<span class="sd">        The fitness score for candidates that are should not be considered in the </span>
+<span class="sd">        sampling. This could be structures that are unphysical / failed to relax by </span>
+<span class="sd">        the calculator.</span>
+
+<span class="sd">    temperature_key: str, default &#39;temperature&#39;</span>
+<span class="sd">        Keyword for the temperature stored in each configuration.</span>
+
+<span class="sd">    replica_key: str, default &#39;replica&#39;</span>
+<span class="sd">        Keyword for the replica number stored in each configuration.</span>
+
+<span class="sd">    acceptance_key: str, default &#39;accepted&#39;</span>
+<span class="sd">        Keyword for indicating being accepted or not in each configuration</span>
+
+<span class="sd">    gpu_devices: list of ints, default None</span>
+<span class="sd">        The list of GPU devices to use. Default is to use a single GPU/CPU device.</span>
+
+<span class="sd">    procs_per_device: int, default 1</span>
+<span class="sd">        The number of processes to run in parallel on each GPU/CPU device. Defaul is </span>
+<span class="sd">        to run in serial.</span>
+
+<span class="sd">    batching: bool, default False</span>
+<span class="sd">        Whether to run batch relaxation and MD using torch-sim. Default is False.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span>
+            <span class="n">calculation_dir</span><span class="p">,</span>
+            <span class="n">calculation_script</span><span class="p">,</span>
+            <span class="n">input_pop</span><span class="p">,</span>
+            <span class="n">fix_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">trim_generation</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">md_generation</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+            <span class="n">exchange_generation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">crossover_rate</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+            <span class="n">intraswap_rate</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+            <span class="n">metal_element_pool</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">nonmetal_element_pool</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">mutable_metal_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">mutable_nonmetal_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">raw_score_cutoff</span><span class="o">=-</span><span class="mf">10000.</span><span class="p">,</span>
+            <span class="n">temperature_key</span><span class="o">=</span><span class="s1">&#39;temperature&#39;</span><span class="p">,</span>
+            <span class="n">replica_key</span><span class="o">=</span><span class="s1">&#39;replica&#39;</span><span class="p">,</span>
+            <span class="n">acceptance_key</span><span class="o">=</span><span class="s1">&#39;accepted&#39;</span><span class="p">,</span>
+            <span class="n">gpu_devices</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">procs_per_device</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+            <span class="n">batching</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span> <span class="o">=</span> <span class="n">calculation_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculation_script</span> <span class="o">=</span> <span class="n">calculation_script</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_pop</span> <span class="o">=</span> <span class="n">input_pop</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fix_indices</span> <span class="o">=</span> <span class="n">fix_indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trim_generation</span> <span class="o">=</span> <span class="n">trim_generation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">md_generation</span> <span class="o">=</span> <span class="n">md_generation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exchange_generation</span> <span class="o">=</span> <span class="n">exchange_generation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">crossover_rate</span> <span class="o">=</span> <span class="n">crossover_rate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">intraswap_rate</span> <span class="o">=</span> <span class="n">intraswap_rate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metal_element_pool</span> <span class="o">=</span> <span class="n">metal_element_pool</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nonmetal_element_pool</span> <span class="o">=</span> <span class="n">nonmetal_element_pool</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mutable_metal_indices</span> <span class="o">=</span> <span class="n">mutable_metal_indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mutable_nonmetal_indices</span> <span class="o">=</span> <span class="n">mutable_nonmetal_indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">raw_score_cutoff</span> <span class="o">=</span> <span class="n">raw_score_cutoff</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span> <span class="o">=</span> <span class="n">temperature_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span> <span class="o">=</span> <span class="n">replica_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span> <span class="o">=</span> <span class="n">acceptance_key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gpu_devices</span> <span class="o">=</span> <span class="n">gpu_devices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">procs_per_device</span> <span class="o">=</span> <span class="n">procs_per_device</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">batching</span> <span class="o">=</span> <span class="n">batching</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+
+<div class="viewcode-block" id="EMC.get_pop">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc.EMC.get_pop">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_pop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c1"># Define the logfile path</span>
+        <span class="n">log_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span> <span class="o">+</span> <span class="s1">&#39;/</span><span class="si">{}</span><span class="s1">.log&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="c1"># Set the population</span>
+        <span class="n">pop</span> <span class="o">=</span> <span class="n">EMCPopulation</span><span class="p">(</span><span class="n">data_connection</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dc</span><span class="p">,</span>
+                <span class="n">population_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_pop</span><span class="p">),</span>
+                <span class="n">logfile</span><span class="o">=</span><span class="n">log_path</span><span class="p">,</span>
+                <span class="n">temperature_key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">,</span> 
+                <span class="n">replica_key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">,</span>
+                <span class="n">acceptance_key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span><span class="p">,</span>
+                <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">pop</span></div>
+
+
+<div class="viewcode-block" id="EMC.trim_asedb">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc.EMC.trim_asedb">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">trim_asedb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">asedb_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span> <span class="o">+</span> <span class="s1">&#39;/</span><span class="si">{}</span><span class="s1">.db&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">tmp_asedb</span> <span class="o">=</span> <span class="n">PrepareDB</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_tmp.db&#39;</span><span class="p">,</span> <span class="n">population_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span><span class="p">)</span>
+        <span class="n">current_pop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">get_current_population</span><span class="p">()</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_bak</span><span class="si">{}</span><span class="s1">.db&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)):</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">,</span> <span class="n">asedb_path</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_bak</span><span class="si">{}</span><span class="s1">.db&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_tmp.db&#39;</span><span class="p">,</span> <span class="n">asedb_path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dc</span> <span class="o">=</span> <span class="n">DataConnection</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dc</span><span class="o">.</span><span class="n">add_more_relaxed_candidates</span><span class="p">(</span><span class="n">current_pop</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="EMC.connect_data_with_trim">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc.EMC.connect_data_with_trim">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">connect_data_with_trim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starting_step</span><span class="p">):</span>
+
+        <span class="n">asedb_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span> <span class="o">+</span> <span class="s1">&#39;/</span><span class="si">{}</span><span class="s1">.db&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">db</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">)</span>
+        <span class="n">relaxed_images</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">unrelaxed_iamges</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s1">&#39;relaxed&lt;=1&#39;</span><span class="p">)):</span>
+            <span class="n">atoms</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">toatoms</span><span class="p">()</span>
+            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">key_value_pairs</span>
+            <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">data</span>
+            <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">emc_step</span> <span class="o">&lt;</span> <span class="n">starting_step</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">relaxed</span><span class="p">:</span>
+                    <span class="n">relaxed_images</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">unrelaxed_images</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">)</span>
+        <span class="n">asedb</span> <span class="o">=</span> <span class="n">PrepareDB</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">,</span> <span class="n">population_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">unrelaxed_images</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;key_value_pairs&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">:</span>
+                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">if</span> <span class="s1">&#39;data&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">:</span>
+                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">:</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">],</span> 
+                      <span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">:</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">],</span>
+                      <span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+            <span class="n">asedb</span><span class="o">.</span><span class="n">add_unrelaxed_candidate</span><span class="p">(</span><span class="n">atoms</span><span class="p">,</span> 
+                    <span class="n">emc_step</span><span class="o">=</span><span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;emc_step&#39;</span><span class="p">],</span>
+                    <span class="n">data</span><span class="o">=</span><span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">],</span>
+                    <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dc</span> <span class="o">=</span> <span class="n">DataConnection</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dc</span><span class="o">.</span><span class="n">add_more_relaxed_candidates</span><span class="p">(</span><span class="n">relaxed_images</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="EMC.get_relaxed_candidates">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc.EMC.get_relaxed_candidates">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_relaxed_candidates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unrelaxed_candidates</span><span class="p">,</span> <span class="n">run_md</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">add_args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batching</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="n">replicas</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">unrelaxed_candidates</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fix_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fix_indices_str</span> <span class="o">=</span> <span class="s1">&#39;None&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fix_indices_str</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fix_indices</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpu_devices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">gpu_devices</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">gpu_devices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpu_devices</span>
+        <span class="n">batch_images</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">gpu_device</span> <span class="o">=</span> <span class="n">gpu_devices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">unrelaxed_candidates</span><span class="p">):</span>
+            <span class="n">rep</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/relaxed_atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">batching</span><span class="p">:</span>
+                <span class="c1"># Append current atoms and decide whether to flush the batch.</span>
+                <span class="n">device_for_current</span> <span class="o">=</span> <span class="n">gpu_devices</span><span class="p">[(</span><span class="n">i</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">procs_per_device</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">gpu_devices</span><span class="p">)]</span>
+                <span class="n">batch_images</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+                <span class="n">is_last</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">unrelaxed_candidates</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">device_for_next</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">is_last</span><span class="p">:</span>
+                    <span class="n">device_for_next</span> <span class="o">=</span> <span class="n">gpu_devices</span><span class="p">[((</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">procs_per_device</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">gpu_devices</span><span class="p">)]</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">batch_images</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">procs_per_device</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">device_for_next</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">device_for_next</span> <span class="o">!=</span> <span class="n">device_for_current</span><span class="p">)</span> <span class="ow">or</span> <span class="n">is_last</span><span class="p">:</span>
+                    <span class="n">reps_str</span> <span class="o">=</span> <span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">])</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">batch_images</span><span class="p">])</span>
+                    <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/atoms_</span><span class="si">{</span><span class="n">reps_str</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">batch_images</span><span class="p">)</span>
+                  <span class="c1">#  script_path = os.path.join(self.calculation_dir, self.calculation_script)</span>
+                  <span class="c1">#  cmd = [sys.executable, script_path, f&#39;{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj&#39;,</span>
+                  <span class="c1">#         str(int(run_md)), str(device_for_current), fix_indices_str]</span>
+                  <span class="c1">#  if add_args is not None:</span>
+                  <span class="c1">#      for arg in add_args:</span>
+                  <span class="c1">#          cmd.append(str(arg))</span>
+                  <span class="c1">#  subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)</span>
+                    <span class="n">arg_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/atoms_</span><span class="si">{</span><span class="n">reps_str</span><span class="si">}</span><span class="s1">.traj </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">run_md</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">device_for_current</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">fix_indices_str</span><span class="si">}</span><span class="s1">&#39;</span>
+                    <span class="k">if</span> <span class="n">add_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">add_args</span><span class="p">:</span>
+                            <span class="n">arg_str</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39; </span><span class="si">{</span><span class="n">arg</span><span class="si">}</span><span class="s1">&#39;</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;nohup python </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_script</span><span class="si">}</span><span class="s1"> &#39;</span> <span class="o">+</span> <span class="n">arg_str</span> <span class="o">+</span> <span class="s1">&#39; &amp;&#39;</span><span class="p">)</span>
+                    <span class="c1"># reset batch_images for next batch</span>
+                    <span class="n">batch_images</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">gpu_device</span> <span class="o">=</span> <span class="n">gpu_devices</span><span class="p">[(</span><span class="n">i</span><span class="o">//</span><span class="bp">self</span><span class="o">.</span><span class="n">procs_per_device</span><span class="p">)</span><span class="o">%</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gpu_devices</span><span class="p">)]</span>
+                <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">atoms</span><span class="p">)</span>
+                <span class="c1">#script_path = os.path.join(self.calculation_dir, self.calculation_script)</span>
+                <span class="c1">#cmd = [sys.executable, script_path, f&#39;{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj&#39;,</span>
+                <span class="c1">#       str(int(run_md)), str(gpu_device), fix_indices_str]</span>
+                <span class="c1">#if add_args is not None:</span>
+                <span class="c1">#    for arg in add_args:</span>
+                <span class="c1">#        cmd.append(str(arg))</span>
+                <span class="c1">#subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)</span>
+                <span class="n">arg_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">run_md</span><span class="p">)</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">gpu_device</span><span class="si">}</span><span class="s1"> </span><span class="si">{</span><span class="n">fix_indices_str</span><span class="si">}</span><span class="s1">&#39;</span>
+                <span class="k">if</span> <span class="n">add_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">add_args</span><span class="p">:</span>
+                        <span class="n">arg_str</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39; </span><span class="si">{</span><span class="n">arg</span><span class="si">}</span><span class="s1">&#39;</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;nohup python </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_script</span><span class="si">}</span><span class="s1"> &#39;</span> <span class="o">+</span> <span class="n">arg_str</span> <span class="o">+</span> <span class="s1">&#39; &amp;&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">gpu_devices</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">procs_per_device</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">gpu_devices</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">procs_per_device</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">unrelaxed_candidates</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">while</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/relaxed_atoms_</span><span class="si">{</span><span class="n">replicas</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)):</span>
+                    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+        <span class="n">relaxed_candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">read</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/relaxed_atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="n">replicas</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="n">replicas</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/relaxed_atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">relaxed_candidates</span></div>
+
+
+<div class="viewcode-block" id="EMC.run">
+<a class="viewcode-back" href="../../catemc.html#catemc.emc.EMC.run">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starting_step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">total_steps</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">restart_with_trim</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;                                    </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        starting_step: int, default 1</span>
+<span class="sd">            (Re)starting from a certain EMC step.</span>
+<span class="sd">                                               </span>
+<span class="sd">        total_steps: int, default 10000</span>
+<span class="sd">            The total number of EMC steps that the algorithm should run.</span>
+
+<span class="sd">        restart_with_trim: bool, default False</span>
+<span class="sd">            Whether to restart while trimming all data generated after</span>
+<span class="sd">            the starting_step that has been generated before.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">restart</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_pop</span><span class="p">)</span>
+        <span class="c1"># Connect to the ase db</span>
+        <span class="n">asedb_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span> <span class="o">+</span> <span class="s1">&#39;/</span><span class="si">{}</span><span class="s1">.db&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">):</span>
+            <span class="n">restart</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">asedb</span> <span class="o">=</span> <span class="n">PrepareDB</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">,</span> <span class="n">population_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_pop</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s1">&#39;key_value_pairs&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">:</span>
+                    <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">if</span> <span class="s1">&#39;data&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">:</span>
+                    <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">:</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">],</span> 
+                          <span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">:</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">],</span>
+                          <span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+                <span class="n">asedb</span><span class="o">.</span><span class="n">add_unrelaxed_candidate</span><span class="p">(</span><span class="n">atoms</span><span class="p">,</span> 
+                        <span class="n">emc_step</span><span class="o">=</span><span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;emc_step&#39;</span><span class="p">],</span>
+                        <span class="n">data</span><span class="o">=</span><span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">],</span>
+                        <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">restart_with_trim</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connect_data_with_trim</span><span class="p">(</span><span class="n">starting_step</span><span class="o">=</span><span class="n">starting_step</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dc</span> <span class="o">=</span> <span class="n">DataConnection</span><span class="p">(</span><span class="n">asedb_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">restart</span><span class="p">:</span>
+            <span class="n">unrelaxed_candidates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dc</span><span class="o">.</span><span class="n">get_all_unrelaxed_candidates</span><span class="p">()</span>
+            <span class="n">relaxed_candidates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_relaxed_candidates</span><span class="p">(</span><span class="n">unrelaxed_candidates</span><span class="p">,</span> <span class="n">run_md</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batching</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">batching</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">relaxed_candidates</span><span class="p">:</span>                  
+                <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">relaxed_candidates</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ntask</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pop</span><span class="p">()</span>                                             
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">trim_generation</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">parprint</span><span class="p">(</span><span class="s1">&#39;Restarting from the final population of the previously-converged EMC run. &#39;</span> <span class="o">+</span> 
+                     <span class="s1">&#39;All other previously-stored structures are discarded from the ASE database.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trim_asedb</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pop</span><span class="p">()</span> 
+        <span class="c1"># Update the population to allow new candidates to enter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dc</span><span class="o">.</span><span class="n">add_more_relaxed_candidates</span><span class="p">(</span><span class="n">relaxed_candidates</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">restart</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">pop</span><span class="p">:</span>
+                <span class="c1">#atoms = atoms[[a.index for a in atoms if a.symbol != &#39;X&#39;]]</span>
+                <span class="n">rep</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                <span class="n">traj</span> <span class="o">=</span> <span class="n">Trajectory</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/emc_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span>
+                <span class="n">traj</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">restart_with_trim</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">pop</span><span class="p">:</span>
+                <span class="n">rep</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                <span class="n">traj</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/emc_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;:</span><span class="si">{</span><span class="n">starting_step</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/emc_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">traj</span><span class="p">)</span>
+        <span class="n">rates_sum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">intraswap_rate</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">crossover_rate</span>
+        <span class="k">if</span> <span class="n">rates_sum</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">intraswap_rate</span> <span class="o">/=</span> <span class="n">rates_sum</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">crossover_rate</span> <span class="o">/=</span> <span class="n">rates_sum</span>
+
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+        <span class="c1"># Below is the iterative part of the algorithm</span>
+        <span class="n">gen_num</span> <span class="o">=</span> <span class="n">starting_step</span>
+        <span class="n">gi</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span> <span class="o">&lt;=</span> <span class="n">total_steps</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">trim_generation</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">trim_asedb</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pop</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">current_fitness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">__get_fitness__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">pop</span><span class="p">)</span>
+                <span class="n">parprint</span><span class="p">(</span><span class="s1">&#39;ASE database trimed at generation </span><span class="si">{0}</span><span class="s1">. Restart from current population.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span><span class="p">))</span>
+            <span class="n">parprint</span><span class="p">(</span><span class="s1">&#39;Creating and evaluating generation </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span><span class="p">))</span>
+            
+            <span class="k">if</span> <span class="p">(</span><span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">md_generation</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">unrelaxed_candidates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">pop</span>
+                <span class="n">relaxed_candidates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_relaxed_candidates</span><span class="p">(</span><span class="n">unrelaxed_candidates</span><span class="p">,</span> <span class="n">run_md</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batching</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">batching</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="n">relaxed_candidates</span><span class="p">:</span>
+                    <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">acceptance_key</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="c1"># Update the population to allow new candidates to enter</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dc</span><span class="o">.</span><span class="n">add_more_relaxed_candidates</span><span class="p">(</span><span class="n">relaxed_candidates</span><span class="p">)</span> 
+                <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+
+            <span class="n">n_crossover_pairs</span> <span class="o">=</span> <span class="nb">round</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">pop_size</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">crossover_rate</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">all_parents</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">get_all_parents</span><span class="p">(</span><span class="n">n_crossover_pairs</span><span class="p">,</span> <span class="n">n_interswap_pairs</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">all_parents</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parents</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nonmetal_element_pool</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">element_pool</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metal_element_pool</span>
+                        <span class="n">allowed_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutable_metal_indices</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">element_pool</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metal_element_pool</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">nonmetal_element_pool</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mutable_metal_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mutable_nonmetal_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                            <span class="n">allowed_indices</span> <span class="o">=</span> <span class="kc">None</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">allowed_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutable_metal_indices</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutable_nonmetal_indices</span>
+                    <span class="n">operator</span> <span class="o">=</span> <span class="n">EMCCutSpliceCrossover</span><span class="p">(</span><span class="n">allowed_indices</span><span class="o">=</span><span class="n">allowed_indices</span><span class="p">,</span> <span class="n">elements</span><span class="o">=</span><span class="n">element_pool</span><span class="p">,</span> <span class="n">keep_composition</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">offsprings</span><span class="p">,</span> <span class="n">desc</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">(</span><span class="n">parents</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+                        <span class="n">rep</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/relaxed_atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">):</span>
+                            <span class="k">continue</span>
+                        <span class="k">if</span> <span class="n">offsprings</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">==</span> <span class="n">parents</span><span class="p">[</span><span class="n">idx</span><span class="p">]:</span>
+                            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Offspring identical to parent. Something with replica </span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1"> went wrong&#39;</span><span class="p">)</span>
+                        <span class="n">offsprings</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">]</span>
+                        <span class="n">offsprings</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">rep</span>
+                        <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">offsprings</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">parents</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">rep</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/relaxed_atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">):</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nonmetal_element_pool</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">allowed_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutable_metal_indices</span>
+                        <span class="n">element_pools</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metal_element_pool</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mutable_metal_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mutable_nonmetal_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                            <span class="n">allowed_indices</span> <span class="o">=</span> <span class="kc">None</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">allowed_indices</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">mutable_metal_indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutable_nonmetal_indices</span><span class="p">]</span>
+                        <span class="n">element_pools</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">metal_element_pool</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nonmetal_element_pool</span><span class="p">]</span>
+                    <span class="n">operator</span> <span class="o">=</span> <span class="n">EMCIntraSwap</span><span class="p">(</span><span class="n">allowed_indices</span><span class="o">=</span><span class="n">allowed_indices</span><span class="p">,</span> <span class="n">element_pools</span><span class="o">=</span><span class="n">element_pools</span><span class="p">)</span>
+                    <span class="n">offspring</span><span class="p">,</span> <span class="n">desc</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">get_new_individual</span><span class="p">(</span><span class="n">parents</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">offspring</span> <span class="o">==</span> <span class="n">parents</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Offspring identical to parent. Something with replica </span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1"> went wrong&#39;</span><span class="p">)</span>
+                    <span class="n">offspring</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature_key</span><span class="p">]</span>
+                    <span class="n">offspring</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">rep</span>
+                    <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="n">offspring</span><span class="p">)</span>
+
+            <span class="n">replicas</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">c</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span> <span class="k">for</span> <span class="n">lst</span> <span class="ow">in</span> <span class="n">all_parents</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">lst</span><span class="p">])</span>
+            <span class="n">unrelaxed_offsprings</span> <span class="o">=</span> <span class="p">[</span><span class="n">read</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/atoms_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="n">replicas</span><span class="p">]</span>
+            <span class="n">relaxed_offsprings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_relaxed_candidates</span><span class="p">(</span><span class="n">unrelaxed_offsprings</span><span class="p">,</span> <span class="n">run_md</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">batching</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">batching</span><span class="p">)</span>
+            <span class="n">relaxed_candidates</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">all_parents</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parents</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">rep1</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                    <span class="n">rep2</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                    <span class="n">relaxed_offspring1</span> <span class="o">=</span> <span class="n">relaxed_offsprings</span><span class="p">[</span><span class="n">replicas</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">rep1</span><span class="p">)]</span>
+                    <span class="n">relaxed_offspring2</span> <span class="o">=</span> <span class="n">relaxed_offsprings</span><span class="p">[</span><span class="n">replicas</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">rep2</span><span class="p">)]</span> 
+                    <span class="n">relaxed_offspring1</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;operation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;for_operation&#39;</span><span class="p">]</span>
+                    <span class="n">relaxed_offspring2</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;operation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;for_operation&#39;</span><span class="p">]</span>
+                    <span class="n">relaxed_offspring1</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;emc_step&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span>
+                    <span class="n">relaxed_offspring2</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;emc_step&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span>
+                    <span class="n">relaxed_candidates</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">evaluate_offsprings</span><span class="p">(</span>
+                            <span class="n">parents</span><span class="p">,</span> <span class="p">[</span><span class="n">relaxed_offspring1</span><span class="p">,</span> <span class="n">relaxed_offspring2</span><span class="p">],</span> 
+                            <span class="n">raw_score_cutoff</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raw_score_cutoff</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">parents</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">rep</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                    <span class="n">relaxed_offspring</span> <span class="o">=</span> <span class="n">relaxed_offsprings</span><span class="p">[</span><span class="n">replicas</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">rep</span><span class="p">)]</span>
+                    <span class="n">relaxed_offspring</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;operation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">parents</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">][</span><span class="s1">&#39;for_operation&#39;</span><span class="p">]</span>
+                    <span class="n">relaxed_offspring</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="s1">&#39;emc_step&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span>
+                    <span class="n">relaxed_candidates</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">evaluate_offsprings</span><span class="p">(</span>
+                            <span class="n">parents</span><span class="p">,</span> <span class="p">[</span><span class="n">relaxed_offspring</span><span class="p">],</span> <span class="n">raw_score_cutoff</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">raw_score_cutoff</span><span class="p">)</span>
+
+            <span class="c1"># Update the population to allow new candidates to enter</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dc</span><span class="o">.</span><span class="n">add_more_relaxed_candidates</span><span class="p">(</span><span class="n">relaxed_candidates</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">gen_num</span> <span class="o">+</span> <span class="n">gi</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">exchange_generation</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">exchange</span><span class="p">(</span><span class="n">keep_composition</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            
+            <span class="k">for</span> <span class="n">atoms</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pop</span><span class="o">.</span><span class="n">pop</span><span class="p">:</span>
+                <span class="n">rep</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;key_value_pairs&#39;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">replica_key</span><span class="p">]</span>
+                <span class="n">traj</span> <span class="o">=</span> <span class="n">Trajectory</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">calculation_dir</span><span class="si">}</span><span class="s1">/tmp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">/emc_</span><span class="si">{</span><span class="n">rep</span><span class="si">}</span><span class="s1">.traj&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span>
+                <span class="n">traj</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+
+            <span class="n">gi</span> <span class="o">+=</span> <span class="mi">1</span></div>
+</div>
+
+</pre></div>
+</main>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid bg-primary text-light">
+        <div class="container">
+            <div class="row">
+        <div class="col p-4">
+            
+                <nav aria-label="Footer">
+                    <ul class="nav justify-content-center mb-2">
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/features/">Features</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/about-wagtail/"> About Wagtail</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/services/"> Services</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/blog/"> Blog</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/packages/"> Packages</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/developers/"> Developers</a></li>
+                        
+                    </ul>
+                </nav>
+            
+            <div class="text-center">
+                    &copy; Copyright 
+            </div>
+            <div class="text-center text-white-50 font-italic mt-3">
+                <small>Last updated: Oct 13, 2025</small>
+                <small>
+                    Created using
+                    <a class="text-white" href="https://github.com/wagtail/sphinx_wagtail_theme" rel="nofollow" target="_blank">
+                        Sphinx Wagtail Theme 6.5.0
+                    </a>
+                    and
+                    <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
+                        Sphinx 8.2.3
+                    </a>
+                </small>
+            </div>
+        </div>
+    </div>
+        </div>
+    </footer>
+        <script src="../../_static/documentation_options.js?v=8d563738"></script>
+        <script src="../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+        <script src="../../_static/copybutton.js?v=f281be69"></script>
+        <script type="text/javascript" src="../../_static/dist/theme.js"></script>
+        <script type="text/javascript" src="../../_static/dist/vendor.js"></script>
+        <script type="text/javascript" src="../../_static/searchtools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() { Search.loadIndex("../../searchindex.js"); });
+        </script>
+        <script type="text/javascript" id="searchindexloader"></script>
+    </body>
+</html>

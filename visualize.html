@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en" data-content_root="./">
+<head>
+    <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+        <title>Visualize results &mdash; CatEMC 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" type="text/css" href="_static/dist/fontawesome.css" />
+      <link rel="stylesheet" type="text/css" href="_static/dist/theme.css?v=310cf088" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+            <link rel="index" title="Index" href="genindex.html" />
+            <link rel="search" title="Search" href="search.html" />
+            <link rel="top" title="CatEMC 1.0.0 documentation" href="#" />
+    </head>
+<body>
+    <script type="text/javascript" src="_static/dist/blocking.js"></script>
+    <header class="container-fluid bg-primary">
+        <a class="btn btn-sm btn-light skip-to-content-link" href="#main">Skip to content</a>
+        <div class="container-fluid">
+            <div class="navbar navbar-expand-lg navbar-dark font-weight-bold">
+                    <a href="index.html"
+                        title="Wagtail"
+                        class="logo navbar-brand"
+                    >
+                        <img src="_static/img/wagtail-logo-circle.svg" width="45" height="59" alt="Wagtail"
+                            class="logo-img"
+                        />
+                        Sphinx Wagtail Theme
+                    </a>
+                
+                
+                <button class="navbar-toggler btn btn-primary d-lg-none" type="button" data-toggle="collapse" data-target="#collapseSidebar" aria-expanded="false" aria-controls="collapseExample">
+                    <span class="navbar-toggler-icon"></span>
+                    <span class="sr-only">menu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 sidebar-container">
+                <div id="collapseSidebar" class="collapse sticky-top d-lg-block pt-5 pr-lg-4">
+<div id="searchbox" class="searchbox mb-6 px-1" role="search">
+    <form id="search-form" action="search.html" autocomplete="off" method="get" role="search">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <div class="input-group-text border-right-0 bg-white py-3 pl-3 pr-2"><span class="fas fa-search"></span></div>
+            </div>
+            <input class="form-control py-3 pr-3 pl-1 h-100 border-left-0" type="search" name="q" placeholder="Search documentation" aria-label="Search documentation" id="searchinput" />
+        </div>
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div><div class="site-toc">
+    <nav class="toc mt-3" aria-label="Main menu">
+        
+    </nav>
+    <template data-toggle-item-template>
+        <button class="btn btn-sm btn-link toctree-expand" type="button">
+            <span class="sr-only">Toggle menu contents</span>
+        </button>
+    </template>
+</div>
+                    <div class="d-lg-none border-bottom">
+                        
+                    </div>
+                </div>
+            </aside>
+            <div class="col-12 col-lg-9 pt-5">
+                <header class="row align-items-baseline">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+    <ol class="breadcrumb m-0 p-0 bg-transparent">
+        <li class="breadcrumb-item"><a href="index.html">Docs</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Visualize results</li>
+    </ol>
+</nav>
+                    </div>
+                    <div class="col-sm-12 col-lg-auto mt-3 mt-lg-3">
+                        <noscript>
+                            <p>JavaScript is required to toggle light/dark mode..</p>
+                        </noscript>
+                        <button id="wagtail-theme" class="btn btn-sm btn-light text-decoration-none" type="button">
+                            <span class="dark-only"><i class="fas fa-sun"></i> Light mode</span>
+                            <span class="light-only"><i class="fas fa-moon"></i> Dark mode</span>
+                        </button>
+    <a class="btn btn-sm btn-light text-decoration-none" href="https://github.com/wagtail/sphinx_wagtail_theme/blob/main/docs/visualize.rst" rel="nofollow">
+        <span class="btn-icon"><span class="fab fa-github"></span></span>
+        <span class="btn-text">Edit on GitHub</span>
+    </a>
+    <a class="btn btn-sm btn-light text-decoration-none" href="_sources/visualize.rst.txt" rel="nofollow">
+        <span class="btn-icon"><span class="fas fa-code"></span></span>
+        <span class="btn-text">View source</span>
+    </a>
+                        
+                    </div>
+                </header>
+                <div class="row" >
+                    <div class="col-12">
+                        <hr class="w-100 my-4">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-lg-9 order-last order-lg-first rst-content">
+                        <main role="main" id="main">
+    <section id="visualize-results">
+<h1>Visualize results<a class="headerlink" href="#visualize-results" title="Link to this heading">¶</a></h1>
+<p>This page contains the plotting scripts from the README to reproduce surface
+phase diagrams: metal segregation heatmaps and adsorbate coverage diagrams.
+Both scripts use Matplotlib (no seaborn style presets assumed); adjust font
+paths and plotting parameters to your local environment.</p>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#metal-segregation-surface-phase-diagram" id="id1">Metal segregation surface phase diagram</a></p></li>
+<li><p><a class="reference internal" href="#adsorbate-coverage-surface-phase-diagram" id="id2">Adsorbate coverage surface phase diagram</a></p></li>
+</ul>
+</nav>
+<section id="metal-segregation-surface-phase-diagram">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Metal segregation surface phase diagram</a><a class="headerlink" href="#metal-segregation-surface-phase-diagram" title="Link to this heading">¶</a></h2>
+<p>The script below takes GC-EMC analysis outputs (<code class="docutils literal notranslate"><span class="pre">*_mbar_expectations.pkl</span></code>)
+and plots average surface metal concentrations normalized by bulk.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+
+<span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParamsDefault</span><span class="p">)</span>
+<span class="c1"># Optional: set a system font if available</span>
+<span class="c1"># from matplotlib import font_manager</span>
+<span class="c1"># font_path = &#39;/mnt/nfs/source/arial.ttf&#39;</span>
+<span class="c1"># font_manager.fontManager.addfont(font_path)</span>
+<span class="c1"># prop = font_manager.FontProperties(fname=font_path)</span>
+<span class="c1"># plt.rcParams[&#39;font.family&#39;] = &#39;sans-serif&#39;</span>
+<span class="c1"># plt.rcParams[&#39;font.sans-serif&#39;] = prop.get_name()</span>
+
+<span class="n">system_name</span> <span class="o">=</span> <span class="s1">&#39;Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5OH_311&#39;</span>
+<span class="n">sim_temperatures</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1023</span><span class="p">,]</span>
+<span class="n">T</span> <span class="o">=</span> <span class="mi">1023</span>
+<span class="n">dmu_O</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">5.</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.999</span><span class="p">,</span> <span class="mf">0.02</span><span class="p">)</span>
+<span class="n">dmu_H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">)</span>
+<span class="n">grid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">dmu_O</span><span class="p">,</span> <span class="n">dmu_H</span><span class="p">,</span> <span class="n">sim_temperatures</span><span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">system_name</span><span class="si">}</span><span class="s1">_mbar_expectations.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+    <span class="n">expectations</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+<span class="n">metal_species</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Co&#39;</span><span class="p">,</span> <span class="s1">&#39;Ni&#39;</span><span class="p">,</span> <span class="s1">&#39;Mg&#39;</span><span class="p">,</span> <span class="s1">&#39;Zn&#39;</span><span class="p">,</span> <span class="s1">&#39;Mn&#39;</span><span class="p">,</span> <span class="s1">&#39;Al&#39;</span><span class="p">]</span>
+<span class="n">metal_composition</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Co&#39;</span><span class="p">:</span><span class="mf">0.2</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span><span class="s1">&#39;Ni&#39;</span><span class="p">:</span><span class="mf">0.2</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span><span class="s1">&#39;Mg&#39;</span><span class="p">:</span><span class="mf">0.2</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span><span class="s1">&#39;Zn&#39;</span><span class="p">:</span><span class="mf">0.2</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span><span class="s1">&#39;Mn&#39;</span><span class="p">:</span><span class="mf">0.2</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span><span class="s1">&#39;Al&#39;</span><span class="p">:</span><span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="p">}</span>
+
+<span class="c1"># Plot grid: 2x3 subplots</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">7.3</span><span class="p">,</span> <span class="mf">4.5</span><span class="p">),</span> <span class="n">gridspec_kw</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;wspace&#39;</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;hspace&#39;</span><span class="p">:</span><span class="mi">0</span><span class="p">})</span>
+<span class="n">axes_flat</span> <span class="o">=</span> <span class="n">axes</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+<span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span> <span class="o">=</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">5.</span>
+
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ax</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">axes_flat</span><span class="p">):</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">metal_species</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">x_surf_avg</span> <span class="o">=</span> <span class="n">expectations</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;x_surf_</span><span class="si">{</span><span class="n">m</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">metal_composition</span><span class="p">[</span><span class="n">m</span><span class="p">]</span>
+
+    <span class="c1"># Construct Z with shape (Ny, Nx) where rows -&gt; dmu_H, cols -&gt; dmu_O</span>
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">dmu_O</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">dmu_H</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">Z</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">iy</span><span class="p">,</span> <span class="n">muH</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dmu_H</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">muO</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dmu_O</span><span class="p">):</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">grid</span><span class="p">[:,</span><span class="mi">0</span><span class="p">],</span> <span class="n">muO</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">grid</span><span class="p">[:,</span><span class="mi">1</span><span class="p">],</span> <span class="n">muH</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">grid</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">T</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">idx</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">Z</span><span class="p">[</span><span class="n">iy</span><span class="p">,</span> <span class="n">ix</span><span class="p">]</span> <span class="o">=</span> <span class="n">x_surf_avg</span><span class="p">[</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">Z</span><span class="p">[</span><span class="n">iy</span><span class="p">,</span> <span class="n">ix</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">Z</span><span class="p">[</span><span class="n">Z</span><span class="o">==</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">turbo</span>
+    <span class="n">cmap</span><span class="o">.</span><span class="n">set_bad</span><span class="p">(</span><span class="s1">&#39;lightgray&#39;</span><span class="p">)</span>
+    <span class="n">cf</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">dmu_O</span><span class="p">,</span> <span class="n">dmu_H</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">extend</span><span class="o">=</span><span class="s1">&#39;max&#39;</span><span class="p">)</span>
+    <span class="n">cf</span><span class="o">.</span><span class="n">set_rasterized</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">m</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\Delta \mu_{\rm</span><span class="si">{O}</span><span class="s1">}$ / eV&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\Delta \mu_{\rm</span><span class="si">{H}</span><span class="s1">}$ / eV&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="mf">3.001</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.001</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">cbar</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">cf</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes_flat</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span> <span class="n">orientation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">,</span> <span class="n">fraction</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>
+<span class="n">cbar</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">([</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="mf">2.</span><span class="p">,</span> <span class="mf">3.</span><span class="p">,</span> <span class="mf">4.</span><span class="p">,</span> <span class="mf">5.</span><span class="p">])</span>
+<span class="n">cbar</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;Average $c_m^{\rm</span><span class="si">{surf}</span><span class="s1">} / c_m^{\rm</span><span class="si">{bulk}</span><span class="s1">}$&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="adsorbate-coverage-surface-phase-diagram">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Adsorbate coverage surface phase diagram</a><a class="headerlink" href="#adsorbate-coverage-surface-phase-diagram" title="Link to this heading">¶</a></h2>
+<p>Plot adsorbate coverage maps (N/H/combined) similar to the metal segregation plots.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+
+<span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParamsDefault</span><span class="p">)</span>
+<span class="c1"># optional font setup as above</span>
+
+<span class="n">system_name</span> <span class="o">=</span> <span class="s1">&#39;Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111&#39;</span>
+<span class="n">sim_temperatures</span> <span class="o">=</span> <span class="p">[</span><span class="mi">573</span><span class="p">,</span> <span class="mi">673</span><span class="p">,</span> <span class="mi">773</span><span class="p">,</span> <span class="mi">873</span><span class="p">]</span>
+<span class="n">T</span> <span class="o">=</span> <span class="mi">773</span>
+<span class="n">dmu_N</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">)</span>
+<span class="n">dmu_H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">)</span>
+<span class="n">grid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">dmu_N</span><span class="p">,</span> <span class="n">dmu_H</span><span class="p">,</span> <span class="n">sim_temperatures</span><span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">system_name</span><span class="si">}</span><span class="s1">_mbar_expectations.pkl&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+    <span class="n">expectations</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+<span class="n">adsorbate_species</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;N&#39;</span><span class="p">,</span> <span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="s1">&#39;NH&#39;</span><span class="p">,</span> <span class="s1">&#39;NH2&#39;</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">]</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">12.3</span><span class="p">,</span> <span class="mf">2.3</span><span class="p">),</span> <span class="n">gridspec_kw</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;wspace&#39;</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;hspace&#39;</span><span class="p">:</span><span class="mi">0</span><span class="p">})</span>
+<span class="n">axes_flat</span> <span class="o">=</span> <span class="n">axes</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+<span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span> <span class="o">=</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span>
+
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ax</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">axes_flat</span><span class="p">):</span>
+    <span class="n">ads</span> <span class="o">=</span> <span class="n">adsorbate_species</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">ads</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">:</span>
+        <span class="n">ads_coverage_avg</span> <span class="o">=</span> <span class="n">expectations</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;ads_coverage&#39;</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ads_coverage_avg</span> <span class="o">=</span> <span class="n">expectations</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;ads_coverage_</span><span class="si">{</span><span class="n">ads</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span>
+
+    <span class="n">Z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">dmu_N</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">dmu_H</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">Z</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">iy</span><span class="p">,</span> <span class="n">muH</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dmu_H</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">muN</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dmu_N</span><span class="p">):</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">grid</span><span class="p">[:,</span><span class="mi">0</span><span class="p">],</span> <span class="n">muN</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">grid</span><span class="p">[:,</span><span class="mi">1</span><span class="p">],</span> <span class="n">muH</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">grid</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">T</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">idx</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">Z</span><span class="p">[</span><span class="n">iy</span><span class="p">,</span> <span class="n">ix</span><span class="p">]</span> <span class="o">=</span> <span class="n">ads_coverage_avg</span><span class="p">[</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">Z</span><span class="p">[</span><span class="n">iy</span><span class="p">,</span> <span class="n">ix</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">Z</span><span class="p">[</span><span class="n">Z</span><span class="o">==</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">turbo</span>
+    <span class="n">cmap</span><span class="o">.</span><span class="n">set_bad</span><span class="p">(</span><span class="s1">&#39;lightgray&#39;</span><span class="p">)</span>
+    <span class="n">cf</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">dmu_N</span><span class="p">,</span> <span class="n">dmu_H</span><span class="p">,</span> <span class="n">Z</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">extend</span><span class="o">=</span><span class="s1">&#39;max&#39;</span><span class="p">)</span>
+    <span class="n">cf</span><span class="o">.</span><span class="n">set_rasterized</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ads</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;NH&#39;</span><span class="p">,</span><span class="s1">&#39;all&#39;</span><span class="p">,</span><span class="s1">&#39;NH2&#39;</span><span class="p">]:</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;w&#39;</span>
+    <span class="k">if</span> <span class="n">ads</span> <span class="o">==</span> <span class="s1">&#39;NH2&#39;</span><span class="p">:</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;NH$_2$*&#39;</span>
+    <span class="k">elif</span> <span class="n">ads</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">:</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="s1">&#39;All adsorbates&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">ads</span><span class="si">}</span><span class="s1">*&#39;</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\Delta \mu_{\rm</span><span class="si">{N}</span><span class="s1">}$ / eV&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\Delta \mu_{\rm</span><span class="si">{H}</span><span class="s1">}$ / eV&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.001</span><span class="p">])</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mf">0.</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">cbar</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">cf</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes_flat</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span> <span class="n">orientation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">,</span> <span class="n">fraction</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>
+<span class="n">cbar</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
+<span class="n">cbar</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="s1">&#39;Average coverage / ML&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+</main>
+                        
+                    </div>
+                    
+                    <nav class="col-12 col-lg-3 pb-4">
+                        <div class="sticky-top toc page-toc" aria-labelledby="page-toc-heading">
+                            <p class="font-weight-bold" id="page-toc-heading">Page contents</p>
+                            <ul>
+<li><a class="reference internal" href="#">Visualize results</a><ul>
+<li><a class="reference internal" href="#metal-segregation-surface-phase-diagram">Metal segregation surface phase diagram</a></li>
+<li><a class="reference internal" href="#adsorbate-coverage-surface-phase-diagram">Adsorbate coverage surface phase diagram</a></li>
+</ul>
+</li>
+</ul>
+
+                        </div>
+                    </nav>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid bg-primary text-light">
+        <div class="container">
+            <div class="row">
+        <div class="col p-4">
+            
+                <nav aria-label="Footer">
+                    <ul class="nav justify-content-center mb-2">
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/features/">Features</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/about-wagtail/"> About Wagtail</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/services/"> Services</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/blog/"> Blog</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/packages/"> Packages</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/developers/"> Developers</a></li>
+                        
+                    </ul>
+                </nav>
+            
+            <div class="text-center">
+                    &copy; Copyright 
+            </div>
+            <div class="text-center text-white-50 font-italic mt-3">
+                <small>Last updated: Oct 13, 2025</small>
+                <small>
+                    Created using
+                    <a class="text-white" href="https://github.com/wagtail/sphinx_wagtail_theme" rel="nofollow" target="_blank">
+                        Sphinx Wagtail Theme 6.5.0
+                    </a>
+                    and
+                    <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
+                        Sphinx 8.2.3
+                    </a>
+                </small>
+            </div>
+        </div>
+    </div>
+        </div>
+    </footer>
+        <script src="_static/documentation_options.js?v=8d563738"></script>
+        <script src="_static/doctools.js?v=9bcbadda"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+        <script src="_static/copybutton.js?v=f281be69"></script>
+        <script type="text/javascript" src="_static/dist/theme.js"></script>
+        <script type="text/javascript" src="_static/dist/vendor.js"></script>
+        <script type="text/javascript" src="_static/searchtools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() { Search.loadIndex("searchindex.js"); });
+        </script>
+        <script type="text/javascript" id="searchindexloader"></script>
+    </body>
+</html>

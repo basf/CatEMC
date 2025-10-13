@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en" data-content_root="../../">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+        <title>catemc.repulsive &mdash; CatEMC 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" type="text/css" href="../../_static/dist/fontawesome.css" />
+      <link rel="stylesheet" type="text/css" href="../../_static/dist/theme.css?v=310cf088" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+            <link rel="index" title="Index" href="../../genindex.html" />
+            <link rel="search" title="Search" href="../../search.html" />
+            <link rel="top" title="CatEMC 1.0.0 documentation" href="#" />
+            <link rel="up" title="Module code" href="../index.html" />
+    </head>
+<body>
+    <script type="text/javascript" src="../../_static/dist/blocking.js"></script>
+    <header class="container-fluid bg-primary">
+        <a class="btn btn-sm btn-light skip-to-content-link" href="#main">Skip to content</a>
+        <div class="container-fluid">
+            <div class="navbar navbar-expand-lg navbar-dark font-weight-bold">
+                    <a href="../../index.html"
+                        title="Wagtail"
+                        class="logo navbar-brand"
+                    >
+                        <img src="../../_static/img/wagtail-logo-circle.svg" width="45" height="59" alt="Wagtail"
+                            class="logo-img"
+                        />
+                        Sphinx Wagtail Theme
+                    </a>
+                
+                
+                <button class="navbar-toggler btn btn-primary d-lg-none" type="button" data-toggle="collapse" data-target="#collapseSidebar" aria-expanded="false" aria-controls="collapseExample">
+                    <span class="navbar-toggler-icon"></span>
+                    <span class="sr-only">menu</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 sidebar-container">
+                <div id="collapseSidebar" class="collapse sticky-top d-lg-block pt-5 pr-lg-4">
+<div id="searchbox" class="searchbox mb-6 px-1" role="search">
+    <form id="search-form" action="../../search.html" autocomplete="off" method="get" role="search">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <div class="input-group-text border-right-0 bg-white py-3 pl-3 pr-2"><span class="fas fa-search"></span></div>
+            </div>
+            <input class="form-control py-3 pr-3 pl-1 h-100 border-left-0" type="search" name="q" placeholder="Search documentation" aria-label="Search documentation" id="searchinput" />
+        </div>
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div><div class="site-toc">
+    <nav class="toc mt-3" aria-label="Main menu">
+        
+    </nav>
+    <template data-toggle-item-template>
+        <button class="btn btn-sm btn-link toctree-expand" type="button">
+            <span class="sr-only">Toggle menu contents</span>
+        </button>
+    </template>
+</div>
+                    <div class="d-lg-none border-bottom">
+                        
+                    </div>
+                </div>
+            </aside>
+            <div class="col-12 col-lg-9 pt-5">
+                <header class="row align-items-baseline">
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+    <ol class="breadcrumb m-0 p-0 bg-transparent">
+        <li class="breadcrumb-item"><a href="../../index.html">Docs</a></li>
+            <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+        <li class="breadcrumb-item active" aria-current="page">catemc.repulsive</li>
+    </ol>
+</nav>
+                    </div>
+                    <div class="col-sm-12 col-lg-auto mt-3 mt-lg-3">
+                        <noscript>
+                            <p>JavaScript is required to toggle light/dark mode..</p>
+                        </noscript>
+                        <button id="wagtail-theme" class="btn btn-sm btn-light text-decoration-none" type="button">
+                            <span class="dark-only"><i class="fas fa-sun"></i> Light mode</span>
+                            <span class="light-only"><i class="fas fa-moon"></i> Dark mode</span>
+                        </button>
+    <a class="btn btn-sm btn-light text-decoration-none" href="https://github.com/wagtail/sphinx_wagtail_theme/blob/main/docs/_modules/catemc/repulsive" rel="nofollow">
+        <span class="btn-icon"><span class="fab fa-github"></span></span>
+        <span class="btn-text">Edit on GitHub</span>
+    </a>
+                        
+                    </div>
+                </header>
+                <div class="row" >
+                    <div class="col-12">
+                        <hr class="w-100 my-4">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 col-lg-9 order-last order-lg-first rst-content">
+                        <main role="main" id="main">
+    <h1>Source code for catemc.repulsive</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.calculators.calculator</span><span class="w"> </span><span class="kn">import</span> <span class="n">Calculator</span><span class="p">,</span> <span class="n">all_changes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.neighborlist</span><span class="w"> </span><span class="kn">import</span> <span class="n">NeighborList</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ase.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">covalent_radii</span>
+
+
+<div class="viewcode-block" id="RepulsivePotential">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">RepulsivePotential</span><span class="p">(</span><span class="n">Calculator</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Repulsive potential defined as sum_ij U(xij), </span>
+<span class="sd">    defining xij = rij / [rc*(Ri + Rj)]</span>
+<span class="sd">    where Ri and Rj are the radii of atom i an j, rij is their distance</span>
+<span class="sd">    and rc a scaling constant, the potential U can take two forms:</span>
+<span class="sd">    </span>
+<span class="sd">    parabola form (goes to constant/prefactor at rij=0)</span>
+<span class="sd">    </span>
+<span class="sd">    U = prefactor * (xij-1)**exponent if rij&lt;=xij</span>
+<span class="sd">    U = 0 else</span>
+
+<span class="sd">    Lennard jones like repulsive form (goes to infinity at rij=0)</span>
+<span class="sd">    </span>
+<span class="sd">    U = prefactor * [1/(xij**exponent)-1] - exponent*(1-xij)] if rij&lt;=xij</span>
+<span class="sd">    U = 0 else</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; potential=RepulsivePotential(prefactor=..., rc=...)</span>
+<span class="sd">    &gt;&gt;&gt; to calculate, use as any ASE calculator, </span>
+<span class="sd">    e.g. potential.get_potential_energy()</span>
+<span class="sd">    </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    prefactor: float, optional</span>
+<span class="sd">        Strength constant for potentals</span>
+<span class="sd">        Default is 1</span>
+<span class="sd">    </span>
+<span class="sd">    rc: float, optional</span>
+<span class="sd">        Multplier on sum of atomic radii</span>
+<span class="sd">        Default is 0.9</span>
+<span class="sd">        (can also be imported as a list giving the radius of each atom)</span>
+<span class="sd">    </span>
+<span class="sd">    potential_type: str (&#39;parabola&#39; or &#39;LJ&#39;), optional</span>
+<span class="sd">        String specifying what mode of the potential is used. </span>
+<span class="sd">        Default is &#39;LJ&#39; </span>
+<span class="sd">    </span>
+<span class="sd">    exponent: float, optional</span>
+<span class="sd">        Exponent used in potentials</span>
+<span class="sd">        Default is 2</span>
+<span class="sd">        </span>
+<span class="sd">    extrapotentals: list of objects, optional</span>
+<span class="sd">        List of additional objects capable of calculating, energy, </span>
+<span class="sd">        forces and stresses. Any objects with the following methods:</span>
+<span class="sd">        potential(atoms),  forces(atoms),  stress(atoms)</span>
+<span class="sd">        default: None (no extra potential used) </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">implemented_properties</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">,</span> <span class="s1">&#39;forces&#39;</span><span class="p">,</span> <span class="s1">&#39;stress&#39;</span><span class="p">]</span>
+
+    <span class="n">default_parameters</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;prefactor&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span><span class="s1">&#39;rc&#39;</span><span class="p">:</span> <span class="mf">0.9</span><span class="p">,</span> 
+                          <span class="s1">&#39;potential_type&#39;</span><span class="p">:</span> <span class="s1">&#39;LJ&#39;</span><span class="p">,</span> <span class="s1">&#39;exponent&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> 
+                          <span class="s1">&#39;extrapotentials&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>    
+    
+    <span class="n">nolabel</span> <span class="o">=</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="RepulsivePotential.calculate">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.calculate">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calculate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">properties</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">,</span> <span class="s1">&#39;forces&#39;</span><span class="p">,</span> <span class="s1">&#39;stress&#39;</span><span class="p">],</span>
+                  <span class="n">system_changes</span><span class="o">=</span><span class="n">all_changes</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        General ASE calculate method to store output in calculator.results</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">Calculator</span><span class="o">.</span><span class="n">calculate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="p">,</span> <span class="n">properties</span><span class="p">,</span> <span class="n">system_changes</span><span class="p">)</span>
+        
+        <span class="c1"># get parameters</span>
+        <span class="n">rc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_radii</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+
+        <span class="n">neighbor_list</span> <span class="o">=</span> <span class="n">NeighborList</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">rc</span><span class="p">),</span> <span class="n">skin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                     <span class="n">self_interaction</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>     
+        <span class="n">neighbor_list</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+
+        <span class="n">energy</span><span class="p">,</span> <span class="n">forces</span><span class="p">,</span> <span class="n">stress</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_energy_and_derivatives</span><span class="p">(</span><span class="n">atoms</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">neighbor_list</span><span class="p">)</span>
+        
+        <span class="c1"># set energy and forces</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">energy</span>   
+        <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;forces&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">forces</span>    
+        
+        <span class="k">assert</span><span class="p">(</span><span class="n">atoms</span><span class="o">.</span><span class="n">cell</span><span class="o">.</span><span class="n">rank</span><span class="o">==</span><span class="mi">3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;stress&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">stress</span><span class="o">.</span><span class="n">flat</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span> <span class="o">/</span> <span class="n">atoms</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">extrapotentials</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">extrapotentials</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_extra_potential</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="RepulsivePotential.get_radii">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_radii">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_radii</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method to get atomic radii.</span>
+<span class="sd">        Overwritten in daughter class, don&#39;t Remove</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">rc</span><span class="p">)</span><span class="o">==</span><span class="nb">list</span><span class="p">:</span>
+            <span class="n">rc</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">rc</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">covrads</span> <span class="o">=</span> <span class="p">[</span> <span class="n">covalent_radii</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">atoms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">number</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">atoms</span><span class="p">))</span> <span class="p">]</span>
+            <span class="n">rc</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">rc</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">covrads</span><span class="p">)</span>
+    
+        <span class="k">return</span> <span class="n">rc</span></div>
+
+
+
+
+<div class="viewcode-block" id="RepulsivePotential.get_energy_and_derivatives">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_energy_and_derivatives">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_energy_and_derivatives</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">neighbor_list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method to get energy, forces and stresses for the total atoms object</span>
+<span class="sd">        using the repulsive prior function</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        atoms : ase.atoms</span>
+<span class="sd">            Atoms under consideration</span>
+<span class="sd">        rc : lits</span>
+<span class="sd">            Atomic radii</span>
+<span class="sd">        neighbors : ase.neighborlist</span>
+<span class="sd">            Object containing all neighbor information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        energy : floar</span>
+<span class="sd">            Total energy</span>
+<span class="sd">        forces : numpy.array</span>
+<span class="sd">            Total forces</span>
+<span class="sd">        stress : numpy.array</span>
+<span class="sd">            Total stresses</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="n">energy</span><span class="p">,</span> <span class="n">forces</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">setup_energy_forces</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>   
+        
+        <span class="n">stress</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">a1</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">atoms</span><span class="p">)):</span>
+            
+            <span class="n">neighbors</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_distance_info</span><span class="p">(</span><span class="n">atoms</span><span class="p">,</span> <span class="n">a1</span><span class="p">,</span> <span class="n">neighbor_list</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">neighbors</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>     
+                
+                <span class="n">potential</span><span class="p">,</span> <span class="n">derivative</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_potential</span><span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">neighbors</span><span class="p">)</span>   
+                
+                <span class="n">energy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_energy</span><span class="p">(</span><span class="n">energy</span><span class="p">,</span> <span class="n">potential</span><span class="p">)</span>
+                
+                <span class="n">forces</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_forces</span><span class="p">(</span><span class="n">forces</span><span class="p">,</span> <span class="n">derivative</span><span class="p">,</span> <span class="n">a1</span><span class="p">,</span> <span class="n">neighbors</span><span class="p">)</span> 
+                
+                <span class="n">stress</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">update_stress</span><span class="p">(</span><span class="n">stress</span><span class="p">,</span> <span class="n">derivative</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+                
+        <span class="k">return</span> <span class="n">energy</span><span class="p">,</span> <span class="n">forces</span><span class="p">,</span> <span class="n">stress</span></div>
+
+    
+    
+    
+<div class="viewcode-block" id="RepulsivePotential.setup_energy_forces">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.setup_energy_forces">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">setup_energy_forces</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method to setup output formats. </span>
+<span class="sd">        Overwritten in daughter classes. Dont remove</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">energy</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">forces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">atoms</span><span class="p">),</span> <span class="mi">3</span><span class="p">))</span> 
+        <span class="k">return</span> <span class="n">energy</span><span class="p">,</span> <span class="n">forces</span></div>
+
+
+
+
+<div class="viewcode-block" id="RepulsivePotential.get_distance_info">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_distance_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_distance_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="p">,</span> <span class="n">atom_idx</span><span class="p">,</span> <span class="n">neighbor_list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method to calculate the vectors between atoms in periodic as well</span>
+<span class="sd">        as nonperiodic boundary conditions</span>
+
+<span class="sd">        Overwritten in daughter classes. Dont Remove</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        atoms : ase.atoms</span>
+<span class="sd">            Atoms object of consideration</span>
+<span class="sd">        atom_idx : int</span>
+<span class="sd">            index of one of the atoms in the atoms object</span>
+<span class="sd">        neighbor_list : ase.neighborlist</span>
+<span class="sd">            object containing all nerigborinformation</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        neighbors : list</span>
+<span class="sd">            list of all neighbors of the given atom</span>
+<span class="sd">        d : numpy.array</span>
+<span class="sd">            vectors between all neighbors of the given atom</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="n">positions</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">positions</span>
+            
+        <span class="n">cell</span> <span class="o">=</span> <span class="n">atoms</span><span class="o">.</span><span class="n">cell</span>
+        
+        <span class="n">neighbors</span><span class="p">,</span> <span class="n">offsets</span> <span class="o">=</span> <span class="n">neighbor_list</span><span class="o">.</span><span class="n">get_neighbors</span><span class="p">(</span><span class="n">atom_idx</span><span class="p">)</span>
+            
+        <span class="n">cells</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">offsets</span><span class="p">,</span> <span class="n">cell</span><span class="p">)</span>
+            
+        <span class="n">d</span> <span class="o">=</span> <span class="n">positions</span><span class="p">[</span><span class="n">neighbors</span><span class="p">]</span> <span class="o">+</span> <span class="n">cells</span> <span class="o">-</span> <span class="n">positions</span><span class="p">[</span><span class="n">atom_idx</span><span class="p">]</span>
+        
+        <span class="k">return</span> <span class="n">neighbors</span><span class="p">,</span> <span class="n">d</span>  </div>
+
+        
+
+<div class="viewcode-block" id="RepulsivePotential.get_potential_function_LJ">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_potential_function_LJ">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_potential_function_LJ</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefactor</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">exp</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; </span>
+<span class="sd">        Method to calculate potential and derivative for the Lennard Jones </span>
+<span class="sd">        like repulsive potential</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Potential function with zero value and zero derivative at x=1.</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">prefactor</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">x</span><span class="o">**</span><span class="n">exp</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">exp</span><span class="o">*</span><span class="n">prefactor</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">deriv</span> <span class="o">=</span> <span class="n">exp</span><span class="o">*</span><span class="n">prefactor</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="n">x</span><span class="o">**</span><span class="p">(</span><span class="n">exp</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="n">value</span> <span class="p">,</span> <span class="n">deriv</span></div>
+
+
+
+<div class="viewcode-block" id="RepulsivePotential.get_potential_function_parabola">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_potential_function_parabola">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_potential_function_parabola</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefactor</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">exp</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; </span>
+<span class="sd">        Method to calculate potential and derivative for the parabolar </span>
+<span class="sd">        repulsive potential</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Potential function with zero value and zero derivative at x=1.</span>
+        
+        <span class="k">if</span> <span class="n">x</span><span class="o">&lt;=</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">prefactor</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="n">exp</span>
+            <span class="n">deriv</span> <span class="o">=</span> <span class="n">exp</span><span class="o">*</span><span class="n">prefactor</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="n">exp</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="n">value</span> <span class="p">,</span> <span class="n">deriv</span></div>
+
+
+
+
+<div class="viewcode-block" id="RepulsivePotential.get_x_potential">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_x_potential">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_x_potential</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">crs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get value and derivative of the repulsive potentials</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="n">x</span> <span class="o">=</span> <span class="n">r</span><span class="o">/</span><span class="n">crs</span>
+        
+        <span class="n">potential</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">derivative</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        
+        <span class="n">prefactor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">prefactor</span>
+        <span class="n">exp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">exponent</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">potential_type</span><span class="o">==</span><span class="s1">&#39;LJ&#39;</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">xx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="n">potential</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">derivative</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_potential_function_LJ</span><span class="p">(</span><span class="n">prefactor</span><span class="p">,</span><span class="n">xx</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">potential_type</span><span class="o">==</span><span class="s1">&#39;parabola&#39;</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">xx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="n">potential</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">derivative</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_potential_function_parabola</span><span class="p">(</span><span class="n">prefactor</span><span class="p">,</span><span class="n">xx</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;potential_type=</span><span class="si">{:s}</span><span class="s1"> not known.&#39;</span>
+                               <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">potential_type</span><span class="p">))</span>
+            
+        <span class="k">return</span> <span class="n">potential</span><span class="p">,</span> <span class="n">derivative</span> </div>
+
+        
+
+
+<div class="viewcode-block" id="RepulsivePotential.radial_info">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.radial_info">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">radial_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">atom_index</span><span class="p">,</span> <span class="n">neighbors</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get distances between atoms as well as the sum of atomic radii</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="n">r2</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">r</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">r2</span><span class="p">)</span>
+        
+        <span class="n">crs</span><span class="o">=</span><span class="n">rc</span><span class="p">[</span><span class="n">atom_index</span><span class="p">]</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span> <span class="p">[</span>   <span class="n">rc</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">neighbors</span>   <span class="p">]</span>  <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">r</span><span class="p">,</span> <span class="n">crs</span></div>
+
+
+
+<div class="viewcode-block" id="RepulsivePotential.cartesian_conversion">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.cartesian_conversion">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cartesian_conversion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">derivative</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; Convert from polar to cartesian coordinates &quot;&quot;&quot;</span>
+        <span class="n">r_block</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">r</span><span class="p">,(</span><span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]),</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">polar_to_cart</span><span class="o">=</span><span class="n">d</span><span class="o">/</span><span class="n">r_block</span>
+        <span class="n">derivative_cartesian</span><span class="o">=</span><span class="n">derivative</span><span class="p">[:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">polar_to_cart</span>
+        
+        <span class="k">return</span> <span class="n">derivative_cartesian</span></div>
+
+
+
+<div class="viewcode-block" id="RepulsivePotential.get_potential">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_potential">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_potential</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atom_index</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">neighbors</span><span class="p">):</span>     
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method to calculate the potential value and its derivatives</span>
+<span class="sd">        in cartesian coordinates for a single atom and all its neighbors</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        atom_index : int</span>
+<span class="sd">            Index of a given atom in the system</span>
+<span class="sd">        rc : lits</span>
+<span class="sd">            Atomic radii</span>
+<span class="sd">        d : numpy.array</span>
+<span class="sd">            Distance vectors between atom of index atom_index and all neighbors</span>
+<span class="sd">        neighbors : ase.neighborlist</span>
+<span class="sd">            Object containing all neighbor information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        x_potential : float</span>
+<span class="sd">            the energy</span>
+<span class="sd">        cartesian_derivatives: numpy.array</span>
+<span class="sd">            the derivatives of the energy</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">r</span><span class="p">,</span> <span class="n">crs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">radial_info</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">atom_index</span><span class="p">,</span> <span class="n">neighbors</span><span class="p">)</span>  
+
+        <span class="n">x_potential</span><span class="p">,</span> <span class="n">x_potential_derivative</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_x_potential</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">crs</span><span class="p">)</span>
+
+        <span class="n">derivative</span> <span class="o">=</span> <span class="n">x_potential_derivative</span> <span class="o">*</span> <span class="mi">1</span><span class="o">/</span><span class="n">crs</span>
+
+        <span class="n">cartesian_derivative</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartesian_conversion</span><span class="p">(</span><span class="n">derivative</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>  
+
+        <span class="k">return</span> <span class="n">x_potential</span><span class="p">,</span> <span class="o">-</span><span class="n">cartesian_derivative</span></div>
+
+
+    
+<div class="viewcode-block" id="RepulsivePotential.update_energy">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.update_energy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_energy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">energy</span><span class="p">,</span> <span class="n">potential</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; Method to update the total energy &quot;&quot;&quot;</span>
+        <span class="n">energy</span> <span class="o">+=</span> <span class="n">potential</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">energy</span></div>
+
+    
+    
+<div class="viewcode-block" id="RepulsivePotential.update_forces">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.update_forces">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_forces</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">forces</span><span class="p">,</span> <span class="n">derivative</span><span class="p">,</span> <span class="n">atom_index</span><span class="p">,</span> <span class="n">neighbors</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; Method to update the total forces &quot;&quot;&quot;</span>
+        <span class="n">forces</span><span class="p">[</span><span class="n">atom_index</span><span class="p">]</span> <span class="o">-=</span> <span class="n">derivative</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    
+        <span class="k">for</span> <span class="n">a2</span><span class="p">,</span> <span class="n">f2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">neighbors</span><span class="p">,</span> <span class="n">derivative</span><span class="p">):</span>
+            <span class="n">forces</span><span class="p">[</span><span class="n">a2</span><span class="p">]</span> <span class="o">+=</span> <span class="n">f2</span>
+        <span class="k">return</span> <span class="n">forces</span></div>
+
+    
+<div class="viewcode-block" id="RepulsivePotential.update_stress">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.update_stress">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_stress</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stress</span><span class="p">,</span> <span class="n">derivative</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; Method to update the total stresses &quot;&quot;&quot;</span>
+        <span class="n">stress</span> <span class="o">-=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">derivative</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">stress</span></div>
+
+
+<div class="viewcode-block" id="RepulsivePotential.get_extra_potential">
+<a class="viewcode-back" href="../../catemc.html#catemc.repulsive.RepulsivePotential.get_extra_potential">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_extra_potential</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atoms</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method to add extrapotential values on top of the repulsive potential</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">potential</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">extrapotentials</span><span class="p">:</span>  
+            <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">]</span>  <span class="o">+=</span> <span class="n">potential</span><span class="o">.</span><span class="n">potential</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;forces&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">potential</span><span class="o">.</span><span class="n">forces</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;stress&#39;</span><span class="p">]</span>  <span class="o">+=</span>  <span class="n">potential</span><span class="o">.</span><span class="n">stress</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+</main>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="container-fluid bg-primary text-light">
+        <div class="container">
+            <div class="row">
+        <div class="col p-4">
+            
+                <nav aria-label="Footer">
+                    <ul class="nav justify-content-center mb-2">
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/features/">Features</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/about-wagtail/"> About Wagtail</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/services/"> Services</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/blog/"> Blog</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/packages/"> Packages</a></li>
+                        
+                            
+                            
+                            <li class="nav-item"><a class="nav-link text-light"  href="https://wagtail.org/developers/"> Developers</a></li>
+                        
+                    </ul>
+                </nav>
+            
+            <div class="text-center">
+                    &copy; Copyright 
+            </div>
+            <div class="text-center text-white-50 font-italic mt-3">
+                <small>Last updated: Oct 13, 2025</small>
+                <small>
+                    Created using
+                    <a class="text-white" href="https://github.com/wagtail/sphinx_wagtail_theme" rel="nofollow" target="_blank">
+                        Sphinx Wagtail Theme 6.5.0
+                    </a>
+                    and
+                    <a class="text-white" href="https://www.sphinx-doc.org/" rel="nofollow" target="_blank">
+                        Sphinx 8.2.3
+                    </a>
+                </small>
+            </div>
+        </div>
+    </div>
+        </div>
+    </footer>
+        <script src="../../_static/documentation_options.js?v=8d563738"></script>
+        <script src="../../_static/doctools.js?v=9bcbadda"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+        <script src="../../_static/copybutton.js?v=f281be69"></script>
+        <script type="text/javascript" src="../../_static/dist/theme.js"></script>
+        <script type="text/javascript" src="../../_static/dist/vendor.js"></script>
+        <script type="text/javascript" src="../../_static/searchtools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() { Search.loadIndex("../../searchindex.js"); });
+        </script>
+        <script type="text/javascript" id="searchindexloader"></script>
+    </body>
+</html>
