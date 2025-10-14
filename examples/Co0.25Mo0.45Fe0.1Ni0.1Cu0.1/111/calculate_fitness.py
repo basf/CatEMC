@@ -42,8 +42,8 @@ atoms.wrap()
 calc = MACECalculator(model_paths='/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model', 
                        dispersion=False, device='cuda', default_dtype='float64')
 fmax = 0.05
-E_N2 = -16.293 + 0.008 # Etot incl. ZPE RPBE
-E_H2 = -6.984 + 0.003  # Etot incl. ZPE RPBE
+E_N2 = -16.293 + 0.155 # Etot incl. ZPE RPBE 
+E_H2 = -6.984 + 0.269 # Etot incl. ZPE RPBE
 rep = atoms.info['key_value_pairs']['replica']
 site_path = f'{dir_name}/sites_{rep}.pkl'
 try:

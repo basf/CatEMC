@@ -32,8 +32,8 @@ volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * (11+1.5+
 ct = Counter(template.symbols)
 volume -= sum([n*4/3*math.pi*(data.covalent_radii[data.atomic_numbers[k]])**3
                for k, n in ct.items() if k in target_metal_species])
-E_N2 = -16.293 + 0.008 # Etot incl. ZPE RPBE
-E_H2 = -6.984 + 0.003  # Etot incl. ZPE RPBE
+E_N2 = -16.293 + 0.155 # Etot incl. ZPE RPBE 
+E_H2 = -6.984 + 0.269 # Etot incl. ZPE RPBE
 dmu_N = np.arange(-1., 0.001, 0.05).round(2)
 dmu_H = np.arange(-1., 0.001, 0.05).round(2)
 temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})

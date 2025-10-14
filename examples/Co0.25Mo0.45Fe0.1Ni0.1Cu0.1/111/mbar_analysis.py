@@ -20,8 +20,8 @@ ana = GCEMCAnalysis(
 ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 ana.get_trajectory(replica=10)
 
-E_N2 = -16.293 + 0.008 # Etot incl. ZPE RPBE
-E_H2 = -6.984 + 0.003  # Etot incl. ZPE RPBE
+E_N2 = -16.293 + 0.155 # Etot incl. ZPE RPBE 
+E_H2 = -6.984 + 0.269 # Etot incl. ZPE RPBE
 dmu_N = np.arange(-1., 0.001, 0.05).round(2)
 dmu_H = np.arange(-1., 0.001, 0.05).round(2)
 sim_temperatures = [573, 673, 773, 873]
