@@ -471,6 +471,19 @@ system_name = f'{comp}COH_311'
 dir_name = f'/mnt/nfs/emc_tutorial/{comp}/{surface}'
 input_pop = read(f'{dir_name}/{system_name}_input_pop.traj', index=':')
 template = read(f'{dir_name}/template_{comp}_{surface}_slab_mace_opt.traj')
+target_metal_species = ['Co','Ni','Mg','Zn','Mn','Al']
+target_metal_composition = {'Co':0.2,'Ni':0.2,'Mg':0.2,'Zn':0.2,'Mn':0.2,'Al':2}
+target_nonmetal_species = ['O','X']
+adsorbate_species = ['O','H','OH','CO','CO2','C','CH','CH2','CH3']
+other_adsorbate_species = ['OH2','H2','O2','O2H','OOH','COH','CHO']
+slab_indices = [a.index for a in template] 
+fix_indices = [a.index for a in template if a.position[2] < 18.8]
+mut_metal_indices = [a.index for a in template if (a.position[2] >= 18.8) and (a.symbol in target_metal_species)]
+mut_nonmetal_indices = [a.index for a in template if (a.position[2] >= 18.8) and (a.symbol not in target_metal_species)]
+volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * (15+2.5)
+ct = Counter(template.symbols)
+volume -= sum([n*4/3*math.pi*(data.covalent_radii[data.atomic_numbers[k]])**3
+               for k, n in ct.items() if k in target_metal_species])
 
 # Build reaction_conditions grid (mu_C, mu_O, mu_H, T)
 E_C = -9.944    # Etot per atom graphite PBE
@@ -485,12 +498,10 @@ reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)).T
 element_column_map = {'C': 0, 'O': 1, 'H': 2}
 element_eref_map = {'C': E_C., 'O': E_O2/2, 'H': E_H2/2}
 element_y2x_map = {'C': 0., 'O': 3.5/3, 'H': 0.}
-
 with open('/path/to/bulk_wls_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 with open(f'{dir_name}/COH_internal_data.pkl','rb') as handle:
     tsi_map = pickle.load(handle)
-
 sas = SlabAdsorptionSites(template, surface='autoadsorbate', composition_effect=False, ignore_sites='bridge')
 
 emc = GCEMC(system_name, calculation_dir=dir_name, calculation_script='calculate_fitness.py',

@@ -103,7 +103,7 @@ E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 dmu_C = np.arange(0., 2.001, 0.1)
 dmu_O = np.arange(-4., -2.999, 0.1)
 dmu_H = np.arange(-1.0, 0.001, 0.1)
-# Mesh: first 3 cols = CH4, O, H μ; 4th col = elemental C μ
+# Mesh: first 3 cols = C, O, H μ
 grid = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H)).T.reshape(-1, 3)
 
 element_column_map = {'C': 0, 'O': 1, 'H': 2}
