@@ -365,10 +365,34 @@ onlat_images = generate_population(
     adsorbate_adsorbate_dmin=2.,
     max_adsorbate_species=1,
     adsorption_sites=sas,
-) + generate_population( template=template.copy(), pop_size=14, ... ) + generate_population(...)
-
-write(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', input_pop)
-view(input_pop)
+) + \
+generate_population(
+    template=template.copy(),
+    pop_size=14,
+    allowed_indices=mut_ids,
+    target_metal_species=target_metal_species,
+    target_metal_composition=target_metal_composition,
+    target_nonmetal_species=['O','X'],
+    target_nonmetal_composition={'O': 20, 'X': 1},
+    adsorbate_species=ads_species,
+    adsorbate_adsorbate_dmin=2.,
+    max_adsorbate_species=1,
+    adsorption_sites=sas,
+) + \
+generate_population(
+    template=template.copy(),
+    pop_size=14,
+    allowed_indices=mut_ids,
+    target_metal_species=target_metal_species,
+    target_metal_composition=target_metal_composition,
+    target_nonmetal_species=['O','X'],
+    target_nonmetal_composition={'O': 10, 'X': 1},
+    adsorbate_species=ads_species,
+    adsorbate_adsorbate_dmin=2.,
+    max_adsorbate_species=1,
+    adsorption_sites=sas,
+)
+view(onlat_images)
 ```
 To assign replica numbers, tempreatures and μ-windows to the input population, the μ-window assignment can be done by `catemc.generate.assign_mu_windows` function:
 ```python
