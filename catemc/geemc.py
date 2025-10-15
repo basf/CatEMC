@@ -292,6 +292,7 @@ class GEEMC(EMC):
                                 allowed_indices = self.mutable_metal_indices + self.mutable_nonmetal_indices
                         try:
                             operator = EMCCutSpliceCrossover(allowed_indices=allowed_indices, elements=element_pool, keep_composition=True)
+                            offsprings, desc = operator.get_new_individual(parents)
                         except:
                             warnings.warn('CutSpliceCrossover failed, fallback to interswap.')
                             switch_to_interswap = True
@@ -309,7 +310,7 @@ class GEEMC(EMC):
                             operator = EMCInterSwap(allowed_indices=self.mutable_metal_indices, element_pools=self.metal_element_pool)
                         else:
                             operator = EMCInterSwap(allowed_indices=self.mutable_nonmetal_indices, element_pools=self.nonmetal_element_pool)
-                    offsprings, desc = operator.get_new_individual(parents)
+                        offsprings, desc = operator.get_new_individual(parents)
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
                         if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
