@@ -279,6 +279,7 @@ class GEEMC(EMC):
                                                    interswap_within_temperature=True)
             for parents in all_parents:
                 if len(parents) == 2:
+                    switch_to_interswap = False
                     if parents[0].info['data']['for_operation'] == 'crossover':
                         if self.nonmetal_element_pool is None:
                             element_pool = self.metal_element_pool
@@ -289,8 +290,12 @@ class GEEMC(EMC):
                                 allowed_indices = None
                             else:
                                 allowed_indices = self.mutable_metal_indices + self.mutable_nonmetal_indices
-                        operator = EMCCutSpliceCrossover(allowed_indices=allowed_indices, elements=element_pool, keep_composition=True)
-                    elif parents[0].info['data']['for_operation'] == 'interswap':
+                        try:
+                            operator = EMCCutSpliceCrossover(allowed_indices=allowed_indices, elements=element_pool, keep_composition=True)
+                        except:
+                            warnings.warn('CutSpliceCrossover failed, fallback to interswap.')
+                            switch_to_interswap = True
+                    if (parents[0].info['data']['for_operation'] == 'interswap') or switch_to_interswap:
                         if self.nonmetal_element_pool is None:
                             do_metal = True
                         else:
