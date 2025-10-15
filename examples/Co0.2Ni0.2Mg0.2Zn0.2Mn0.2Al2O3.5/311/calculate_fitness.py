@@ -78,7 +78,7 @@ calculate_surface_fitness(
         temperature_dmu_map=tdmu_map,
         element_column_map={'C': 0, 'O': 1, 'H': 2},
         element_eref_map={'C': E_C, 'O': E_O2/2, 'H': E_H2/2},
-        element_y2x_map={'C': 0., 'O': 4/3, 'H': 0.},
+        element_y2x_map={'C': 0., 'O': 3.5/3, 'H': 0.},
         adsorption_sites=sas,
         slab_indices=slab_indices, 
         fix_indices=fix_indices,
