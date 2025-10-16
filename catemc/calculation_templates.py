@@ -17,6 +17,8 @@ from ase.parallel import parprint
 import importlib
 import importlib.util
 import numpy as np
+import multiprocessing
+import copy
 
 
 def calculate_bulk_fitness(
@@ -162,7 +164,7 @@ def calculate_bulk_fitness(
         pseudo_atoms = atoms.copy()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     else:
-        if (md_atoms is not None) and update_md_positions and not update_relaxed_positions:
+        if (md_atoms is not None) and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
@@ -658,14 +660,15 @@ def _relax_worker(args):
 
 
 def _postprocess_bulk_worker(args):
-    (dir_name, atoms, tmp_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
+    (dir_name, atoms, tmp_atoms, md_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
      update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot) = args
 
+    # follow serial naming/logic exactly
     T = atoms.info['key_value_pairs'].get(temperature_key)
     rep = atoms.info['key_value_pairs'][replica_key]
     atoms = rattle_close_atoms(atoms, min_distance=0.1)
-    md_atoms = None
-
+    # md_atoms here is the per-replica md snapshot or None
+    # keep serial behavior for fix_indices
     if fix_indices is None:
         fix_indices_local = []
     else:
@@ -698,14 +701,13 @@ def _postprocess_bulk_worker(args):
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
 
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
-
     write(f'{dir_name}/relaxed_atoms_{atoms.info["key_value_pairs"][replica_key]}.traj', [atoms, pseudo_atoms])
 
     return None
 
 
 def _postprocess_surface_worker(args):
-    (dir_name, atoms, tmp_atoms, sas, target_metal_species, target_metal_composition,
+    (dir_name, atoms, tmp_atoms, md_atoms, sas, target_metal_species, target_metal_composition,
      allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map,
      slab_indices, neighbor_cutoff, run_md, update_md_positions, update_relaxed_positions,
      adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot) = args
@@ -714,12 +716,12 @@ def _postprocess_surface_worker(args):
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
     mu = atoms.info['data']['mu']
-    md_atoms = None
+    md_atoms_local = md_atoms  # per-replica md snapshot or None
 
+    atoms = rattle_close_atoms(atoms, min_distance=0.1)
     if fix_indices is None:
         fix_indices_local = []
     else:
-        # keep original behaviour: when fix_indices provided, ensure constraint on atoms
         atoms.set_constraint(FixAtoms(indices=fix_indices))
 
     mut_metal_indices = [a.index for a in atoms if (a.index not in (fix_indices or []))
@@ -746,6 +748,7 @@ def _postprocess_surface_worker(args):
         except Exception:
             penalize = True
 
+    fragments = []
     adsorbates = []
     adsorbate_indices = []
     if not penalize:
@@ -755,8 +758,7 @@ def _postprocess_surface_worker(args):
                                                        a.index not in tmp_slab_indices])
         adsorbate_tuples = sac.get_adsorbates(allowed_adsorbate_species)
         adsorbates = [t[0] for t in adsorbate_tuples]
-        adsorbate_ids = set()
-        rm_adsorbate_ids = set()
+        adsorbate_ids = set(); rm_adsorbate_ids = set()
         for t in adsorbate_tuples:
             adsorbate_ids.update(t[1])
             if t[0] not in allowed_adsorbate_species:
@@ -764,21 +766,22 @@ def _postprocess_surface_worker(args):
         adsorbate_indices = [real_indices[i] for i in sorted(adsorbate_ids - rm_adsorbate_ids)]
         new_atoms = tmp_atoms[[a.index for a in tmp_atoms if real_indices[a.index] in (slab_indices + adsorbate_indices)]]
         if len(new_atoms) < len(tmp_atoms):
-            if md_atoms is not None:
-                md_atoms = md_atoms[[a.index for a in md_atoms if real_indices[a.index] in (slab_indices + adsorbate_indices)]]
+            if md_atoms_local is not None:
+                md_atoms_local = md_atoms_local[[a.index for a in md_atoms_local if
+                                                 real_indices[a.index] in (slab_indices + adsorbate_indices)]]
             atoms = atoms[[a.index for a in atoms if a.index in (slab_indices + adsorbate_indices)]]
             real_indices = [a.index for a in atoms if a.symbol != 'X']
             vac_indices = [a.index for a in atoms if a.symbol == 'X']
             if fix_indices is not None:
                 atoms.set_constraint(FixAtoms(indices=fix_indices))
             tmp_atoms = new_atoms.copy()
-
-            if hasattr(tmp_atoms, 'calc') and tmp_atoms.calc is not None:
-                tmp_atoms.calc = tmp_atoms.calc
-                opt = LBFGS(tmp_atoms, logfile=None)
-                opt.run(steps=250)
-
-            # update adsorption site data and recompute adsorbates exactly as serial
+            tmp_atoms.calc = tmp_atoms.calc if hasattr(tmp_atoms, 'calc') else None
+            if True:  # serial re-relax uses LBFGS when final calc exists and fmax provided; in batch caller that step was already handled
+                try:
+                    opt = LBFGS(tmp_atoms, logfile=None)
+                    opt.run(fmax=None, steps=250)
+                except Exception:
+                    pass
             try:
                 sas.update(tmp_atoms)
                 sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas, dmax=adsorbate_surface_dmax,
@@ -804,8 +807,8 @@ def _postprocess_surface_worker(args):
                           temperature_dmu_map, np.array([np.append(mu, T)]),
                           element_column_map, element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
 
-        if (run_md and update_md_positions) and not update_relaxed_positions:
-            pseudo_atoms = insert_vacancies(atoms, md_atoms if md_atoms is not None else tmp_atoms, target_metal_species, neighbor_cutoff)
+        if (md_atoms_local is not None) and update_md_positions and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, md_atoms_local, target_metal_species, neighbor_cutoff)
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
         else:
@@ -851,8 +854,6 @@ def calculate_batch_bulk_fitness(
         temperature_dmu_map=None):
 
     import torch_sim as ts
-    import multiprocessing
-
     dir_name = '/'.join(traj_path.split('/')[:-1])
     # prepare tmp_atoms_list and bookkeeping
     tmp_atoms_list = []
@@ -867,6 +868,8 @@ def calculate_batch_bulk_fitness(
         temps.append(atoms.info['key_value_pairs'][temperature_key])
 
     last_relaxed_state = None
+    md_atoms_list = None  # will be set to list of md snapshots when run_md & update_md_positions
+
     # iterate calculators in sequence
     for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
         supported, ts_model = detect_and_get_model(calc)
@@ -878,7 +881,6 @@ def calculate_batch_bulk_fitness(
                 timestep_ps = float(md_timestep / units.fs) * 1e-3
                 tag = f'{dir_name}/md'
                 if pressure is None:
-                    # NVT Langevin for pressure=None
                     integ_kwargs = dict(
                         system=tmp_atoms_list,
                         model=ts_model,
@@ -891,7 +893,6 @@ def calculate_batch_bulk_fitness(
                                                  state_frequency=int(md_write_interval)),
                     )
                 else:
-                    # NPT Langevin for pressure != None (bulk)
                     integ_kwargs = dict(
                         system=tmp_atoms_list,
                         model=ts_model,
@@ -906,6 +907,10 @@ def calculate_batch_bulk_fitness(
                     )
                 ts.integrate(**integ_kwargs)
 
+                # capture per-replica MD final snapshots (deepcopy)
+                if update_md_positions:
+                    md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
+
             # Optimization via torch-sim: use FIRE; when pressure provided use Frechet cell filter via init_kwargs
             conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
             if pressure is None:
@@ -917,7 +922,6 @@ def calculate_batch_bulk_fitness(
                     autobatcher=False,
                 )
             else:
-                # Frechet cell + applied pressure for cell relaxation
                 last_relaxed_state = ts.optimize(
                     system=tmp_atoms_list,
                     model=ts_model,
@@ -933,7 +937,7 @@ def calculate_batch_bulk_fitness(
                 tmp_atoms_list = list(last_relaxed_state)
 
         else:
-            # Fallback to ASE LBFGS
+            # Fallback to ASE LBFGS (may include MD)
             if fmax is None and not is_last:
                 continue
             ctx = multiprocessing.get_context('spawn')
@@ -947,6 +951,10 @@ def calculate_batch_bulk_fitness(
             pool.join()
             tmp_atoms_list = results
 
+            # if we ran MD in fallback and update_md_positions requested, capture snapshots
+            if run_md and update_md_positions:
+                md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
+
     # try to extract energies from last_relaxed_state
     energies = None
     if last_relaxed_state is not None:
@@ -959,7 +967,7 @@ def calculate_batch_bulk_fitness(
     ctx = multiprocessing.get_context('spawn')
     pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
     post_args = []
-    for atoms, tmp_atoms in zip(atoms_list, tmp_atoms_list):
+    for idx, (atoms, tmp_atoms) in enumerate(zip(atoms_list, tmp_atoms_list)):
         # determine epot: ASE final_calc preferred
         epot = None
         if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
@@ -976,7 +984,8 @@ def calculate_batch_bulk_fitness(
                         pass
             else:
                 epot = float(energies)
-        post_args.append((dir_name, atoms, tmp_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
+        md_atoms = (md_atoms_list[idx] if (md_atoms_list is not None) else None)
+        post_args.append((dir_name, atoms, tmp_atoms, md_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
                           update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot))
 
     pool.map(_postprocess_bulk_worker, post_args)
@@ -1012,9 +1021,7 @@ def calculate_batch_surface_fitness(
         temperature_key='temperature',
         replica_key='replica'):
 
-    import torch_sim as ts 
-    import multiprocessing
-
+    import torch_sim as ts
     dir_name = '/'.join(traj_path.split('/')[:-1])
     # prepare tmp_atoms_list and bookkeeping
     tmp_atoms_list = []
@@ -1029,16 +1036,17 @@ def calculate_batch_surface_fitness(
         temps.append(atoms.info['key_value_pairs'][temperature_key])
 
     last_relaxed_state = None
+    md_atoms_list = None  # default None; will store md snapshots if run_md & update_md_positions
+
     # iterate calculators in sequence
     for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
         supported, ts_model = detect_and_get_model(calc)
         is_last = (idx == len(calculator_list) - 1)
-        
+
         if supported and (fmax is not None) and (ts_model is not None):
             if run_md:
                 timestep_ps = float(md_timestep / units.fs) * 1e-3
                 tag = f'{dir_name}/md'
-                # Surface MD: use NVT Langevin (no pressure)
                 integ_kwargs = dict(
                     system=tmp_atoms_list,
                     model=ts_model,
@@ -1051,7 +1059,10 @@ def calculate_batch_surface_fitness(
                                              state_frequency=int(md_write_interval)),
                 )
                 ts.integrate(**integ_kwargs)
- 
+
+                if update_md_positions:
+                    md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
+
             # batched optimization for surface: FIRE (pressure not applicable)
             conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
             last_relaxed_state = ts.optimize(
@@ -1067,7 +1078,7 @@ def calculate_batch_surface_fitness(
                 tmp_atoms_list = list(last_relaxed_state)
 
         else:
-            # Fallback to ASE LBFGS
+            # Fallback to ASE LBFGS (may include MD)
             if fmax is None and not is_last:
                 continue
             ctx = multiprocessing.get_context('spawn')
@@ -1081,6 +1092,9 @@ def calculate_batch_surface_fitness(
             pool.join()
             tmp_atoms_list = results
 
+            if run_md and update_md_positions:
+                md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
+
     # try to read energies from last_relaxed_state
     energies = None
     if last_relaxed_state is not None:
@@ -1092,7 +1106,7 @@ def calculate_batch_surface_fitness(
     ctx = multiprocessing.get_context('spawn')
     pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
     post_args = []
-    for atoms, tmp_atoms, sas in zip(atoms_list, tmp_atoms_list, adsorption_sites_list):
+    for idx, (atoms, tmp_atoms, sas) in enumerate(zip(atoms_list, tmp_atoms_list, adsorption_sites_list)):
         epot = None
         if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
             tmp_atoms.calc = final_calc
@@ -1107,7 +1121,8 @@ def calculate_batch_surface_fitness(
                         pass
             else:
                 epot = float(energies)
-        post_args.append((dir_name, atoms, tmp_atoms, sas, target_metal_species, target_metal_composition,
+        md_atoms = (md_atoms_list[idx] if (md_atoms_list is not None) else None)
+        post_args.append((dir_name, atoms, tmp_atoms, md_atoms, sas, target_metal_species, target_metal_composition,
                           allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map,
                           slab_indices, neighbor_cutoff, run_md, update_md_positions, update_relaxed_positions,
                           adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot))
