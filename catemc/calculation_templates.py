@@ -353,7 +353,7 @@ def calculate_surface_fitness(
         new_atoms = tmp_atoms[[a.index for a in tmp_atoms if 
                                real_indices[a.index] in slab_indices+adsorbate_indices]]
         if len(new_atoms) < len(tmp_atoms):
-            if update_md_positions:
+            if md_atoms is not None:
                 md_atoms = md_atoms[[a.index for a in md_atoms if
                                      real_indices[a.index] in slab_indices+adsorbate_indices]]
             atoms = atoms[[a.index for a in atoms if a.index in slab_indices+adsorbate_indices]]
@@ -385,7 +385,7 @@ def calculate_surface_fitness(
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
         fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()] 
     else:
-        if (md_atoms is not None) and update_md_positions and not update_relaxed_positions:
+        if (md_atoms is not None) and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
@@ -764,7 +764,7 @@ def _postprocess_surface_worker(args):
         adsorbate_indices = [real_indices[i] for i in sorted(adsorbate_ids - rm_adsorbate_ids)]
         new_atoms = tmp_atoms[[a.index for a in tmp_atoms if real_indices[a.index] in (slab_indices + adsorbate_indices)]]
         if len(new_atoms) < len(tmp_atoms):
-            if update_md_positions and (md_atoms is not None):
+            if md_atoms is not None:
                 md_atoms = md_atoms[[a.index for a in md_atoms if real_indices[a.index] in (slab_indices + adsorbate_indices)]]
             atoms = atoms[[a.index for a in atoms if a.index in (slab_indices + adsorbate_indices)]]
             real_indices = [a.index for a in atoms if a.symbol != 'X']
