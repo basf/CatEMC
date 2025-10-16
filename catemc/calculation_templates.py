@@ -815,7 +815,7 @@ def calculate_batch_bulk_fitness(
                         temperature=temps,
                         timestep=timestep_ps,
                         integrator=ts.integrators.nvt_langevin,
-                        autobatcher=True,
+                        autobatcher=False,
                         trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
                                                  state_frequency=int(md_write_interval)),
                     )
@@ -829,7 +829,7 @@ def calculate_batch_bulk_fitness(
                         timestep=timestep_ps,
                         integrator=ts.integrators.npt_langevin,
                         pressure=pressure,
-                        autobatcher=True,
+                        autobatcher=False,
                         trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
                                                  state_frequency=int(md_write_interval)),
                     )
@@ -843,7 +843,7 @@ def calculate_batch_bulk_fitness(
                     model=ts_model,
                     optimizer=ts.Optimizer.fire,
                     convergence_fn=conv,
-                    autobatcher=True,
+                    autobatcher=False,
                 )
             else:
                 # Frechet cell + applied pressure for cell relaxation
@@ -852,7 +852,7 @@ def calculate_batch_bulk_fitness(
                     model=ts_model,
                     optimizer=ts.Optimizer.fire,
                     convergence_fn=conv,
-                    autobatcher=True,
+                    autobatcher=False,
                     init_kwargs=dict(cell_filter=ts.CellFilter.frechet, pressure=pressure),
                 )
 
@@ -975,7 +975,7 @@ def calculate_batch_surface_fitness(
                     temperature=temps,
                     timestep=timestep_ps,
                     integrator=ts.integrators.nvt_langevin,
-                    autobatcher=True,
+                    autobatcher=False,
                     trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
                                              state_frequency=int(md_write_interval)),
                 )
@@ -988,7 +988,7 @@ def calculate_batch_surface_fitness(
                 model=ts_model,
                 optimizer=ts.Optimizer.fire,
                 convergence_fn=conv,
-                autobatcher=True,
+                autobatcher=False,
             )
             if hasattr(last_relaxed_state, 'to_atoms'):
                 tmp_atoms_list = last_relaxed_state.to_atoms()

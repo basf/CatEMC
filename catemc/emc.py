@@ -224,6 +224,7 @@ class EMC(object):
         else:
             gpu_devices = self.gpu_devices
         batch_images = []
+        batch_start_index = None
         gpu_device = gpu_devices[0]
         for i, atoms in enumerate(unrelaxed_candidates):
             rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -232,6 +233,8 @@ class EMC(object):
             if batching:
                 # Append current atoms and decide whether to flush the batch.
                 device_for_current = gpu_devices[(i // self.procs_per_device) % len(gpu_devices)]
+                if not batch_images:     
+                    batch_start_index = i
                 batch_images.append(atoms)
                 is_last = (i == len(unrelaxed_candidates) - 1)
                 device_for_next = None
@@ -240,13 +243,6 @@ class EMC(object):
                 if (len(batch_images) >= self.procs_per_device) or (device_for_next is not None and device_for_next != device_for_current) or is_last:
                     reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
                     write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
-                  #  script_path = os.path.join(self.calculation_dir, self.calculation_script)
-                  #  cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj',
-                  #         str(int(run_md)), str(device_for_current), fix_indices_str]
-                  #  if add_args is not None:
-                  #      for arg in add_args:
-                  #          cmd.append(str(arg))
-                  #  subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
                     arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}'
                     if add_args is not None:
                         for arg in add_args:
@@ -254,16 +250,10 @@ class EMC(object):
                     os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
                     # reset batch_images for next batch
                     batch_images = []
+                    batch_start_index = None 
             else:
                 gpu_device = gpu_devices[(i//self.procs_per_device)%len(self.gpu_devices)]
                 write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', atoms)
-                #script_path = os.path.join(self.calculation_dir, self.calculation_script)
-                #cmd = [sys.executable, script_path, f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj',
-                #       str(int(run_md)), str(gpu_device), fix_indices_str]
-                #if add_args is not None:
-                #    for arg in add_args:
-                #        cmd.append(str(arg))
-                #subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
                 arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj {int(run_md)} {gpu_device} {fix_indices_str}'
                 if add_args is not None:
                     for arg in add_args:
@@ -273,6 +263,21 @@ class EMC(object):
             ) or (i == len(unrelaxed_candidates) - 1):
                 while not all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{replicas[j]}.traj') for j in range(i+1)):
                     time.sleep(5)
+
+        # flush any remaining partial batch that wasn't submitted
+        if batching and batch_images:
+            # decide device based on batch_start_index (the index where this batch started)
+            device_for_current = gpu_devices[(batch_start_index // self.procs_per_device) % len(gpu_devices)]
+            reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
+            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
+            arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}'
+            if add_args is not None:
+                for arg in add_args:
+                    arg_str += f' {arg}'
+            os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
+            batch_images = []
+            batch_start_index = None
+
         relaxed_candidates = [read(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj', index=-1) for rep in replicas]
         for rep in replicas:
             os.remove(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj')
