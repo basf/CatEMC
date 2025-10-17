@@ -106,20 +106,33 @@ class EMCPopulation(Population):
                             pressure=None, nonmetal_species=None, 
                             temperature_species_internal_map=None,
                             no_internal_indices=None, metal_species_probabilities=None, 
-                            raw_score_cutoff=-10000.):
+                            mutable_indices=None, raw_score_cutoff=-10000.):
 
         if len(parents) == 2:
             # Crossover or interswap
             # Will adjust replica and temperature if necessary
             assert len(offsprings) == 2
+            switch_to_crossover = False
             if parents[0].info['data']['for_operation'] == 'crossover':
                 sorted_parents = sorted(parents, key=get_raw_score, reverse=True)
-                sorted_oids, sorted_offsprings = zip(*sorted(enumerate(offsprings), 
+                sorted_oids, sorted_offsprings = zip(*sorted(enumerate(offsprings),
                         key=lambda t: get_raw_score(t[1]), reverse=True))
             else:
-                sorted_parents = parents
-                sorted_oids = [0, 1]
-                sorted_offsprings = offsprings
+                if mutable_indices is not None:
+                    ctp = Counter([a.symbol for a in parents[0] if a.index not in mutable_indices])
+                    cto = Counter([a.symbol for a in offsprings[0] if a.index not in mutable_indices])
+                    if ctp != cto:
+                        switch_to_crossover = True
+                if switch_to_crossover:
+                    warnings.warn(f"Interswap not possible for [p.info['key_value_pairs'][self.rk] for p in parents] " +
+                                  f"due to non-mutable atom counts changed. Switch to crossover instead!")
+                    sorted_parents = sorted(parents, key=get_raw_score, reverse=True)
+                    sorted_oids, sorted_offsprings = zip(*sorted(enumerate(offsprings),
+                            key=lambda t: get_raw_score(t[1]), reverse=True))
+                else:
+                    sorted_parents = parents
+                    sorted_oids = [0, 1]
+                    sorted_offsprings = offsprings
             rep1 = sorted_parents[0].info['key_value_pairs'][self.rk]
             rep2 = sorted_parents[1].info['key_value_pairs'][self.rk]
             df1 = get_raw_score(sorted_offsprings[0]) - get_raw_score(sorted_parents[0])
@@ -142,7 +155,7 @@ class EMCPopulation(Population):
                 accept = False
             else:
                 if prefactor == 'gc':
-                    if (parents[0].info['data']['for_operation'] == 'crossover'):
+                    if (parents[0].info['data']['for_operation'] == 'crossover') or switch_to_crossover:
                         prefactor = compute_crossover_prefactor(
                                 sorted_parents[0], sorted_parents[1],
                                 offsprings[sorted_oids[0]], offsprings[sorted_oids[1]],
@@ -695,11 +708,18 @@ class MixtureEMCPopulation(EMCPopulation):
     def evaluate_offsprings(self, parents, offsprings, prefactor=1, volume=None,
                             nonmetal_species=None, temperature_species_internal_map=None,
                             no_internal_indices=None, metal_species_probabilities=None, 
-                            raw_score_cutoff=-10000.):
+                            mutable_indices=None, raw_score_cutoff=-10000.):
 
         if len(parents) == 2:
             # Crossover or interswap
             assert len(offsprings) == 2
+            switch_to_crossover = False
+            if mutable_indices is not None:
+                ctp = Counter([a.symbol for a in parents[0] if a.index not in mutable_indices])
+                cto = Counter([a.symbol for a in offsprings[0] if a.index not in mutable_indices])
+                if ctp != cto:
+                    switch_to_crossover = True
+
             T1 = parents[0].info['key_value_pairs'][self.tk]
             T2 = parents[1].info['key_value_pairs'][self.tk]
             rep1 = parents[0].info['key_value_pairs'][self.rk]
@@ -710,7 +730,7 @@ class MixtureEMCPopulation(EMCPopulation):
             oscores2 = offsprings[1].info['data']['raw_scores']
             # 4 cases: (P1,O1)/(P2,O2)/(P1,O2)/(P2,O1) being the fitter pair
             # 2 assignments: a: (P1,O1) + (P2,O2) / b: (P1,O2) + (P2,O1)
-            if (parents[0].info['data']['for_operation'] == 'crossover'):
+            if (parents[0].info['data']['for_operation'] == 'crossover') or switch_to_crossover:
                 lnSp1 = logsumexp(pscores1 / (kB*T1)) # np.sum(np.exp(pscores1 / (kB*T1)))
                 lnSp2 = logsumexp(pscores2 / (kB*T2)) # np.sum(np.exp(pscores2 / (kB*T2)))
                 lnSo1a = logsumexp(oscores1 / (kB*T1)) # np.sum(np.exp(oscores1 / (kB*T1)))
@@ -741,7 +761,7 @@ class MixtureEMCPopulation(EMCPopulation):
                     offsprings[0].info['data']['delta'] = oscores1 - pscores1
                     offsprings[1].info['data']['delta'] = oscores2 - pscores2
                 if prefactor == 'gc':
-                    if (parents[0].info['data']['for_operation'] == 'crossover'):
+                    if (parents[0].info['data']['for_operation'] == 'crossover') or switch_to_crossover:
                         prefactor = compute_crossover_prefactor(
                                 parents[0], parents[1], offsprings[0], offsprings[1],
                                 nonmetal_species, temperature_species_internal_map,

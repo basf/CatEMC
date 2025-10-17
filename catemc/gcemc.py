@@ -699,7 +699,8 @@ class GCEMC(EMC):
                     relaxed_candidates += self.pop.evaluate_offsprings(
                             parents, [relaxed_offspring1, relaxed_offspring2], prefactor='gc', volume=self.volume,
                             nonmetal_species=self.adsorbate_species, temperature_species_internal_map=self.tsi_map,
-                            no_internal_indices=self.mutable_nonmetal_indices, raw_score_cutoff=self.raw_score_cutoff)
+                            no_internal_indices=self.mutable_nonmetal_indices, mutable_indices=self.mutable_metal_indices, 
+                            raw_score_cutoff=self.raw_score_cutoff)
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
                     relaxed_offspring = relaxed_offsprings[replicas.index(rep)]
@@ -710,7 +711,8 @@ class GCEMC(EMC):
                             nonmetal_species=self.adsorbate_species, 
                             temperature_species_internal_map=self.tsi_map,
                             no_internal_indices=self.mutable_nonmetal_indices, 
-                            metal_species_probabilities=self.bulk_metal_composition, 
+                            metal_species_probabilities=self.bulk_metal_composition,
+                            mutable_indices=self.mutable_metal_indices,
                             raw_score_cutoff=self.raw_score_cutoff)
             
             # Update the population to allow new candidates to enter
