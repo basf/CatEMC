@@ -343,7 +343,7 @@ class GCEMC(EMC):
     def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=1e-3):
 
         from pymbar import MBAR
-        all_species = self.target_metal_species + list(element_column_map.keys())
+        all_species = self.metal_element_pool + list(element_column_map.keys())
         temperatures = sorted({c.info['key_value_pairs'][self.temperature_key] for c in self.pop.pop})
         sim_tempreatures = temperatures
         target_temperatures = temperatures 
@@ -396,10 +396,10 @@ class GCEMC(EMC):
                     if atoms is None:
                         continue
                     epot = atoms.info['key_value_pairs']['potential_energy']
-                    num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
+                    num_metal = len([a for a in atoms if a.symbol in self.metal_element_pool])
                     num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
                     phi = compute_phi(
-                            num_dict, self.target_metal_species, self.target_metal_composition, 
+                            num_dict, self.metal_element_pool, self.bulk_metal_composition, 
                             self.tdmu_map, grid, self.element_column_map, self.element_eref_map, 
                             self.element_y2x_map, num_metal, epot, dimensionless=True)
                     cond = np.append(atoms.info['data']['mu'], T)
