@@ -540,8 +540,8 @@ class GCEMCAnalysis(object):
 
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
-    def get_structural_expectations(self, z_surf, reaction_conditions, temperature_dmu_map, 
-                                    element_column_map, element_eref_map, element_y2x_map,
+    def get_structural_expectations(self, z_surf, reaction_conditions, element_column_map, 
+                                    element_eref_map, element_y2x_map, temperature_dmu_map=None, 
                                     starting_step=None, ending_step=None, sample_stride=1, 
                                     vacancy_indices=None, tol=1e-3):
 
