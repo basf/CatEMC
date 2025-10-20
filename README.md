@@ -508,7 +508,7 @@ emc = GCEMC(system_name, calculation_dir=dir_name, calculation_script='calculate
             input_pop=input_pop, fix_indices=fix_ids, trim_generation=100, md_generation=10,
             mu_walk_generation=1, exchange_generation=1, bias_starting_step=300,
             mbar_starting_step=100, mbar_sample_stride=10, crossover_rate=0.2,
-            interswap_rate=100.1, slab_intraswap_rate=0.15, slab_mutation_rate=0.15,
+            interswap_rate=0.1, slab_intraswap_rate=0.15, slab_mutation_rate=0.15,
             adsorbate_insertion_rate=0.1, adsorbate_removal_rate=0.1, adsorbate_displacement_rate=0.1,
             adsorbate_mutation_rate=0.1, adsorbate_surface_dmax=2.5, adsorbate_adsorbate_dmin=2.,
             max_adsorbate_species=3, max_adsorbate_coverage=1., metal_element_pool=target_metal_species,
