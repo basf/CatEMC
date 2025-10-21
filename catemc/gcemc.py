@@ -344,9 +344,7 @@ class GCEMC(EMC):
 
         from pymbar import MBAR
         all_species = self.metal_element_pool + list(self.element_column_map.keys())
-        temperatures = sorted({c.info['key_value_pairs'][self.temperature_key] for c in self.pop.pop})
-        sim_tempreatures = temperatures
-        target_temperatures = temperatures 
+        sim_temperatures = sorted({c.info['key_value_pairs'][self.temperature_key] for c in self.pop.pop})
         def create_energy_list():
             return [None for _ in range(ending_step)]
         energy_data = {T: defaultdict(create_energy_list) for T in sim_temperatures}
