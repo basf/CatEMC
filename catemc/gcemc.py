@@ -343,7 +343,7 @@ class GCEMC(EMC):
     def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=1e-3):
 
         from pymbar import MBAR
-        all_species = self.metal_element_pool + list(element_column_map.keys())
+        all_species = self.metal_element_pool + list(self.element_column_map.keys())
         temperatures = sorted({c.info['key_value_pairs'][self.temperature_key] for c in self.pop.pop})
         sim_tempreatures = temperatures
         target_temperatures = temperatures 
