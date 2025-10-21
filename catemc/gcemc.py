@@ -17,6 +17,7 @@ from acat.ga.adsorbate_operators import (
         ReplaceAdsorbate,
         ReplaceAdsorbateSpecies)
 from ase.io import read, write
+from ase.db import connect
 from ase import units
 from ase.io.trajectory import Trajectory
 from ase.ga.data import DataConnection, PrepareDB
