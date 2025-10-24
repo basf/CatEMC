@@ -554,12 +554,11 @@ class GCEMC(EMC):
         gi = 0
         while gen_num + gi <= total_steps:
 
-            if gen_num + gi != 300:
-                if (gen_num + gi) % self.trim_generation == 0:
-                    self.trim_asedb()
-                    self.pop = self.get_pop()
-                    self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
-                    parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
+            if (gen_num + gi) % self.trim_generation == 0:
+                self.trim_asedb()
+                self.pop = self.get_pop()
+                self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
+                parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
             parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
                 
             if (self.bias_starting_step is not None) and (gen_num + gi >= self.bias_starting_step):
