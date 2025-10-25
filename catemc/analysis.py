@@ -552,7 +552,7 @@ class GCEMCAnalysis(object):
         You can also add more rows to reaction_conditions to consider states that are
         not included in the simulation."""
 
-        from pymbar import MBAR
+        from pymbar import MBAR, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
         all_species = self.target_metal_species + list(element_column_map.keys())
         metal_pairs = list(combinations(self.target_metal_species, 2))
@@ -721,7 +721,7 @@ class GCEMCAnalysis(object):
         temperature. You can also add more rows to reaction_conditions to consider 
         states that are not included in the simulation."""
 
-        from pymbar import MBAR
+        from pymbar import MBAR, FES, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
         all_species = self.target_metal_species + list(element_column_map.keys())
         metal_pairs = list(combinations(self.target_metal_species, 2))
