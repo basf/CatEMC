@@ -540,8 +540,8 @@ class GCEMCAnalysis(object):
 
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
-    def get_structural_expectations(self, z_surf, reaction_conditions, temperature_dmu_map, 
-                                    element_column_map, element_eref_map, element_y2x_map,
+    def get_structural_expectations(self, z_surf, reaction_conditions, element_column_map, 
+                                    element_eref_map, element_y2x_map, temperature_dmu_map=None, 
                                     starting_step=None, ending_step=None, sample_stride=1, 
                                     vacancy_indices=None, tol=1e-3):
 
@@ -552,7 +552,7 @@ class GCEMCAnalysis(object):
         You can also add more rows to reaction_conditions to consider states that are
         not included in the simulation."""
 
-        from pymbar import MBAR
+        from pymbar import MBAR, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
         all_species = self.target_metal_species + list(element_column_map.keys())
         metal_pairs = list(combinations(self.target_metal_species, 2))
@@ -708,3 +708,183 @@ class GCEMCAnalysis(object):
  
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
             pickle.dump(expectations, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def get_structural_fes(self, z_surf, reaction_conditions, element_column_map,
+                           element_eref_map, element_y2x_map, temperature_dmu_map=None,
+                           starting_step=None, ending_step=None, sample_stride=1,
+                           vacancy_indices=None, bin_width=0.02, tol=1e-3):
+
+        """Get the MBAR-estimated free energy surfaces of surface structural properties
+        depending on a user-defined surface region (> z_surf), reaction conditions and
+        a bin width. The reaction conditions is supposed to emcompass all the reaction 
+        condition grid considered in the EMC simulation, including last column as 
+        temperature. You can also add more rows to reaction_conditions to consider 
+        states that are not included in the simulation."""
+
+        from pymbar import MBAR, FES, timeseries
+        sim_temperatures = sorted(list(self.data.keys()))
+        all_species = self.target_metal_species + list(element_column_map.keys())
+        metal_pairs = list(combinations(self.target_metal_species, 2))
+        all_atom_pairs = list(combinations(all_species, 2)) + [(m,m) for m in all_species]
+        if vacancy_indices is None:
+            vacancy_indices = []
+        grid = reaction_conditions.copy()
+        K = grid.shape[0]
+        parprint(f'Number of states: {K}')
+
+        # Build MBAR inputs
+        samples_per_state = np.zeros(K, dtype=int)
+        # Fill energy matrix
+        phi_kn, images = [], []
+        sample_state = []  # length = total number of appended samples, gives state index for each column in phi_kn
+        sample_steps = []   # record the original simulation step (n_minus_1) for each appended sample
+        for k, T in enumerate(sim_temperatures):
+            for rep, lol in self.data[T].items():
+                for n_minus_1, atoms in enumerate(lol):
+                    if n_minus_1 >= starting_step:
+                        if atoms is None:
+                            continue
+                        if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
+                            surf_num_dict = Counter(atoms[[a.index for a in atoms if
+                                    (a.position[2] > z_surf) and (a.symbol in self.target_metal_species)]].symbols)
+                            n_surf_metals = sum(surf_num_dict.values())
+                            for m in self.target_metal_species:
+                                atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
+                            atoms.info['data']['x_surf_metals'] = np.array(
+                                    [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
+                            fragments = atoms.info['data']['fragments']
+                            lattice_nonmetal_symbols = []
+                            for k in element_column_map.keys():
+                                lattice_nonmetal_symbols += [k for i in vacancy_indices if atoms[i].symbol == k]
+                            adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
+                            ads_num_dict = Counter(adsorbates)
+                            atoms.info['data']['ads_coverages'] = np.array([len(ads) / n_surf_metals for ads in self.adsorbate_species])
+                            atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
+                            for ads in self.adsorbate_species:
+                                if ads in ads_num_dict:
+                                    atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
+                                else:
+                                    atoms.info['data'][f'ads_coverage_{ads}'] = 0.
+                            if vacancy_indices:
+                                x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.position[2] < z_surf)]) / len(vacancy_indices)
+                                atoms.info['data'][f'x_lattice_vac'] = x_vac
+                            surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.position[2] > z_surf)]]
+                            surf_atoms.pbc = [1,1,0]
+                            surf_num_dict = Counter(surf_atoms.symbols)
+                            cutoffs = natural_cutoffs(surf_atoms, mult=1.1)
+                            ana = Analysis(surf_atoms, cutoffs=cutoffs)
+                            surf_atom_pairs = []
+                            for i, nblst in enumerate(ana.unique_bonds[0]):
+                                for j in nblst:
+                                    surf_atom_pairs.append(set([surf_atoms[i].symbol, surf_atoms[j].symbol]))
+                            for pair in all_atom_pairs:
+                                m1, m2 = pair
+                                atoms.info['data'][f'{m1}-{m2}'] = len([s for s in surf_atom_pairs if s == set(pair)])
+                            images.append(atoms)
+
+                        epot = atoms.info['key_value_pairs']['potential_energy']
+                        num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
+                        num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
+
+                        sample_cond = np.append(atoms.info['data']['mu'], T)
+                        idx_match = np.where(np.all(np.abs(grid-sample_cond) < tol, axis=1))[0]
+                        if idx_match.size == 0:
+                            parprint('No matching state found for sample:', sample_cond)
+                            continue
+                        state_idx = int(idx_match[0])
+                        samples_per_state[state_idx] += 1
+                        sample_state.append(state_idx)
+                        sample_steps.append(n_minus_1)
+                        phi = compute_phi(
+                                num_dict, self.target_metal_species, self.target_metal_composition,
+                                temperature_dmu_map, grid, element_column_map, element_eref_map,
+                                element_y2x_map, num_metal, epot, dimensionless=True)
+                        phi_kn.append(phi.reshape(-1,1))
+
+        if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
+            images = read(f'{self.calculation_dir}/{self.name}_mbar.traj', index=':')
+        else:
+            write(f'{self.calculation_dir}/{self.name}_mbar.traj', images)
+
+        phi_kn = np.hstack(phi_kn)  # Shape (K, N_total)
+        # Build numpy array of which state produced each sample (global column index)
+        sample_state = np.asarray(sample_state, dtype=int)  # shape (N_total,)
+        sample_steps = np.asarray(sample_steps, dtype=int)  # shape (N_total,)
+        N_total = sample_state.size
+        kept_indices_list = []
+        present_states, present_counts = np.unique(sample_state, return_counts=True)
+        parprint(f"Found {present_states.size} occupied states (out of {K}). Subsampling each occupied state's series...")
+
+        for s, n_k in zip(present_states, present_counts):
+            idx_k = np.where(sample_state == s)[0]     # global indices of samples from state s (chronological)
+            if n_k == 0:
+                continue
+            if sample_stride is not None:
+                # Interpret stride as simulation-step bin width: use original simulation steps (sample_steps)
+                stride_int = int(sample_stride)
+                steps_k = sample_steps[idx_k]           # original n_minus_1 values for samples of this state
+                bins = steps_k // stride_int
+                # pick the first sample that appears in each bin (preserves chronology)
+                #unique_bins, first_pos = np.unique(bins, return_index=True)
+                #subs_global = idx_k[first_pos]           # convert to global indices
+                # take last occurrence per bin instead of first
+                unique_bins, last_pos_rev = np.unique(bins[::-1], return_index=True)
+                last_pos = bins.size - 1 - last_pos_rev
+                subs_global = idx_k[last_pos]
+            else:
+                # Let pymbar compute statistical inefficiency and return per-state local indices
+                series = phi_kn[int(s), idx_k].ravel()
+                try:
+                    local_idx = np.array(timeseries.subsample_correlated_data(series))  # indices into series
+                    subs_global = idx_k[local_idx]
+                except Exception as e:
+                    parprint(f'  warning: subsample_correlated_data failed for state {s}: {e}; keeping all samples for this state')
+                    subs_global = idx_k.copy()
+            if subs_global.size == 0:
+                parprint(f'  state {s}: no subsampled indices -> skipping')
+                continue
+            kept_indices_list.append(subs_global)
+            parprint(f' state {s}: n_k={n_k}, kept={subs_global.size}')
+
+        if len(kept_indices_list) == 0:
+            uniq, counts = np.unique(sample_state, return_counts=True)
+            raise RuntimeError(f'No subsampled indices found for any occupied state. ' +
+                               f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
+        kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
+        kept_indices.sort()
+        np.save(f'{self.calculation_dir}/{self.name}_sampled_indices.npy', kept_indices)
+        parprint(f'Original total samples: {N_total}, subsampled total: {kept_indices.size}')
+
+        # make subsampled phi_kn and per-state counts for MBAR
+        phi_kn_sub = phi_kn[:, kept_indices]
+        samples_per_state_sub = np.array([np.sum(sample_state[kept_indices] == k) for k in range(K)], dtype=int)
+        #parprint(f'New per-state sample counts (subsampled): {samples_per_state_sub}')
+        images_sub = [images[i] for i in kept_indices]
+
+        fes = FES(phi_kn_sub, samples_per_state_sub,
+                  mbar_options={'relative_tolerance': 1e-7, 'solver_protocol': 'robust', 'maximum_iterations': 30000})
+        fes_map = {}
+        for cv in list(images_sub[0].info['data'].keys()) + ['all']:
+            if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
+                continue
+            if cv == 'all':
+                x_n = np.array([np.concatenate([a.info['data']['x_surf_metals'], a.info['data']['ads_coverages']]) for a in images_sub])
+                bins = [np.arange(0., 1.001, bin_width) for _ in range(x_n.shape[1])]
+            else:
+                x_n = np.array([a.info['data'][cv] for a in images_sub])
+                bins = [np.arange(0., 1.001, bin_width)]
+
+            free_energies = np.full(shape=(len(images), K), fill_value=np.nan)
+            for k in range(K):
+                fes.generate_fes(phi_kn_sub[k,:], x_n, fes_type='histogram', histogram_parameters={'bin_edges': bins})
+                results = fes.get_fes(x_n)
+                f_n = results['f_i']
+                dd = defaultdict(list)
+                for i, f in enumerate(f_n):
+                    dd[f].append(i)
+                for f, indices in dd.items():
+                    free_energies[kept_indices[indices],k] = f
+            fes_map[cv] = free_energies
+
+        with open(f'{self.calculation_dir}/{self.name}_mbar_fes.pkl', 'wb') as handle:
+            pickle.dump(fes_map, handle, protocol=pickle.HIGHEST_PROTOCOL)

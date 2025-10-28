@@ -73,7 +73,7 @@ calculate_surface_fitness(
         run_md=run_md,
         md_timestep=1*units.fs,
         md_taut=0.5*1000**units.fs,
-        md_steps=50,
+        md_steps=400,
         md_write_interval=10,
         temperature_dmu_map=tdmu_map,
         element_column_map={'C': 0, 'O': 1, 'H': 2},
