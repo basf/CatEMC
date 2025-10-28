@@ -5,19 +5,18 @@ from .emc_population import EMCPopulation
 from .emc_operators import (
         EMCCutSpliceCrossover,
         EMCIntraSwap)
+from .subprocess_manager import SubprocessManager
 from ase.io import read, write
 from ase.io.trajectory import Trajectory
 from ase.db import connect
 from ase.ga.data import DataConnection, PrepareDB
 from ase.parallel import parprint
-import numpy as np
-import subprocess
 import warnings
 import random
 import shutil
 import time
-import sys
 import os
+import sys
 
 
 class EMC(object):
@@ -96,11 +95,15 @@ class EMC(object):
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
     procs_per_device: int, default 1
-        The number of processes to run in parallel on each GPU/CPU device. Defaul is 
+        The number of processes to run in parallel on each GPU/CPU device. Defaul is
         to run in serial.
 
     batching: bool, default False
         Whether to run batch relaxation and MD using torch-sim. Default is False.
+
+    max_retries: int, default 3
+        Maximum number of retry attempts for subprocesses that fail due to GPU access
+        errors.
 
     """
 
@@ -125,6 +128,7 @@ class EMC(object):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
+            max_retries=3,
             verbose=True):
 
         self.name = name
@@ -148,7 +152,15 @@ class EMC(object):
         self.gpu_devices = gpu_devices
         self.procs_per_device = procs_per_device
         self.batching = batching
+        self.max_retries = max_retries
         self.verbose = verbose
+        # Initialize subprocess manager with GPU-aware retry logic
+        self.subprocess_manager = SubprocessManager(
+            max_retries=max_retries,
+            initial_delay=0.5,
+            retry_delay=2.0,
+            verbose=verbose
+        )
 
     def get_pop(self):
 
@@ -223,9 +235,13 @@ class EMC(object):
             gpu_devices = [0]
         else:
             gpu_devices = self.gpu_devices
+
+        # Collect all commands to run
+        commands_to_run = []
         batch_images = []
         batch_start_index = None
         gpu_device = gpu_devices[0]
+
         for i, atoms in enumerate(unrelaxed_candidates):
             rep = atoms.info['key_value_pairs'][self.replica_key]
             if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
@@ -233,7 +249,7 @@ class EMC(object):
             if batching:
                 # Append current atoms and decide whether to flush the batch.
                 device_for_current = gpu_devices[(i // self.procs_per_device) % len(gpu_devices)]
-                if not batch_images:     
+                if not batch_images:
                     batch_start_index = i
                 batch_images.append(atoms)
                 is_last = (i == len(unrelaxed_candidates) - 1)
@@ -247,10 +263,17 @@ class EMC(object):
                     if add_args is not None:
                         for arg in add_args:
                             arg_str += f' {arg}'
-                    os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
+                    # Prepare command for subprocess manager
+                    cmd = [sys.executable, f'{self.calculation_dir}/{self.calculation_script}'] + arg_str.split()
+                    commands_to_run.append({
+                        'cmd': cmd,
+                        'gpu_id': device_for_current,
+                        'max_concurrent': self.procs_per_device,
+                        'job_id': f'batch_{reps_str}'
+                    })
                     # reset batch_images for next batch
                     batch_images = []
-                    batch_start_index = None 
+                    batch_start_index = None
             else:
                 gpu_device = gpu_devices[(i//self.procs_per_device)%len(self.gpu_devices)]
                 write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', atoms)
@@ -258,11 +281,14 @@ class EMC(object):
                 if add_args is not None:
                     for arg in add_args:
                         arg_str += f' {arg}'
-                os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
-            if (i % (len(gpu_devices)*self.procs_per_device) == (len(gpu_devices)*self.procs_per_device-1)
-            ) or (i == len(unrelaxed_candidates) - 1):
-                while not all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{replicas[j]}.traj') for j in range(i+1)):
-                    time.sleep(5)
+                # Prepare command for subprocess manager
+                cmd = [sys.executable, f'{self.calculation_dir}/{self.calculation_script}'] + arg_str.split()
+                commands_to_run.append({
+                    'cmd': cmd,
+                    'gpu_id': gpu_device,
+                    'max_concurrent': self.procs_per_device,
+                    'job_id': f'replica_{rep}'
+                })
 
         # flush any remaining partial batch that wasn't submitted
         if batching and batch_images:
@@ -274,9 +300,30 @@ class EMC(object):
             if add_args is not None:
                 for arg in add_args:
                     arg_str += f' {arg}'
-            os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
+            # Prepare command for subprocess manager
+            cmd = [sys.executable, f'{self.calculation_dir}/{self.calculation_script}'] + arg_str.split()
+            commands_to_run.append({
+                'cmd': cmd,
+                'gpu_id': device_for_current,
+                'max_concurrent': self.procs_per_device,
+                'job_id': f'batch_{reps_str}'
+            })
             batch_images = []
             batch_start_index = None
+
+        # Run all commands with the subprocess manager (with retry logic)
+        if commands_to_run:
+            if self.verbose:
+                print(f'[EMC] Submitting {len(commands_to_run)} calculation jobs with retry logic')
+            results = self.subprocess_manager.run_batch_sync(commands_to_run)
+            # Check if any jobs failed after all retries
+            failed_jobs = [cmd['job_id'] for cmd, success in zip(commands_to_run, results) if not success]
+            if failed_jobs:
+                print(f'[EMC] Warning: {len(failed_jobs)} jobs failed after {self.max_retries} retries: {failed_jobs}')
+
+        # Wait for all output files to appear
+        while not all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj') for rep in replicas):
+            time.sleep(1)
 
         relaxed_candidates = [read(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj', index=-1) for rep in replicas]
         for rep in replicas:

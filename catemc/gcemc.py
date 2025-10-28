@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """Algorithm for grand canonical evolutionary Monte Carlo (GC-EMC) run"""
 from .emc_operators import (
-        EMCCutSpliceCrossover,
         EMCCatalystAdsorbateCrossover,
         EMCInterSwap,
         EMCIntraSwap,
@@ -10,6 +9,7 @@ from .emc_operators import (
 from .emc import EMC
 from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
+from ase.db import connect
 from acat.ga.adsorbate_operators import (
         AddAdsorbate, 
         RemoveAdsorbate,                                 
@@ -17,18 +17,14 @@ from acat.ga.adsorbate_operators import (
         ReplaceAdsorbate,
         ReplaceAdsorbateSpecies)
 from ase.io import read, write
-from ase import units
 from ase.io.trajectory import Trajectory
 from ase.ga.data import DataConnection, PrepareDB
 from ase.parallel import parprint
 from collections import defaultdict
-from itertools import combinations
 import numpy as np
 import warnings
 import random
-import shutil
 import pickle
-import math
 import time
 import os
 
@@ -286,6 +282,7 @@ class GCEMC(EMC):
             gpu_devices=None,
             procs_per_device=1,
             batching=False,
+            max_retries=3,
             verbose=True):
 
         super().__init__(
@@ -308,6 +305,7 @@ class GCEMC(EMC):
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
                 batching=batching,
+                max_retries=max_retries,
                 verbose=verbose)
 
         self.mu_walk_generation = mu_walk_generation
@@ -343,10 +341,9 @@ class GCEMC(EMC):
     def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=1e-3):
 
         from pymbar import MBAR
-        all_species = self.metal_element_pool + list(element_column_map.keys())
+        all_species = self.metal_element_pool + list(self.element_column_map.keys())
         temperatures = sorted({c.info['key_value_pairs'][self.temperature_key] for c in self.pop.pop})
-        sim_tempreatures = temperatures
-        target_temperatures = temperatures 
+        sim_temperatures = temperatures
         def create_energy_list():
             return [None for _ in range(ending_step)]
         energy_data = {T: defaultdict(create_energy_list) for T in sim_temperatures}

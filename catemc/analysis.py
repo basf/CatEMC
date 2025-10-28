@@ -50,7 +50,7 @@ class GEEMCAnalysis(object):
                     self.data = pickle.load(handle)
                 collect_data = False
             else:
-                parprint(f'Cannot find MBAR data file, collect data instead.')
+                parprint('Cannot find MBAR data file, collect data instead.')
         if collect_data:
             # initialize containers (no pre-defined temperatures)
             self.widom_data = {}      # T -> {key -> list_of_step_lists}
@@ -464,7 +464,7 @@ class GCEMCAnalysis(object):
                     self.data = pickle.load(handle)
                 collect_data = False
             else:
-                parprint(f'Cannot find MBAR data file, collect data instead.')
+                parprint('Cannot find MBAR data file, collect data instead.')
         if collect_data:
             # initialize containers (no pre-defined temperatures)
             self.data = {}   # T -> {rep -> list_of_step_values}
@@ -598,7 +598,7 @@ class GCEMCAnalysis(object):
                                     atoms.info['data'][f'ads_coverage_{ads}'] = 0.
                             if vacancy_indices:
                                 x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.position[2] < z_surf)]) / len(vacancy_indices)
-                                atoms.info['data'][f'x_lattice_vac'] = x_vac
+                                atoms.info['data']['x_lattice_vac'] = x_vac
                             surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.position[2] > z_surf)]]
                             surf_atoms.pbc = [1,1,0]
                             surf_num_dict = Counter(surf_atoms.symbols)
@@ -679,7 +679,7 @@ class GCEMCAnalysis(object):
  
         if len(kept_indices_list) == 0:
             uniq, counts = np.unique(sample_state, return_counts=True)
-            raise RuntimeError(f'No subsampled indices found for any occupied state. ' + 
+            raise RuntimeError('No subsampled indices found for any occupied state. ' + 
                                f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
         kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
         kept_indices.sort()
