@@ -12,7 +12,6 @@ from ase.db import connect
 from ase.ga.data import DataConnection, PrepareDB
 from ase.parallel import parprint
 import warnings
-import random
 import shutil
 import time
 import os
@@ -314,7 +313,7 @@ class EMC(object):
         # Run all commands with the subprocess manager (with retry logic)
         if commands_to_run:
             if self.verbose:
-                print(f'[EMC] Submitting {len(commands_to_run)} calculation jobs with retry logic')
+                print(f'[EMC] Submitting {len(commands_to_run)} calculation jobs')
             results = self.subprocess_manager.run_batch_sync(commands_to_run)
             # Check if any jobs failed after all retries
             failed_jobs = [cmd['job_id'] for cmd, success in zip(commands_to_run, results) if not success]
