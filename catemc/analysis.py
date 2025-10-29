@@ -585,11 +585,11 @@ class GCEMCAnalysis(object):
                                     [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
                             fragments = atoms.info['data']['fragments']
                             lattice_nonmetal_symbols = []
-                            for k in element_column_map.keys():
-                                lattice_nonmetal_symbols += [k for i in vacancy_indices if atoms[i].symbol == k]
+                            for nm in element_column_map.keys():
+                                lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
                             adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
                             ads_num_dict = Counter(adsorbates)
-                            atoms.info['data']['ads_coverages'] = np.array([len(ads) / n_surf_metals for ads in self.adsorbate_species])
+                            atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
                             atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
                             for ads in self.adsorbate_species:
                                 if ads in ads_num_dict:
@@ -754,11 +754,11 @@ class GCEMCAnalysis(object):
                                     [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
                             fragments = atoms.info['data']['fragments']
                             lattice_nonmetal_symbols = []
-                            for k in element_column_map.keys():
-                                lattice_nonmetal_symbols += [k for i in vacancy_indices if atoms[i].symbol == k]
+                            for nm in element_column_map.keys():
+                                lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
                             adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
                             ads_num_dict = Counter(adsorbates)
-                            atoms.info['data']['ads_coverages'] = np.array([len(ads) / n_surf_metals for ads in self.adsorbate_species])
+                            atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
                             atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
                             for ads in self.adsorbate_species:
                                 if ads in ads_num_dict:
