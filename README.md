@@ -655,8 +655,8 @@ ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 
 E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
 E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
-dmu_O = np.arange(-5., -2.999, 0.1)
-dmu_H = np.arange(-1.0, 0.001, 0.05)
+dmu_O = np.arange(-5., -2.999, 0.02)
+dmu_H = np.arange(-1.0, 0.001, 0.01)
 sim_temperatures = [1023,]
 reaction_conditions = np.array(np.meshgrid(dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 3)
 
