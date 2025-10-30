@@ -663,10 +663,11 @@ reaction_conditions = np.array(np.meshgrid(dmu_O, dmu_H, sim_temperatures)).T.re
 with open('/path/to/bulk_wls_dmu_estimates.pkl','rb') as f:
     tdmu_map = pickle.load(f)
 template = read(f'{dir_name}/template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4_311_slab_mace_opt.traj')
-vac_indices = [a.index for a in template if a.symbol in ['O','X']]
+z_surf = 24.
+vac_indices = [a.index for a in template if a.symbol in ['O','X'] and (a.position[2] < z_surf)]
 
 ana.get_structural_expectations(
-        z_surf=24.0,
+        z_surf=z_surf,
         reaction_conditions=reaction_conditions,
         temperature_dmu_map=tdmu_map,
         element_column_map={'O': 0, 'H': 1},

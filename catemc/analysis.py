@@ -205,7 +205,7 @@ class GEEMCAnalysis(object):
             samples_T = []
             volume_samples_T = []
             for n_minus_1 in range(ending_step):
-                if n_minus_1 >= starting_step:
+                if n_minus_1 + 1 >= starting_step:
                     try:
                         if volume_correction:
                             H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in self.data[T].values())
@@ -572,7 +572,9 @@ class GCEMCAnalysis(object):
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
                 for n_minus_1, atoms in enumerate(lol):
-                    if n_minus_1 >= starting_step:
+                    if (starting_step is None) or (n_minus_1 + 1 >= starting_step):
+                        if (ending_step is not None) and (n_minus_1 + 1 > ending_step):
+                            continue
                         if atoms is None:
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
@@ -741,7 +743,9 @@ class GCEMCAnalysis(object):
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
                 for n_minus_1, atoms in enumerate(lol):
-                    if n_minus_1 >= starting_step:
+                    if (starting_step is None) or (n_minus_1 + 1 >= starting_step):
+                        if (ending_step is not None) and (n_minus_1 + 1 > ending_step):
+                            continue
                         if atoms is None:
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
