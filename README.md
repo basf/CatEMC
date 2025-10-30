@@ -672,7 +672,7 @@ ana.get_structural_expectations(
         temperature_dmu_map=tdmu_map,
         element_column_map={'O': 0, 'H': 1},
         element_eref_map={'O': E_O2/2, 'H': E_H2/2},
-        element_y2x_map={'O': 4/3, 'H': 0.},
+        element_y2x_map={'O': 3.5/3, 'H': 0.},
         starting_step=500,
         ending_step=2000,
         sample_stride=50,
