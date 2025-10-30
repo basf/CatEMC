@@ -543,7 +543,7 @@ class GCEMCAnalysis(object):
     def get_structural_expectations(self, z_surf, reaction_conditions, element_column_map, 
                                     element_eref_map, element_y2x_map, temperature_dmu_map=None, 
                                     starting_step=None, ending_step=None, sample_stride=1, 
-                                    vacancy_indices=None, tol=1e-3):
+                                    sample_condition_indices=None, vacancy_indices=None, tol=1e-3):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (> z_surf) and reaction conditions. 
@@ -705,7 +705,10 @@ class GCEMCAnalysis(object):
             if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
                 continue
             A_n = np.array([a.info['data'][cv] for a in images_sub])
-            E_k = w_nk.T @ A_n
+            if sample_condition_indices is None:
+                E_k = w_nk.T @ A_n
+            else:
+                E_k = w_nk[:,sample_condition_indices].T @ A_n
             expectations[cv] = E_k
  
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
@@ -714,7 +717,8 @@ class GCEMCAnalysis(object):
     def get_structural_fes(self, z_surf, reaction_conditions, element_column_map,
                            element_eref_map, element_y2x_map, temperature_dmu_map=None,
                            starting_step=None, ending_step=None, sample_stride=1,
-                           vacancy_indices=None, bin_width=0.02, tol=1e-3):
+                           sample_condition_indices=None, vacancy_indices=None, 
+                           bin_width=0.05, tol=1e-3):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
         depending on a user-defined surface region (> z_surf), reaction conditions and
@@ -879,7 +883,11 @@ class GCEMCAnalysis(object):
                 bins = [np.arange(0., 1.001, bin_width)]
 
             free_energies = np.full(shape=(len(images), K), fill_value=np.nan)
-            for k in range(K):
+            if sample_condition_indices is None:
+                all_condition_indices = list(range(K))
+            else:
+                all_condition_indices = sample_condition_indices
+            for k in sample_condition_indices:
                 fes.generate_fes(phi_kn_sub[k,:], x_n, fes_type='histogram', histogram_parameters={'bin_edges': bins})
                 results = fes.get_fes(x_n)
                 f_n = results['f_i']
