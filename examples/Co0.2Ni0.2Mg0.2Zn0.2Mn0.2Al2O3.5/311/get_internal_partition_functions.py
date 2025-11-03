@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 
 
-temperatures = [623, 723, 823]
+temperatures = [623, 723, 823, 1023]
 internal_data = {T: {} for T in temperatures}
 degeneracies = {'C': 3, 'O': 3, 'H': 2, 'CO': 1, 'CO2': 1, 'OH': 2, 'OH2': 1, 'H2': 1, 'O2': 1, 'OOH': 2, 'O2H': 2, 'COH': 2, 'CHO': 2, 'CH': 2, 'CH2': 3, 'CH3': 2}
 sigmas = {'C': 1, 'O': 1, 'H': 1, 'CO': 1, 'CO2': 2, 'OH': 1, 'OH2': 2, 'H2': 2, 'O2': 2, 'OOH': 1, 'O2H': 1, 'COH': 1, 'CHO': 1, 'CH': 1, 'CH2': 1, 'CH3': 3}
