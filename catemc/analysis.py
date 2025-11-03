@@ -205,7 +205,7 @@ class GEEMCAnalysis(object):
             samples_T = []
             volume_samples_T = []
             for n_minus_1 in range(ending_step):
-                if n_minus_1 >= starting_step:
+                if n_minus_1 + 1 >= starting_step:
                     try:
                         if volume_correction:
                             H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in self.data[T].values())
@@ -543,7 +543,7 @@ class GCEMCAnalysis(object):
     def get_structural_expectations(self, z_surf, reaction_conditions, element_column_map, 
                                     element_eref_map, element_y2x_map, temperature_dmu_map=None, 
                                     starting_step=None, ending_step=None, sample_stride=1, 
-                                    vacancy_indices=None, tol=1e-3):
+                                    sample_condition_indices=None, vacancy_indices=None, tol=1e-3):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (> z_surf) and reaction conditions. 
@@ -572,7 +572,9 @@ class GCEMCAnalysis(object):
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
                 for n_minus_1, atoms in enumerate(lol):
-                    if n_minus_1 >= starting_step:
+                    if (starting_step is None) or (n_minus_1 + 1 >= starting_step):
+                        if (ending_step is not None) and (n_minus_1 + 1 > ending_step):
+                            continue
                         if atoms is None:
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
@@ -585,11 +587,11 @@ class GCEMCAnalysis(object):
                                     [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
                             fragments = atoms.info['data']['fragments']
                             lattice_nonmetal_symbols = []
-                            for k in element_column_map.keys():
-                                lattice_nonmetal_symbols += [k for i in vacancy_indices if atoms[i].symbol == k]
+                            for nm in element_column_map.keys():
+                                lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
                             adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
                             ads_num_dict = Counter(adsorbates)
-                            atoms.info['data']['ads_coverages'] = np.array([len(ads) / n_surf_metals for ads in self.adsorbate_species])
+                            atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
                             atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
                             for ads in self.adsorbate_species:
                                 if ads in ads_num_dict:
@@ -703,7 +705,10 @@ class GCEMCAnalysis(object):
             if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
                 continue
             A_n = np.array([a.info['data'][cv] for a in images_sub])
-            E_k = w_nk.T @ A_n
+            if sample_condition_indices is None:
+                E_k = w_nk.T @ A_n
+            else:
+                E_k = w_nk[:,sample_condition_indices].T @ A_n
             expectations[cv] = E_k
  
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
@@ -712,7 +717,8 @@ class GCEMCAnalysis(object):
     def get_structural_fes(self, z_surf, reaction_conditions, element_column_map,
                            element_eref_map, element_y2x_map, temperature_dmu_map=None,
                            starting_step=None, ending_step=None, sample_stride=1,
-                           vacancy_indices=None, bin_width=0.02, tol=1e-3):
+                           sample_condition_indices=None, vacancy_indices=None, 
+                           bin_width=0.05, tol=1e-3):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
         depending on a user-defined surface region (> z_surf), reaction conditions and
@@ -741,7 +747,9 @@ class GCEMCAnalysis(object):
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
                 for n_minus_1, atoms in enumerate(lol):
-                    if n_minus_1 >= starting_step:
+                    if (starting_step is None) or (n_minus_1 + 1 >= starting_step):
+                        if (ending_step is not None) and (n_minus_1 + 1 > ending_step):
+                            continue
                         if atoms is None:
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
@@ -754,11 +762,11 @@ class GCEMCAnalysis(object):
                                     [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
                             fragments = atoms.info['data']['fragments']
                             lattice_nonmetal_symbols = []
-                            for k in element_column_map.keys():
-                                lattice_nonmetal_symbols += [k for i in vacancy_indices if atoms[i].symbol == k]
+                            for nm in element_column_map.keys():
+                                lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
                             adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
                             ads_num_dict = Counter(adsorbates)
-                            atoms.info['data']['ads_coverages'] = np.array([len(ads) / n_surf_metals for ads in self.adsorbate_species])
+                            atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
                             atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
                             for ads in self.adsorbate_species:
                                 if ads in ads_num_dict:
@@ -875,7 +883,11 @@ class GCEMCAnalysis(object):
                 bins = [np.arange(0., 1.001, bin_width)]
 
             free_energies = np.full(shape=(len(images), K), fill_value=np.nan)
-            for k in range(K):
+            if sample_condition_indices is None:
+                all_condition_indices = list(range(K))
+            else:
+                all_condition_indices = sample_condition_indices
+            for k in sample_condition_indices:
                 fes.generate_fes(phi_kn_sub[k,:], x_n, fes_type='histogram', histogram_parameters={'bin_edges': bins})
                 results = fes.get_fes(x_n)
                 f_n = results['f_i']
