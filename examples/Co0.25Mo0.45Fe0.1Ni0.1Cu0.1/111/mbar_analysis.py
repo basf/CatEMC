@@ -38,7 +38,7 @@ equil_mu_H = -3.985
 equil_dmu_H = equil_mu_H - E_H2/2
 equil_cond = np.array([equil_dmu_N, equil_dmu_H, target_temperature])
 reaction_conditions = np.vstack([grid, early_cond, equil_cond])
-with open(f'/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_dmu_estimates.pkl', 'rb') as f:
+with open(f'/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 
 ana.get_structural_expectations(

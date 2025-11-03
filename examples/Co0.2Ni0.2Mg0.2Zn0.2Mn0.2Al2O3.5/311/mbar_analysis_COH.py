@@ -39,7 +39,7 @@ equil_mu_O = -7.605
 equil_dmu_O = equil_mu_O - E_O2/2
 equil_cond = np.array([equil_dmu_C, equil_dmu_O, -0.5, 723])
 reaction_conditions = np.vstack([grid, early_cond, equil_cond])
-with open(f'/mnt/nfs/spd_paper/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_wls_dmu_estimates.pkl', 'rb') as f:
+with open(f'/mnt/nfs/spd_paper/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 template = read(f'{dir_name}/template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_311_slab_mace_opt.traj')
 z_surf = 24.

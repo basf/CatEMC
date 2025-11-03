@@ -58,7 +58,7 @@ try:
 except:
     with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/311/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_311_sites.pkl', 'rb') as f:
         sas = pickle.load(f)
-with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_dmu_estimates.pkl', 'rb') as f:
+with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 allowed_adsorbate_species = ['O','H','OH','OH2','H2','O2','O2H','OOH']
 

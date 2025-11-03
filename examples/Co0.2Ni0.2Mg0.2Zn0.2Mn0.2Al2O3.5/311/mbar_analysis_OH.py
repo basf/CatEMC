@@ -31,7 +31,7 @@ target_dmu_O = -8.821 - E_O2 / 2
 target_dmu_H = -3.981 - E_H2 / 2
 target_cond = np.array([target_dmu_O, target_dmu_H, target_T])
 reaction_conditions = np.vstack([grid, target_cond])
-with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_dmu_estimates.pkl', 'rb') as f:
+with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 template = read(f'{dir_name}/template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_311_slab_mace_opt.traj')
 z_surf = 24.

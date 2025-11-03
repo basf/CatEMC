@@ -43,7 +43,7 @@ reaction_conditions = np.array(np.meshgrid(dmu_O, dmu_H, temperatures)).T.reshap
 element_column_map = {'O': 0, 'H': 1}
 element_eref_map = {'O': E_O2/2, 'H': E_H2/2}
 element_y2x_map = {'O': 3.5/3, 'H': 0.}
-with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_dmu_estimates.pkl', 'rb') as f:
+with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 with open(f'{dir_name}/COH_internal_data.pkl', 'rb') as handle:
     tsi_map = pickle.load(handle)
