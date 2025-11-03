@@ -39,20 +39,20 @@ atoms = read(traj_path, index=-1)
 atoms.wrap()
 #============================================================
 
-calc = MACECalculator(model_paths='/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model', 
+calc = MACECalculator(model_paths='/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model', 
                        dispersion=False, device='cuda', default_dtype='float64')
 fmax = 0.05
-E_N2 = -16.293 + 0.155 # Etot incl. ZPE RPBE 
-E_H2 = -6.984 + 0.269 # Etot incl. ZPE RPBE
+E_N2 = -16.293 + 0.155  # Etot incl. ZPE RPBE 
+E_H2 = -6.984 + 0.269   # Etot incl. ZPE RPBE
 rep = atoms.info['key_value_pairs']['replica']
 site_path = f'{dir_name}/sites_{rep}.pkl'
 try:
     with open(site_path, 'rb') as f:
         sas = pickle.load(f)
 except:
-    with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/111/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_111_sites.pkl', 'rb') as f:
+    with open(f'/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/111/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_111_sites.pkl', 'rb') as f:
         sas = pickle.load(f)
-with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_dmu_estimates.pkl', 'rb') as f:
+with open(f'/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 allowed_adsorbate_species = ['H','N','NH','NH2','N2','H2','NH3']
 

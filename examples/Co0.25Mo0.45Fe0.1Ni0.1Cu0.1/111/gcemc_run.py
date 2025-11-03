@@ -17,7 +17,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_devices[0])
 comp = 'Co0.25Mo0.45Fe0.1Ni0.1Cu0.1'
 structure = '111'
 system_name = f'{comp}NH_{structure}'
-dir_name = f'/mnt/nfs/emc_tutorial/{comp}/{structure}'
+dir_name = f'/emc/{comp}/{structure}'
 input_pop_fname = f'{dir_name}/{system_name}_input_pop.traj'
 input_pop = read(input_pop_fname, index=':')
 template = input_pop[0]
@@ -32,8 +32,8 @@ volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * (11+1.5+
 ct = Counter(template.symbols)
 volume -= sum([n*4/3*math.pi*(data.covalent_radii[data.atomic_numbers[k]])**3
                for k, n in ct.items() if k in target_metal_species])
-E_N2 = -16.293 + 0.155 # Etot incl. ZPE RPBE 
-E_H2 = -6.984 + 0.269 # Etot incl. ZPE RPBE
+E_N2 = -16.293 + 0.155  # Etot incl. ZPE RPBE 
+E_H2 = -6.984 + 0.269   # Etot incl. ZPE RPBE
 dmu_N = np.arange(-1., 0.001, 0.05).round(2)
 dmu_H = np.arange(-1., 0.001, 0.05).round(2)
 temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})
@@ -42,7 +42,7 @@ reaction_conditions = grid.copy()
 element_column_map = {'N': 0, 'H': 1}
 element_eref_map = {'N': E_N2/2, 'H': E_H2/2}
 element_y2x_map = {'N': 0., 'H': 0.}
-with open(f'/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_dmu_estimates.pkl', 'rb') as f:
+with open(f'/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 with open(f'{dir_name}/NH_internal_data.pkl', 'rb') as handle:
     tsi_map = pickle.load(handle)
@@ -99,4 +99,4 @@ emc = GCEMC(system_name,
             raw_score_cutoff=-10000.,
             gpu_devices=gpu_devices,
             procs_per_device=ppg)
-emc.run(starting_step=1, total_steps=5000)
+emc.run(starting_step=1, total_steps=2000)

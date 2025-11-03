@@ -45,10 +45,9 @@ fmax1 = 0.5
 calc2 = MACECalculator(model_paths="/mnt/nfs/ml_training/pretrained_mace_models/mace-mpa-0-medium.model", 
                        dispersion=False, device='cuda', default_dtype='float64')
 fmax2 = 0.25
-calc3 = MACECalculator(model_paths="/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model", 
+calc3 = MACECalculator(model_paths="/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model", 
                        dispersion=False, device='cuda', default_dtype='float64')
 fmax3 = 0.05
-E_C = -9.944    # Etot per atom graphite PBE
 E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
 E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 rep = atoms.info['key_value_pairs']['replica']
@@ -57,11 +56,11 @@ try:
     with open(site_path, 'rb') as f:
         sas = pickle.load(f)
 except:
-    with open(f'/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/311/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_311_sites.pkl', 'rb') as f:
+    with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/311/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_311_sites.pkl', 'rb') as f:
         sas = pickle.load(f)
-with open(f'/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_wls_dmu_estimates.pkl', 'rb') as f:
+with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
-allowed_adsorbate_species = ['O','H','OH','OH2','H2','O2','O2H','OOH','C','CO','CO2','COH','CHO','CH','CH2','CH3']
+allowed_adsorbate_species = ['O','H','OH','OH2','H2','O2','O2H','OOH']
 
 calculate_surface_fitness(
         atoms, traj_path=traj_path,
@@ -76,9 +75,9 @@ calculate_surface_fitness(
         md_steps=400,
         md_write_interval=10,
         temperature_dmu_map=tdmu_map,
-        element_column_map={'C': 0, 'O': 1, 'H': 2},
-        element_eref_map={'C': E_C, 'O': E_O2/2, 'H': E_H2/2},
-        element_y2x_map={'C': 0., 'O': 3.5/3, 'H': 0.},
+        element_column_map={'O': 0, 'H': 1},
+        element_eref_map={'O': E_O2/2, 'H': E_H2/2},
+        element_y2x_map={'O': 3.5/3, 'H': 0.},
         adsorption_sites=sas,
         slab_indices=slab_indices, 
         fix_indices=fix_indices,

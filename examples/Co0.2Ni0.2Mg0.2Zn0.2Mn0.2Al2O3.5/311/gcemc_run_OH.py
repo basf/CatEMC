@@ -16,16 +16,16 @@ ppg = int(sys.argv[2])
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_devices[0])
 comp = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5'
 structure = '311'
-system_name = f'{comp}COH_{structure}'
-dir_name = f'/mnt/nfs/emc_tutorial/{comp}/{structure}'
+system_name = f'{comp}OH_{structure}'
+dir_name = f'/emc/{comp}/{structure}'
 input_pop_fname = f'{dir_name}/{system_name}_input_pop.traj'
 input_pop = read(input_pop_fname, index=':')
 template = read(f'{dir_name}/template_{comp}_{structure}_slab_mace_opt.traj')
 target_metal_species = ['Co','Ni','Mg','Zn','Mn','Al']
 target_metal_composition = {'Co':0.2,'Ni':0.2,'Mg':0.2,'Zn':0.2,'Mn':0.2,'Al':2}
 target_nonmetal_species = ['O','X']
-adsorbate_species = ['O','H','OH','CO','CO2','C','CH','CH2','CH3']
-other_adsorbate_species = ['OH2','H2','O2','O2H','OOH','COH','CHO']
+adsorbate_species = ['O','H','OH']
+other_adsorbate_species = ['OH2','H2','O2','O2H','OOH']
 slab_indices = [a.index for a in template] 
 fix_indices = [a.index for a in template if a.position[2] < 18.8]
 mut_metal_indices = [a.index for a in template if (a.position[2] >= 18.8) and (a.symbol in target_metal_species)]
@@ -34,18 +34,16 @@ volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * (15+2.5)
 ct = Counter(template.symbols)
 volume -= sum([n*4/3*math.pi*(data.covalent_radii[data.atomic_numbers[k]])**3
                for k, n in ct.items() if k in target_metal_species])
-E_C = -9.944    # Etot per atom graphite PBE
 E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
 E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
-dmu_C = np.arange(0., 2.001, 0.1)
-dmu_O = np.arange(-4., -2.999, 0.1)
-dmu_H = np.arange(-1., 0.001, 0.1)
+dmu_O = np.arange(-5., -2.999, 0.1)
+dmu_H = np.arange(-1., 0.001, 0.05)
 temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})
-reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)).T.reshape(-1, 4)
-element_column_map = {'C': 0, 'O': 1, 'H': 2}
-element_eref_map = {'C': E_C, 'O': E_O2/2, 'H': E_H2/2}
-element_y2x_map = {'C': 0., 'O': 3.5/3, 'H': 0.}
-with open(f'/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_wls_dmu_estimates.pkl', 'rb') as f:
+reaction_conditions = np.array(np.meshgrid(dmu_O, dmu_H, temperatures)).T.reshape(-1, 3)
+element_column_map = {'O': 0, 'H': 1}
+element_eref_map = {'O': E_O2/2, 'H': E_H2/2}
+element_y2x_map = {'O': 3.5/3, 'H': 0.}
+with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 with open(f'{dir_name}/COH_internal_data.pkl', 'rb') as handle:
     tsi_map = pickle.load(handle)
@@ -57,7 +55,7 @@ with open(f'{dir_name}/{comp}_{structure}_sites.pkl', 'wb') as handle:
 
 emc = GCEMC(system_name,
             calculation_dir=dir_name,
-            calculation_script='calculate_fitness.py',
+            calculation_script='calculate_fitness_OH.py',
             input_pop=input_pop,
             fix_indices=fix_indices,
             trim_generation=100,
@@ -102,4 +100,4 @@ emc = GCEMC(system_name,
             raw_score_cutoff=-10000.,
             gpu_devices=gpu_devices,
             procs_per_device=ppg)
-emc.run(starting_step=1, total_steps=5000)
+emc.run(starting_step=1, total_steps=4000)

@@ -738,9 +738,9 @@ for i, ax in enumerate(axes_flat):
     x_surf_avg = expectations[f'x_surf_{m}'] / metal_composition[m]
 
     # allocate Z with shape (Ny, Nx) since contourf expects rows->y (dmu_H), cols->x (dmu_O)
-    Z = np.empty((len(dmu_O), len(dmu_H)), dtype=float)
+    Z = np.empty((len(dmu_H), len(dmu_O)), dtype=float)
     Z.fill(np.nan)
-    # fill Z by matching mu_N, mu_H using np.isclose (robust to FP rounding)
+    # fill Z by matching mu_O, mu_H using np.isclose
     for iy, muH in enumerate(dmu_H):
         for ix, muO in enumerate(dmu_O):
             idx = np.where(np.isclose(grid[:,0], muO) & np.isclose(grid[:,1], muH) & np.isclose(grid[:,-1], T))[0]
@@ -833,7 +833,7 @@ for i, ax in enumerate(axes_flat):
         ads_coverage_avg = expectations[f'ads_coverage_{ads}']
 
     # allocate Z with shape (Ny, Nx) since contourf expects rows->y (dmu_H), cols->x (dmu_N)
-    Z = np.empty((len(dmu_N), len(dmu_H)), dtype=float)
+    Z = np.empty((len(dmu_H), len(dmu_N)), dtype=float)
     Z.fill(np.nan)
     # fill Z by matching mu_N, mu_H using np.isclose (robust to FP rounding)
     for iy, muH in enumerate(dmu_H):

@@ -56,7 +56,7 @@ if __name__ == '__main__':
     comp = 'Co0.25Mo0.45Fe0.1Ni0.1Cu0.1'
     surface = '111'
     comp_surf_name = f'{comp}_{surface}'
-    dir_name = f'/mnt/nfs/emc_tutorial/{comp}/{surface}'
+    dir_name = f'/emc/{comp}/{surface}'
     target_metal_species = ['Co','Mo','Fe','Ni','Cu']
     target_metal_composition = {'Co': 0.25, 'Mo': 0.45, 'Fe': 0.1, 'Ni': 0.1, 'Cu': 0.1}
     ads_species = ['H', 'N', 'NH', 'NH2', 'N2']
@@ -110,14 +110,14 @@ if __name__ == '__main__':
     rog = ROG(slab[mut_ids], elements=target_metal_species, 
               composition={m: len([a for a in rand_slab_top if a.symbol == m]) for m in set(rand_slab_top.symbols)},
               trajectory=f'{dir_name}/rand_{comp_surf_name}_slab_top_orderings.traj')
-    rog.run(num_gen=36)
+    rog.run(num_gen=56)
     slab_tops = read(f'{dir_name}/rand_{comp_surf_name}_slab_top_orderings.traj', index=':')
 
     input_images = []
     rep = 0
     for T in [573, 673, 773, 873]:
         cov_sites = [(0.,None), (0.25,'fcc'), (0.5,'fcc'), (0.75,'fcc'), (1.,'fcc'),
-            #         (0.,None), (0.25,'hcp'), (0.5,'hcp'), (0.75,'hcp'), (1.,'hcp'),
+                     (0.,None), (0.25,'hcp'), (0.5,'hcp'), (0.75,'hcp'), (1.,'hcp'),
                      (0.33,'rand'), (0.42,'rand'), (0.58,'rand'), (0.67,'rand')]
         cov_sites.sort(key=lambda t: t[0])
         for cov, site in cov_sites:
@@ -138,14 +138,14 @@ if __name__ == '__main__':
             input_images.append(atoms)
             rep += 1
 
-    dmu_N = np.arange(-1.0, 0.001, 0.05)
-    dmu_H = np.arange(-1.0, 0.001, 0.05)
+    dmu_N = np.arange(-1., 0.001, 0.05)
+    dmu_H = np.arange(-1., 0.001, 0.05)
     grid = np.array(np.meshgrid(dmu_N, dmu_H)).T.reshape(-1, 2)
     element_column_map = {'N': 0, 'H': 1}
     assigned_input_pop = assign_mu_windows(
             input_images, reaction_conditions=grid,
             element_column_map=element_column_map,
-            round_decimals=2)
+            center_round_decimals=2)
 
     for img_idx, img in enumerate(assigned_input_pop):
         mu_rep = img.info['data']['mu']
