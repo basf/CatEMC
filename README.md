@@ -740,7 +740,7 @@ for i, ax in enumerate(axes_flat):
     # allocate Z with shape (Ny, Nx) since contourf expects rows->y (dmu_H), cols->x (dmu_O)
     Z = np.empty((len(dmu_O), len(dmu_H)), dtype=float)
     Z.fill(np.nan)
-    # fill Z by matching mu_N, mu_H using np.isclose (robust to FP rounding)
+    # fill Z by matching mu_O, mu_H using np.isclose
     for iy, muH in enumerate(dmu_H):
         for ix, muO in enumerate(dmu_O):
             idx = np.where(np.isclose(grid[:,0], muO) & np.isclose(grid[:,1], muH) & np.isclose(grid[:,-1], T))[0]
