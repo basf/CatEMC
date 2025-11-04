@@ -718,7 +718,7 @@ class GCEMCAnalysis(object):
                            element_eref_map, element_y2x_map, temperature_dmu_map=None,
                            starting_step=None, ending_step=None, sample_stride=1,
                            sample_condition_indices=None, vacancy_indices=None, 
-                           bin_width=0.05, tol=1e-3):
+                           variable_keys=None, bin_width=0.05, tol=1e-3):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
         depending on a user-defined surface region (> z_surf), reaction conditions and
@@ -734,6 +734,8 @@ class GCEMCAnalysis(object):
         all_atom_pairs = list(combinations(all_species, 2)) + [(m,m) for m in all_species]
         if vacancy_indices is None:
             vacancy_indices = []
+        if variable_keys is None:
+            variable_keys = ['all']
         grid = reaction_conditions.copy()
         K = grid.shape[0]
         parprint(f'Number of states: {K}')
@@ -872,7 +874,7 @@ class GCEMCAnalysis(object):
         fes = FES(phi_kn_sub, samples_per_state_sub,
                   mbar_options={'relative_tolerance': 1e-7, 'solver_protocol': 'robust', 'maximum_iterations': 30000})
         fes_map = {}
-        for cv in list(images_sub[0].info['data'].keys()) + ['all']:
+        for cv in variable_keys:
             if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
                 continue
             if cv == 'all':
