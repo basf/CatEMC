@@ -58,8 +58,8 @@ ana.get_structural_expectations(
         vacancy_indices=vac_indices)
 
 sim_dmu_C = np.arange(0., 2.001, 0.1)
-dmu_O = np.arange(-4., -2.999, 0.1)
-dmu_H = np.arange(-1., 0.001, 0.1)
+sim_dmu_O = np.arange(-4., -2.999, 0.1)
+sim_dmu_H = np.arange(-1., 0.001, 0.1)
 sim_grid = np.array(np.meshgrid(sim_dmu_C, sim_dmu_O, sim_dmu_H, sim_temperatures)).T.reshape(-1, 4)
 sim_reaction_conditions = np.vstack([sim_grid, early_cond, equil_cond])
 ana.get_structural_fes(
