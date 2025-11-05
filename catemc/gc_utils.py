@@ -242,9 +242,12 @@ def compute_exchange_prefactor(
     beta2 = 1. / kBT2_eV  # 1/(kb*T), eV
     ect1, ect2 = Counter(atoms1.symbols), Counter(atoms2.symbols)
     if temperature_species_internal_map is None:
-        elements = element_column_map.keys()
-        N_frag1 = len([a for a in atoms1 if a.symbol in elements])
-        N_frag2 = len([a for a in atoms2 if a.symbol in elements])
+        if element_column_map is None:
+            N_frag1, N_frag2 = 0, 0
+        else:
+            elements = element_column_map.keys()
+            N_frag1 = len([a for a in atoms1 if a.symbol in elements])
+            N_frag2 = len([a for a in atoms2 if a.symbol in elements])
     else:
         N_frag1 = len(atoms1.info['data']['fragments'])       
         N_frag2 = len(atoms2.info['data']['fragments'])
@@ -270,16 +273,17 @@ def compute_exchange_prefactor(
 
     if exponent is None:
         exponent = 0
-        for k in set(list(ect1.keys()) + list(ect2.keys())):
-            if k in element_column_map:
-                col = element_column_map[k]
-                if reaction_conditions is None:
-                    mu1 = atoms1.info['data']['mu'][col]
-                    mu2 = atoms2.info['data']['mu'][col]
-                else:
-                    mu1 = reaction_conditions[:, col]
-                    mu2 = reaction_conditions[:, col]
-                exponent += (beta1*ect2[k] - beta2*ect1[k]) * (mu2 - mu1)
+        if element_column_map is not None:
+            for k in set(list(ect1.keys()) + list(ect2.keys())):
+                if k in element_column_map:
+                    col = element_column_map[k]
+                    if reaction_conditions is None:
+                        mu1 = atoms1.info['data']['mu'][col]
+                        mu2 = atoms2.info['data']['mu'][col]
+                    else:
+                        mu1 = reaction_conditions[:, col]
+                        mu2 = reaction_conditions[:, col]
+                    exponent += (beta1*ect2[k] - beta2*ect1[k]) * (mu2 - mu1)
     prefactor /= np.exp(exponent)
 
     return prefactor
@@ -296,10 +300,11 @@ def compute_phi(
         element_y2x_map, num_metal, epot, dimensionless=True,
         ):
 
-    if element_eref_map is None:
-        element_eref_map = {e: 0. for e in element_column_map.keys()}
-    if element_y2x_map is None:
-        element_y2x_map = {e: 0. for e in element_column_map.keys()}
+    if element_column_map is not None:
+        if element_eref_map is None:
+            element_eref_map = {e: 0. for e in element_column_map.keys()}
+        if element_y2x_map is None:
+            element_y2x_map = {e: 0. for e in element_column_map.keys()}
     T = grid[:,-1]
     metal_mu_sum = 0
     if temperature_dmu_map is not None:
@@ -310,9 +315,10 @@ def compute_phi(
             for key, d in temperature_dmu_map.items():
                 dmu_T[T==key] = d[f'{m}2{n}']
             metal_mu_sum += (dc_surf - dc_bulk) * dmu_T
-    phi = epot - num_metal / len(target_metal_species) * metal_mu_sum                             
-    for k, col in element_column_map.items():
-        phi -= (num_dict[k] - element_y2x_map[k] * num_metal) * (grid[:,col] + element_eref_map[k])
+    phi = epot - num_metal / len(target_metal_species) * metal_mu_sum
+    if element_column_map is not None:
+        for k, col in element_column_map.items():
+            phi -= (num_dict[k] - element_y2x_map[k] * num_metal) * (grid[:,col] + element_eref_map[k])
 
     if dimensionless:
         phi /= (units.kB * T)

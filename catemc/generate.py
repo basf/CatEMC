@@ -8,8 +8,6 @@ from acat.build.adlayer import max_dist_coverage_pattern as maxdcp
 from ase.io import read, write
 from ase.formula import Formula
 from collections import Counter
-from itertools import combinations
-from scipy.optimize import linprog
 import numpy as np
 import random
 import pickle
@@ -342,150 +340,99 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
     return atoms_list
 
 
-def get_elemental_mu_limits(mu_gas):
+def get_ls_elemental_mu(mu_gas, elemental_mu=None):
     """
-    Decompose molecular μ (absolute) into elemental μ candidate cloud and return
-    per-element min/max and a chosen backbone candidate.
+    Compute least-squares elemental chemical potentials from gas chemical potentials.
 
     Parameters
     ----------
-    mu_gas : dict
-        {formula_str: float or 1D np.array} absolute molecular chemical potentials (eV).
-        Scalars are broadcasted to a common length L. All values must be finite.
+    mu_gas: dict {str: float or 1D np.array}
+        A dictionary that maps between gas molecule formula and absolute molecular chemical 
+        potential(s) in eV.
 
-    Returns
-    -------
-    out : dict
-        Keys for each element EL:
-          'EL_min'       : float or 1D np.array (absolute μ lower bound)
-          'EL_max'       : float or 1D np.array (absolute μ upper bound)
-          'EL_backbone'  : float or 1D np.array (absolute μ of chosen backbone solution)
-    Raises
-    ------
-    ValueError if input shapes mismatch, contains NaN/Inf, or if at any index there are
-    fewer species than elements or no invertible MxM subset exists.
+    elemental_mu: dict {str: float or 1D np.array}, default None 
+        Optional pinned gas molecule chemical potential(s) in eV.
+
     """
-    # --- Broadcast mu_gas values to common length L ---
-    if not isinstance(mu_gas, dict):
-        raise TypeError("mu_gas must be a dict: {formula: float or 1D np.array}.")
-    arrs = {}
+
+    # build stoichiometric matrix N (n_species x M)
+    species = list(mu_gas.keys())
+    counts = []
+    elems_set = set()
+    for s in species:
+        atom_list = list(Formula(s))
+        c = Counter(atom_list)
+        counts.append(c)
+        elems_set.update(c.keys())
+    elems = sorted(elems_set)
+    n_species = len(species)
+    M = len(elems)
+    N = np.array([[counts[i].get(el, 0) for el in elems] for i in range(n_species)], dtype=float)
+
+    # broadcast molecular vector g into G (n_species x L)
     lengths = []
-    for mol, v in mu_gas.items():
+    for v in mu_gas.values():
         a = np.asarray(v)
         if a.ndim == 0:
             lengths.append(1)
         elif a.ndim == 1:
             lengths.append(a.shape[0])
         else:
-            raise ValueError(f"mu_gas['{mol}'] must be scalar or 1D array.")
-        arrs[mol] = a
-    L = max(lengths) if lengths else 0
-    for mol, a in list(arrs.items()):
+            raise ValueError('mu_gas values must be scalar or 1D arrays.')
+    L = int(max(lengths))
+    G = np.zeros((n_species, L), dtype=float)
+    for i, sp in enumerate(species):
+        a = np.asarray(mu_gas[sp], dtype=float)
         if a.ndim == 0:
-            arrs[mol] = np.full(L, float(a))
-        elif a.shape[0] == 1 and L > 1:
-            arrs[mol] = np.full(L, float(a[0]))
+            G[i, :] = float(a)
         elif a.shape[0] == L:
-            arrs[mol] = a.astype(float)
+            G[i, :] = a
+        elif a.shape[0] == 1:
+            G[i, :] = float(a[0])
         else:
-            raise ValueError(f"Cannot broadcast mu_gas['{mol}'] length {a.shape[0]} to common length {L}.")
-    # require finite
-    for mol, a in arrs.items():
-        if not np.all(np.isfinite(a)):
-            raise ValueError(f"All entries of mu_gas['{mol}'] must be finite (no NaN/Inf).")
+            raise ValueError(f"Cannot broadcast mu_gas['{sp}'] to length {L}.")
 
-    # --- Parse stoichiometry and elements ---
-    mols = list(arrs.keys())
-    stoich = {}
-    elems_set = set()
-    for mol in mols:
-        atoms = list(Formula(mol))
-        cnt = {}
-        for el in atoms:
-            cnt[el] = cnt.get(el, 0) + 1
-            elems_set.add(el)
-        stoich[mol] = cnt
-    elems = sorted(elems_set)
-    M = len(elems)
-    if M == 0:
-        raise ValueError("No elements parsed from input formulas.")
-
-    # prepare outputs
-    if L == 1:
-        elem_min = {el: None for el in elems}
-        elem_max = {el: None for el in elems}
-        elem_back = {el: None for el in elems}
-    else:
-        elem_min = {el: np.full(L, np.nan) for el in elems}
-        elem_max = {el: np.full(L, np.nan) for el in elems}
-        elem_back = {el: np.full(L, np.nan) for el in elems}
-
-    # --- Per-index loop: enumerate all M-sized species subsets, solve exact algebraic solutions ---
-    for idx in range(L):
-        # Build full A (N x M) and b (N,)
-        N = len(mols)
-        if N < M:
-            raise ValueError(f"Index {idx}: insufficient species ({N}) for {M} elements.")
-        A = np.zeros((N, M), dtype=float)
-        b = np.zeros(N, dtype=float)
-        for i, mol in enumerate(mols):
-            cnt = stoich[mol]
-            for j, el in enumerate(elems):
-                A[i, j] = float(cnt.get(el, 0))
-            b[i] = float(arrs[mol][idx])
-
-        solutions = []       # list of elemental μ arrays (length M) from algebraic full-size subsets
-        subsets = []         # optional: store which subset produced the solution (indices)
-        # enumerate all combinations of M species
-        for combo in combinations(range(N), M):
-            A_sub = A[list(combo), :]   # M x M
-            # require full rank (invertible)
-            if np.linalg.matrix_rank(A_sub) < M:
-                continue
-            b_sub = b[list(combo)]
-            try:
-                mu_elem = np.linalg.solve(A_sub, b_sub)  # exact algebraic solution for this subset
-            except np.linalg.LinAlgError:
-                continue
-            solutions.append(mu_elem)
-            subsets.append(combo)
-
-        if len(solutions) == 0:
-            raise ValueError(f"Index {idx}: no invertible M×M subset found -> cannot build algebraic envelope.")
-
-        sols = np.vstack(solutions)   # shape (n_sols, M)
-
-        # per-element min/max across the discrete cloud
-        mins = np.min(sols, axis=0)
-        maxs = np.max(sols, axis=0)
-
-        # pick backbone: choose the candidate solution (one from 'solutions') with smallest maximum absolute residual
-        # residual measured against ALL species (A @ mu_elem - b)
-        best_idx = 0
-        best_res = np.inf
-        for k, mu_candidate in enumerate(solutions):
-            resid = np.max(np.abs(A.dot(mu_candidate) - b))
-            if resid < best_res:
-                best_res = resid
-                best_idx = k
-        backbone_mu = solutions[best_idx]
-
-        # assign outputs
-        for j, el in enumerate(elems):
-            if L == 1:
-                elem_min[el] = float(mins[j])
-                elem_max[el] = float(maxs[j])
-                elem_back[el] = float(backbone_mu[j])
+    # process pinned elemental μ if provided
+    pinned = {}
+    if elemental_mu is not None:
+        for el, val in elemental_mu.items():
+            if el not in elems:
+                raise ValueError(f"Pinned element '{el}' not present in parsed elements {elems}.")
+            a = np.asarray(val, dtype=float)
+            if a.ndim == 0:
+                pinned[el] = np.full(L, float(a))
+            elif a.ndim == 1 and a.shape[0] in (1, L):
+                pinned[el] = a.copy() if a.shape[0] == L else np.full(L, float(a[0]))
             else:
-                elem_min[el][idx] = float(mins[j])
-                elem_max[el][idx] = float(maxs[j])
-                elem_back[el][idx] = float(backbone_mu[j])
+                raise ValueError(f"Cannot broadcast elemental_mu['{el}'] to length {L}.")
 
-    # assemble final dict
-    out = {}
-    for el in elems:
-        out[f"{el}_min"] = elem_min[el]
-        out[f"{el}_max"] = elem_max[el]
-        out[f"{el}_backbone"] = elem_back[el]
+    # partition pinned / free
+    pinned_mask = np.array([el in pinned for el in elems], dtype=bool)
+    free_idx = np.where(~pinned_mask)[0].tolist()
+    pinned_idx = np.where(pinned_mask)[0].tolist()
+    MU = np.zeros((M, L), dtype=float)
+    # fill pinned into MU if present
+    if pinned_idx:
+        for j in pinned_idx:
+            MU[j, :] = pinned[elems[j]]
 
-    return out
+    # if nothing free, just return pinned
+    if len(free_idx) == 0:
+        return {el: (float(MU[j, 0]) if L == 1 else MU[j, :].copy()) for j, el in enumerate(elems)}
+
+    # RHS adjusted by pinned contribution (if any)
+    if pinned_idx:
+        N_p = N[:, pinned_idx]
+        m_p = np.vstack([MU[j, :] for j in pinned_idx])   # n_pinned x L
+        RHS = G - N_p.dot(m_p)
+    else:
+        RHS = G
+
+    # LS solve for free variables: mu_free = pinv(N_free) @ RHS
+    N_free = N[:, free_idx]
+    mu_free = np.linalg.pinv(N_free).dot(RHS)   # n_free x L
+
+    for k, j in enumerate(free_idx):
+        MU[j, :] = mu_free[k, :]
+
+    return {el: (float(MU[j, 0]) if L == 1 else MU[j, :].copy()) for j, el in enumerate(elems)}
