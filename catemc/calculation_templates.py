@@ -577,15 +577,6 @@ def detect_and_get_model(calc):
     Returns (True, model_obj) when `calc` is recognized and the expected
     attribute exists (non-None). Otherwise returns (False, None).
 
-    Rules:
-      - If `mace.calculators.mace` is available, treat any instance of
-        MACECalculator (including user subclasses) as supported and prefer
-        attributes 'mace_model' then 'model'. If none present, return the
-        wrapper instance itself.
-      - For other supported wrappers (fairchem, sevenn, orb_models,
-        mattersim, graph_pes, metatomic), match by the exact module substring
-        provided and return the first non-None attribute in the listed order.
-      - No other calculators will be reported as supported.
     """
     import torch
     SUPPORTED = {
@@ -596,14 +587,12 @@ def detect_and_get_model(calc):
         'graph_pes.utils.calculator': ('GraphPESCalculator', ('model',)),
         'metatomic_torch.metatomic.torch.ase_calculator': ('MetatomicCalculator', ('model',)),
     }
-    PREF_ATTRS_FOR_MACE = ('mace_model', 'model')
-
     mod = getattr(calc.__class__, '__module__', '') or ''
     name = getattr(calc.__class__, '__name__', '') or ''
     mod_l = mod.lower()
     name_l = name.lower()
 
-    # 1) explicit, reliable MACE subclass detection (covers user subclasses)
+    # 1) explicit, reliable MACE subclass detection
     if importlib.util.find_spec('mace.calculators.mace') is not None:
         mace_mod = importlib.import_module('mace.calculators.mace')
         MACECalculator = getattr(mace_mod, 'MACECalculator', None)
@@ -663,12 +652,9 @@ def _postprocess_bulk_worker(args):
     (dir_name, atoms, tmp_atoms, md_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
      update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot) = args
 
-    # follow serial naming/logic exactly
     T = atoms.info['key_value_pairs'].get(temperature_key)
     rep = atoms.info['key_value_pairs'][replica_key]
     atoms = rattle_close_atoms(atoms, min_distance=0.1)
-    # md_atoms here is the per-replica md snapshot or None
-    # keep serial behavior for fix_indices
     if fix_indices is None:
         fix_indices_local = []
     else:
@@ -712,11 +698,10 @@ def _postprocess_surface_worker(args):
      slab_indices, neighbor_cutoff, run_md, update_md_positions, update_relaxed_positions,
      adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot) = args
 
-    # follow the serial calculate_surface_fitness variable names and logic exactly
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
     mu = atoms.info['data']['mu']
-    md_atoms_local = md_atoms  # per-replica md snapshot or None
+    md_atoms_local = md_atoms
 
     atoms = rattle_close_atoms(atoms, min_distance=0.1)
     if fix_indices is None:
@@ -776,7 +761,7 @@ def _postprocess_surface_worker(args):
                 atoms.set_constraint(FixAtoms(indices=fix_indices))
             tmp_atoms = new_atoms.copy()
             tmp_atoms.calc = tmp_atoms.calc if hasattr(tmp_atoms, 'calc') else None
-            if True:  # serial re-relax uses LBFGS when final calc exists and fmax provided; in batch caller that step was already handled
+            if True:
                 try:
                     opt = LBFGS(tmp_atoms, logfile=None)
                     opt.run(fmax=None, steps=250)
@@ -855,7 +840,6 @@ def calculate_batch_bulk_fitness(
 
     import torch_sim as ts
     dir_name = '/'.join(traj_path.split('/')[:-1])
-    # prepare tmp_atoms_list and bookkeeping
     tmp_atoms_list = []
     temps = []
     for atoms in atoms_list:
@@ -868,15 +852,13 @@ def calculate_batch_bulk_fitness(
         temps.append(atoms.info['key_value_pairs'][temperature_key])
 
     last_relaxed_state = None
-    md_atoms_list = None  # will be set to list of md snapshots when run_md & update_md_positions
-
-    # iterate calculators in sequence
+    md_atoms_list = None
     for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
         supported, ts_model = detect_and_get_model(calc)
         is_last = (idx == len(calculator_list) - 1)
 
         if supported and (fmax is not None) and (ts_model is not None):
-            # MD via torch-sim: choose integrator based on presence of pressure
+            # MD via torch-sim
             if run_md:
                 timestep_ps = float(md_timestep / units.fs) * 1e-3
                 tag = f'{dir_name}/md'
@@ -906,12 +888,10 @@ def calculate_batch_bulk_fitness(
                                                  state_frequency=int(md_write_interval)),
                     )
                 ts.integrate(**integ_kwargs)
-
-                # capture per-replica MD final snapshots (deepcopy)
                 if update_md_positions:
                     md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
 
-            # Optimization via torch-sim: use FIRE; when pressure provided use Frechet cell filter via init_kwargs
+            # Relaxation via torch-sim
             conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
             if pressure is None:
                 last_relaxed_state = ts.optimize(
@@ -937,7 +917,7 @@ def calculate_batch_bulk_fitness(
                 tmp_atoms_list = list(last_relaxed_state)
 
         else:
-            # Fallback to ASE LBFGS (may include MD)
+            # Fallback to ASE LBFGS
             if fmax is None and not is_last:
                 continue
             ctx = multiprocessing.get_context('spawn')
@@ -950,30 +930,21 @@ def calculate_batch_bulk_fitness(
             pool.close()
             pool.join()
             tmp_atoms_list = results
-
-            # if we ran MD in fallback and update_md_positions requested, capture snapshots
             if run_md and update_md_positions:
                 md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
 
-    # try to extract energies from last_relaxed_state
     energies = None
     if last_relaxed_state is not None:
         energies = getattr(last_relaxed_state, 'energies', None) or getattr(last_relaxed_state, 'energy', None)
-
-    # final_calc for ASE energy evaluation preference
     final_calc = calculator_list[-1]
-
-    # assemble postprocessing args and run postprocessing in parallel
     ctx = multiprocessing.get_context('spawn')
     pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
     post_args = []
     for idx, (atoms, tmp_atoms) in enumerate(zip(atoms_list, tmp_atoms_list)):
-        # determine epot: ASE final_calc preferred
         epot = None
         if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
             tmp_atoms.calc = final_calc
             epot = tmp_atoms.get_potential_energy()
-        # fallback to energies from TS state if present
         if epot is None and energies is not None:
             if hasattr(energies, '__len__'):
                 if len(energies) > 0:
@@ -1023,7 +994,6 @@ def calculate_batch_surface_fitness(
 
     import torch_sim as ts
     dir_name = '/'.join(traj_path.split('/')[:-1])
-    # prepare tmp_atoms_list and bookkeeping
     tmp_atoms_list = []
     temps = []
     for atoms in atoms_list:
@@ -1036,14 +1006,14 @@ def calculate_batch_surface_fitness(
         temps.append(atoms.info['key_value_pairs'][temperature_key])
 
     last_relaxed_state = None
-    md_atoms_list = None  # default None; will store md snapshots if run_md & update_md_positions
+    md_atoms_list = None
 
-    # iterate calculators in sequence
     for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
         supported, ts_model = detect_and_get_model(calc)
         is_last = (idx == len(calculator_list) - 1)
 
         if supported and (fmax is not None) and (ts_model is not None):
+            # MD via torch-sim
             if run_md:
                 timestep_ps = float(md_timestep / units.fs) * 1e-3
                 tag = f'{dir_name}/md'
@@ -1063,7 +1033,7 @@ def calculate_batch_surface_fitness(
                 if update_md_positions:
                     md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
 
-            # batched optimization for surface: FIRE (pressure not applicable)
+            # Relaxation via torch-sim
             conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
             last_relaxed_state = ts.optimize(
                 system=tmp_atoms_list,
@@ -1078,7 +1048,7 @@ def calculate_batch_surface_fitness(
                 tmp_atoms_list = list(last_relaxed_state)
 
         else:
-            # Fallback to ASE LBFGS (may include MD)
+            # Fallback to ASE LBFGS
             if fmax is None and not is_last:
                 continue
             ctx = multiprocessing.get_context('spawn')
@@ -1095,14 +1065,10 @@ def calculate_batch_surface_fitness(
             if run_md and update_md_positions:
                 md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
 
-    # try to read energies from last_relaxed_state
     energies = None
     if last_relaxed_state is not None:
         energies = getattr(last_relaxed_state, 'energies', None) or getattr(last_relaxed_state, 'energy', None)
-
     final_calc = calculator_list[-1]
-
-    # postprocess per-replica in parallel (adsorbate detection, phi, vacancy insertion, write)
     ctx = multiprocessing.get_context('spawn')
     pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
     post_args = []
