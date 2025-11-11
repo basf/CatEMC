@@ -7,10 +7,8 @@ from acat.build.adlayer import min_dist_coverage_pattern as mindcp
 from acat.build.adlayer import max_dist_coverage_pattern as maxdcp
 from ase.io import read, write
 from ase.formula import Formula
-from itertools import combinations
 from collections import Counter
 import numpy as np
-import warnings
 import random
 import pickle
 import sys
@@ -342,160 +340,99 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
     return atoms_list
 
 
-def _to_array_and_broadcast_single(dct):
-    """Turn dict values (scalar or 1D array) to arrays and broadcast to common length L."""
+def get_ls_elemental_mu(mu_gas, elemental_mu=None):
+    """
+    Compute least-squares elemental chemical potentials from gas chemical potentials.
 
-    arrs = {}
+    Parameters
+    ----------
+    mu_gas: dict {str: float or 1D np.array}
+        A dictionary that maps between gas molecule formula and absolute molecular chemical 
+        potential(s) in eV.
+
+    elemental_mu: dict {str: float or 1D np.array}, default None 
+        Optional pinned gas molecule chemical potential(s) in eV.
+
+    """
+
+    # build stoichiometric matrix N (n_species x M)
+    species = list(mu_gas.keys())
+    counts = []
+    elems_set = set()
+    for s in species:
+        atom_list = list(Formula(s))
+        c = Counter(atom_list)
+        counts.append(c)
+        elems_set.update(c.keys())
+    elems = sorted(elems_set)
+    n_species = len(species)
+    M = len(elems)
+    N = np.array([[counts[i].get(el, 0) for el in elems] for i in range(n_species)], dtype=float)
+
+    # broadcast molecular vector g into G (n_species x L)
     lengths = []
-    for k, v in dct.items():
+    for v in mu_gas.values():
         a = np.asarray(v)
         if a.ndim == 0:
             lengths.append(1)
         elif a.ndim == 1:
             lengths.append(a.shape[0])
         else:
-            raise ValueError(f"Input for '{k}' must be scalar or 1D array.")
-        arrs[k] = a
-    L = max(lengths)
-    for k, a in arrs.items():
+            raise ValueError('mu_gas values must be scalar or 1D arrays.')
+    L = int(max(lengths))
+    G = np.zeros((n_species, L), dtype=float)
+    for i, sp in enumerate(species):
+        a = np.asarray(mu_gas[sp], dtype=float)
         if a.ndim == 0:
-            arrs[k] = np.full(L, float(a))
-        elif a.shape[0] == 1 and L > 1:
-            arrs[k] = np.full(L, float(a[0]))
+            G[i, :] = float(a)
         elif a.shape[0] == L:
-            arrs[k] = a.astype(float)
+            G[i, :] = a
+        elif a.shape[0] == 1:
+            G[i, :] = float(a[0])
         else:
-            raise ValueError(f"Cannot broadcast '{k}' length {a.shape[0]} to common length {L}.")
+            raise ValueError(f"Cannot broadcast mu_gas['{sp}'] to length {L}.")
 
-    return arrs, L
+    # process pinned elemental μ if provided
+    pinned = {}
+    if elemental_mu is not None:
+        for el, val in elemental_mu.items():
+            if el not in elems:
+                raise ValueError(f"Pinned element '{el}' not present in parsed elements {elems}.")
+            a = np.asarray(val, dtype=float)
+            if a.ndim == 0:
+                pinned[el] = np.full(L, float(a))
+            elif a.ndim == 1 and a.shape[0] in (1, L):
+                pinned[el] = a.copy() if a.shape[0] == L else np.full(L, float(a[0]))
+            else:
+                raise ValueError(f"Cannot broadcast elemental_mu['{el}'] to length {L}.")
 
+    # partition pinned / free
+    pinned_mask = np.array([el in pinned for el in elems], dtype=bool)
+    free_idx = np.where(~pinned_mask)[0].tolist()
+    pinned_idx = np.where(pinned_mask)[0].tolist()
+    MU = np.zeros((M, L), dtype=float)
+    # fill pinned into MU if present
+    if pinned_idx:
+        for j in pinned_idx:
+            MU[j, :] = pinned[elems[j]]
 
-def get_elemental_mu_limits(mu_gas, det_tol=1e-12):
-    """
-    Compute min/max elemental chemical potentials from molecular chemical potentials.
+    # if nothing free, just return pinned
+    if len(free_idx) == 0:
+        return {el: (float(MU[j, 0]) if L == 1 else MU[j, :].copy()) for j, el in enumerate(elems)}
 
-    Parameters
-    ----------
-    mu_gas : dict
-        keys = molecule formulas (strings, e.g. 'CO2','C3H6','H2O'), values = float or 1D np.array
-        representing the absolute chemical potential mu_g (in eV). Arrays must have the same length.
-
-    det_tol : float
-        determinant tolerance used to consider a stoichiometric submatrix invertible.
-
-    Returns
-    -------
-    out : dict
-        keys: '<ELEMENT>_min', '<ELEMENT>_max' (e.g. 'C_min','C_max','O_min','O_max', ...)
-        Values: float (if inputs scalar) or 1D np.array of length L (if inputs arrays).
-    """
-
-    # broadcast input arrays; all species will have same length L
-    mu_arrs, L = _to_array_and_broadcast_single(mu_gas)
-    # drop species that carry no information (all-NaN)
-    mu_arrs = {mol: arr for mol, arr in mu_arrs.items() if np.any(np.isfinite(arr))}
-    if len(mu_arrs) == 0:
-        raise ValueError('All provided mu_gas values are NaN or empty. Provide at least one finite mu.')
-
-    mol_list = list(mu_arrs.keys())
-    n_species_total = len(mol_list)
-
-    # global element set from species that remain (deterministic ordering)
-    element_set = set()
-    stoich_list_global = []
-    for mol in mol_list:
-        atom_list = list(Formula(mol))
-        counts = {}
-        for el in atom_list:
-            counts[el] = counts.get(el, 0) + 1
-            element_set.add(el)
-        stoich_list_global.append(counts)
-    element_list_global = sorted(element_set)
-
-    # prepare outputs (per-element, scalars or arrays)
-    if L == 1:
-        elem_min = {el: None for el in element_list_global}
-        elem_max = {el: None for el in element_list_global}
+    # RHS adjusted by pinned contribution (if any)
+    if pinned_idx:
+        N_p = N[:, pinned_idx]
+        m_p = np.vstack([MU[j, :] for j in pinned_idx])   # n_pinned x L
+        RHS = G - N_p.dot(m_p)
     else:
-        elem_min = {el: np.full(L, np.nan) for el in element_list_global}
-        elem_max = {el: np.full(L, np.nan) for el in element_list_global}
+        RHS = G
 
-    # Main per-condition loop
-    for idx in range(L):
-        # pick species that have finite mu at this index
-        available_species = [mol for mol in mol_list if np.isfinite(mu_arrs[mol][idx])]
-        if len(available_species) == 0:
-            # nothing to do: all elements remain NaN for this index
-            continue
+    # LS solve for free variables: mu_free = pinv(N_free) @ RHS
+    N_free = N[:, free_idx]
+    mu_free = np.linalg.pinv(N_free).dot(RHS)   # n_free x L
 
-        # build stoichiometry A_idx and element_list_idx from available_species
-        stoich_list_idx = []
-        element_set_idx = set()
-        for mol in available_species:
-            atom_list = list(Formula(mol))
-            counts = {}
-            for el in atom_list:
-                counts[el] = counts.get(el, 0) + 1
-                element_set_idx.add(el)
-            stoich_list_idx.append(counts)
-        element_list_idx = sorted(element_set_idx)
-        n_species = len(available_species)
-        n_elems = len(element_list_idx)
+    for k, j in enumerate(free_idx):
+        MU[j, :] = mu_free[k, :]
 
-        # build A_idx (n_species x n_elems)
-        A_idx = np.zeros((n_species, n_elems), dtype=float)
-        for i, counts in enumerate(stoich_list_idx):
-            for j, el in enumerate(element_list_idx):
-                A_idx[i, j] = float(counts.get(el, 0))
-
-        # build molecular mu vector b_idx
-        b_idx = np.array([mu_arrs[mol][idx] for mol in available_species], dtype=float)
-
-        # if there are enough species to form square systems, enumerate combinations
-        solutions = []
-        if n_elems <= n_species:
-            for combo in combinations(range(n_species), n_elems):
-                A_sub = A_idx[list(combo), :]   # shape (n_elems x n_elems)
-                if abs(np.linalg.det(A_sub)) <= det_tol:
-                    continue
-                b_sub = b_idx[list(combo)]
-                try:
-                    mu_elem = np.linalg.solve(A_sub, b_sub)   # length n_elems
-                except np.linalg.LinAlgError:
-                    continue
-                solutions.append(mu_elem)
-
-        if len(solutions) > 0:
-            sols = np.vstack(solutions)  # (n_solutions, n_elems)
-            mins = np.min(sols, axis=0)
-            maxs = np.max(sols, axis=0)
-            # assign mins/maxs into global element arrays (for elements missing here, leave NaN)
-            for j, el in enumerate(element_list_idx):
-                if L == 1:
-                    elem_min[el] = float(mins[j])
-                    elem_max[el] = float(maxs[j])
-                else:
-                    elem_min[el][idx] = float(mins[j])
-                    elem_max[el][idx] = float(maxs[j])
-        else:
-            # fallback least-squares on available species
-            warnings.warn('Degenerate case! Fall back to least-squares solutions with min = max = sol')
-            try:
-                sol, *_ = np.linalg.lstsq(A_idx, b_idx, rcond=None)
-            except np.linalg.LinAlgError:
-                sol = np.full(n_elems, np.nan)
-            for j, el in enumerate(element_list_idx):
-                if L == 1:
-                    elem_min[el] = float(sol[j])
-                    elem_max[el] = float(sol[j])
-                else:
-                    elem_min[el][idx] = float(sol[j])
-                    elem_max[el][idx] = float(sol[j])
-
-    # build output dict using global element list ordering
-    out = {}
-    for el in element_list_global:
-        out[f'{el}_min'] = elem_min[el]
-        out[f'{el}_max'] = elem_max[el]
-
-    return out
+    return {el: (float(MU[j, 0]) if L == 1 else MU[j, :].copy()) for j, el in enumerate(elems)}

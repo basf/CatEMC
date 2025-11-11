@@ -50,7 +50,7 @@ Generates a set of `pop_size` initial on-lattice bulk replicas (`ase.Atoms`) tha
 **Files required and produced**
 
 * Input: a (relaxed) template structure file.
-* Output: `*_input_pop.traj` containing `pop_size` numer of `ase.Atoms` with `atoms.info` set (`.info['key_value_pairs']['temperature']`).
+* Output: `*_input_pop.traj` containing `pop_size` number of `ase.Atoms` with `atoms.info['key_value_pairs']['temperature']` set.
 
 **Practical tips**
 
@@ -320,7 +320,7 @@ Generates a set of `pop_size` initial on-lattice replicas for surface GC-EMC. It
 **Files required and produced**
 
 * Input: a (relaxed) template structure file.
-* Output: `*_input_pop.traj` containing `pop_size` number of `ase.Atoms` with `atoms.info` set (`.info['key_value_pairs']['temperature']`, `.info['data']['mu']` and `.info['data']['mu_window']`).
+* Output: `*_input_pop.traj` containing `pop_size` number of `ase.Atoms` with `atoms.info['key_value_pairs']['temperature']`, `atoms.info['data']['mu']` and `atoms.info['data']['mu_window']` set.
 
 **Practical tips**
 

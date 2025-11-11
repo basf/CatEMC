@@ -387,7 +387,8 @@ class GCEMC(EMC):
                             row.potential_energy
                         )
                         atoms.info["data"]["mu"] = row.data.mu
-                        atoms.info["data"]["mu_window"] = row.data.mu_window
+                        if "mu_window" in row.data:
+                            atoms.info["data"]["mu_window"] = row.data.mu_window
                         energy_data[T][row.key_value_pairs[self.replica_key]][
                             row.emc_step - 1
                         ] = atoms
@@ -716,9 +717,10 @@ class GCEMC(EMC):
                         offsprings[idx].info["data"]["mu"] = parents[idx].info["data"][
                             "mu"
                         ]
-                        offsprings[idx].info["data"]["mu_window"] = parents[idx].info[
-                            "data"
-                        ]["mu_window"]
+                        if "mu_window" in parents[idx].info["data"]:
+                            offsprings[idx].info["data"]["mu_window"] = parents[
+                                idx
+                            ].info["data"]["mu_window"]
                         write(
                             f"{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj",
                             offsprings[idx],
@@ -765,49 +767,51 @@ class GCEMC(EMC):
                             element_pools=element_pools,
                             element_probabilities=self.bulk_metal_composition,
                         ),
-                        AddAdsorbate(
-                            adsorbate_species=adsorbate_species,
-                            species_probabilities=species_probabilities,
-                            max_species=self.max_adsorbate_species,
-                            max_coverage=self.max_adsorbate_coverage,
-                            adsorption_sites=site_path,
-                            min_adsorbate_distance=self.adsorbate_adsorbate_dmin,
-                            catalyst_indices=self.slab_indices,
-                            dmax=self.adsorbate_surface_dmax,
-                        ),
-                        RemoveAdsorbate(
-                            adsorbate_species=adsorbate_species,
-                            adsorption_sites=site_path,
-                            catalyst_indices=self.slab_indices,
-                            dmax=self.adsorbate_surface_dmax,
-                        ),
-                        MoveAdsorbate(
-                            adsorbate_species=adsorbate_species,
-                            adsorption_sites=site_path,
-                            catalyst_indices=self.slab_indices,
-                            min_adsorbate_distance=self.adsorbate_adsorbate_dmin,
-                            dmax=self.adsorbate_surface_dmax,
-                        ),
-                        ReplaceAdsorbate(
-                            adsorbate_species=adsorbate_species,
-                            species_probabilities=species_probabilities,
-                            max_species=self.max_adsorbate_species,
-                            adsorption_sites=site_path,
-                            catalyst_indices=self.slab_indices,
-                            min_adsorbate_distance=self.adsorbate_adsorbate_dmin,
-                            dmax=self.adsorbate_surface_dmax,
-                        ),
-                        ReplaceAdsorbateSpecies(
-                            adsorbate_species=adsorbate_species,
-                            species_probabilities=species_probabilities,
-                            adsorption_sites=site_path,
-                            catalyst_indices=self.slab_indices,
-                            dmax=self.adsorbate_surface_dmax,
-                        ),
                     ]
-                    weights = [
-                        self.slab_intraswap_rate,
-                        self.slab_mutation_rate,
+                    weights = [self.slab_intraswap_rate, self.slab_mutation_rate]
+                    if self.adsorbate_species is not None:
+                        operators += [
+                            AddAdsorbate(
+                                adsorbate_species=adsorbate_species,
+                                species_probabilities=species_probabilities,
+                                max_species=self.max_adsorbate_species,
+                                max_coverage=self.max_adsorbate_coverage,
+                                adsorption_sites=site_path,
+                                min_adsorbate_distance=self.adsorbate_adsorbate_dmin,
+                                catalyst_indices=self.slab_indices,
+                                dmax=self.adsorbate_surface_dmax,
+                            ),
+                            RemoveAdsorbate(
+                                adsorbate_species=adsorbate_species,
+                                adsorption_sites=site_path,
+                                catalyst_indices=self.slab_indices,
+                                dmax=self.adsorbate_surface_dmax,
+                            ),
+                            MoveAdsorbate(
+                                adsorbate_species=adsorbate_species,
+                                adsorption_sites=site_path,
+                                catalyst_indices=self.slab_indices,
+                                min_adsorbate_distance=self.adsorbate_adsorbate_dmin,
+                                dmax=self.adsorbate_surface_dmax,
+                            ),
+                            ReplaceAdsorbate(
+                                adsorbate_species=adsorbate_species,
+                                species_probabilities=species_probabilities,
+                                max_species=self.max_adsorbate_species,
+                                adsorption_sites=site_path,
+                                catalyst_indices=self.slab_indices,
+                                min_adsorbate_distance=self.adsorbate_adsorbate_dmin,
+                                dmax=self.adsorbate_surface_dmax,
+                            ),
+                            ReplaceAdsorbateSpecies(
+                                adsorbate_species=adsorbate_species,
+                                species_probabilities=species_probabilities,
+                                adsorption_sites=site_path,
+                                catalyst_indices=self.slab_indices,
+                                dmax=self.adsorbate_surface_dmax,
+                            ),
+                        ]
+                    weights += [
                         self.adsorbate_insertion_rate,
                         self.adsorbate_removal_rate,
                         self.adsorbate_displacement_rate,
@@ -825,9 +829,10 @@ class GCEMC(EMC):
                     ].info["key_value_pairs"][self.temperature_key]
                     offspring.info["key_value_pairs"][self.replica_key] = rep
                     offspring.info["data"]["mu"] = parents[0].info["data"]["mu"]
-                    offspring.info["data"]["mu_window"] = parents[0].info["data"][
-                        "mu_window"
-                    ]
+                    if "mu_window" in parents[0].info["data"]:
+                        offspring.info["data"]["mu_window"] = parents[0].info["data"][
+                            "mu_window"
+                        ]
                     write(
                         f"{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj",
                         offspring,
