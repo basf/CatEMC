@@ -1,5 +1,6 @@
 from catemc.geemc import GEEMC
 from ase.io import read, write
+from ase import units
 import numpy as np
 import sys
 import os
@@ -23,7 +24,7 @@ emc = GEEMC(system_name,
             input_pop=input_pop,
             fix_indices=None,
             trim_generation=100,
-            pressure=0.,
+            pressure=1.01325*units.bar,
             md_generation=10,
             exchange_generation=1,
             bias_starting_step=300,

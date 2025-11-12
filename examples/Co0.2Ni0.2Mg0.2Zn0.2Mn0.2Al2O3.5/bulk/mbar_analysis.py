@@ -1,4 +1,5 @@
 from catemc.analysis import GEEMCAnalysis
+from ase import units
 import pickle
 
 system_name = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk'
@@ -13,7 +14,7 @@ ana = GEEMCAnalysis(
         replica_key='replica',
         acceptance_key='accepted')
 
-ana.prepare_data(use_exist=True, pressure=0., raw_score_cutoff=-10000.)
+ana.prepare_data(use_exist=True, pressure=1.01325*units.bar, raw_score_cutoff=-10000.)
 ana.get_trajectory(replica=10)
 ana.get_dmu_estimates(starting_step=300, ending_step=1000, sample_stride=10, 
                       target_temperatures=[723, 800, 823, 873, 950, 1023, 1100, 1173],
