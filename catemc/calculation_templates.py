@@ -34,6 +34,7 @@ def calculate_bulk_fitness(
         md_write_interval,
         pressure=None,
         md_taup=1000*units.fs,
+        compressibility=5e-5/units.bar,
         fix_indices=None,
         update_md_positions=True,
         update_relaxed_positions=False,
@@ -73,9 +74,14 @@ def calculate_bulk_fitness(
     md_timestep, md_taut, md_steps, md_write_interval, md_taup: 
         MD parameters
 
-    pressure: pressure, default None
-        Target pressure for running NPT and cell relaxation. Running
-        NVT MD and fixed-cell relaxation if this is not set.
+    pressure: float, default None
+        Target pressure in atomic unit (eV/Å^3) for running NPT 
+        and cell relaxation. Running NVT MD and fixed-cell 
+        relaxation if this is not set.
+
+    compressibility: float, default 5e-5/bar
+        The compressibility of the material in atomic unit (Å^3/eV).
+        Only relevant for NPT MD.
 
     update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
@@ -139,7 +145,7 @@ def calculate_bulk_fitness(
                 else:
                     dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
                                        taut=md_taut, pressure_au=pressure,
-                                       taup=md_taup, compressibility_au=4.57e-5/units.bar,
+                                       taup=md_taup, compressibility_au=compressibility,
                                        logfile=tag+f'_{rep}.log', trajectory=tag+f'_{rep}.traj', 
                                        append_trajectory=True)
                 traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
@@ -624,7 +630,7 @@ def detect_and_get_model(calc):
 
 def _relax_worker(args):
     (tmp_atoms, calc, fmax, is_last_calc, run_md_flag, md_timestep, md_taut, md_steps, 
-     md_write_interval, pressure, md_taup, temperature) = args
+     md_write_interval, pressure, md_taup, compressibility, temperature) = args
     tmp_atoms.calc = calc
     if is_last_calc and run_md_flag:
         # run MD as in serial function
@@ -637,7 +643,7 @@ def _relax_worker(args):
         else:
             dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=temperature,
                                taut=md_taut, pressure_au=pressure,
-                               taup=md_taup, compressibility_au=4.57e-5/units.bar,
+                               taup=md_taup, compressibility_au=compressibility,
                                logfile=None, trajectory=None, append_trajectory=False)
         dyn.run(md_steps)
     if fmax is not None:
@@ -828,7 +834,8 @@ def calculate_batch_bulk_fitness(
         md_steps,
         md_write_interval,
         pressure=None,
-        md_taup=1000 * units.fs,
+        md_taup=1000*units.fs,
+        compressibility=5e-5/units.bar,
         fix_indices=None,
         update_md_positions=True,
         update_relaxed_positions=False,
@@ -925,7 +932,7 @@ def calculate_batch_bulk_fitness(
             work_args = []
             for tmp, temp in zip(tmp_atoms_list, temps):
                 work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, md_taut,
-                                 md_steps, md_write_interval, pressure, md_taup, temp))
+                                 md_steps, md_write_interval, pressure, md_taup, compressibility, temp))
             results = pool.map(_relax_worker, work_args)
             pool.close()
             pool.join()
