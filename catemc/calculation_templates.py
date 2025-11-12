@@ -468,7 +468,7 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
 
     # relaxed positions and cell for MIC unwrapping and vectorized distance
     R = tmp_atoms.get_positions()   # (N_real,3)
-    cell = np.asarray(tmp_atoms.get_cell())   # (3,3)
+    cell = tmp_atoms.get_cell().copy()   # (3,3)
     inv_cell = np.linalg.inv(cell)
 
     def min_image_min_dist_and_idx(candidate: np.ndarray):
@@ -552,6 +552,7 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
         pseudo_atoms.positions[real_indices] = R
     if vac_indices:
         pseudo_atoms.positions[vac_indices] = np.vstack(vac_positions)
+    pseudo_atoms.cell = cell
 
     return pseudo_atoms
 
