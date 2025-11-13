@@ -176,6 +176,10 @@ class SubprocessManager:
         results: list of bool
             Success status for each command.
         """
+        # Clear semaphores to prevent "bound to a different event loop" errors
+        # asyncio.run() creates a new event loop each time, so old semaphores become invalid
+        self._semaphore_dict.clear()
+
         # Always use asyncio.run in a synchronous context
         # If this is called from async code, the caller should use run_batch directly
         return asyncio.run(self.run_batch(commands))
