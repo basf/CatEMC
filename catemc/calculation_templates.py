@@ -421,8 +421,7 @@ def calculate_surface_fitness(
 
 def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5):
     """
-    Fast centroid insertion with PBC-aware unwrapping (minimum-image 
-    relative to vacancy) and guaranteed minimum distance.
+    Vacancy insertion based on centroid update.
 
     Parameters
     ----------
@@ -430,20 +429,19 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
         Original structure containing 'X' vacancy atoms.
 
     tmp_atoms: ase.Atoms
-        Relaxed structure containing only the real atoms in the 
-        same order as mask.
+        Relaxed structure containing only the real atoms.
 
     target_metal_species: list of strs
-        Symbols considered metal neighbors.
+        Metal species that can be considered as neighbors of vacancies.
 
     neighbor_cutoff: float
-        Cutoff (Å) for NeighborList on original topology.
+        Cutoff (Å) for NeighborList.
 
     Returns
     -------
     pseudo_atoms: ase.Atoms
-        Copy of `atoms` with real atoms from `tmp_atoms` and inserted 
-        'X' positions.
+        Copy of `atoms` with real atoms and cell from `tmp_atoms` and 
+        inserted 'X' positions.
 
     """
 
