@@ -167,10 +167,10 @@ class EMCPopulation(Population):
                                 offsprings[sorted_oids[0]], offsprings[sorted_oids[1]])
 
                 if pressure is not None:
-                    V11 = sorted_parents[0].get_volume()
-                    V12 = sorted_offsprings[0].get_volume()
-                    V21 = sorted_parents[1].get_volume()
-                    V22 = sorted_offsprings[1].get_volume()
+                    V11 = sorted_parents[0].info['key_value_pairs']['volume']
+                    V12 = sorted_offsprings[0].info['key_value_pairs']['volume']
+                    V21 = sorted_parents[1].info['key_value_pairs']['volume']
+                    V22 = sorted_offsprings[1].info['key_value_pairs']['volume']
                     N11 = len([a for a in sorted_parents[0] if a.symbol != 'X'])
                     N12 = len([a for a in sorted_offsprings[0] if a.symbol != 'X'])
                     N21 = len([a for a in sorted_parents[1] if a.symbol != 'X'])
@@ -227,8 +227,8 @@ class EMCPopulation(Population):
                             metal_species_probabilities,
                             temperature_key=self.tk)
                 if pressure is not None:
-                    V1 = parents[0].get_volume()
-                    V2 = offsprings[0].get_volume()
+                    V1 = parents[0].info['key_value_pairs']['volume']
+                    V2 = offsprings[0].info['key_value_pairs']['volume']
                     N1 = len([a for a in parents[0] if a.symbol != 'X'])
                     N2 = len([a for a in offsprings[0] if a.symbol != 'X'])
                     lnV =  N2*np.log(V2) - N1*np.log(V1)
