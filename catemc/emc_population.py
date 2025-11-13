@@ -231,7 +231,7 @@ class EMCPopulation(Population):
                     V2 = offsprings[0].info['key_value_pairs']['volume']
                     N1 = len([a for a in parents[0] if a.symbol != 'X'])
                     N2 = len([a for a in offsprings[0] if a.symbol != 'X'])
-                    lnV =  N2*np.log(V2) - N1*np.log(V1)
+                    lnV = N2*np.log(V2) - N1*np.log(V1)
                     df += pressure * (V2 - V1)
                     lnC = np.log(prefactor) + lnV
                     prefactor = np.exp(lnC)

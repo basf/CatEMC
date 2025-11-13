@@ -170,13 +170,15 @@ def calculate_bulk_fitness(
         pseudo_atoms = atoms.copy()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     else:
-        volume = tmp_atoms.get_volume()
         if (md_atoms is not None) and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
+            volume = md_atoms.get_volume()
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+            volume = tmp_atoms.get_volume()
         else:
             pseudo_atoms = atoms.copy()
+            volume = atoms.get_volume()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
 
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
