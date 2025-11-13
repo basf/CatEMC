@@ -34,6 +34,7 @@ def calculate_bulk_fitness(
         md_write_interval,
         pressure=None,
         md_taup=1000*units.fs,
+        compressibility=5e-5/units.bar,
         fix_indices=None,
         update_md_positions=True,
         update_relaxed_positions=False,
@@ -73,9 +74,14 @@ def calculate_bulk_fitness(
     md_timestep, md_taut, md_steps, md_write_interval, md_taup: 
         MD parameters
 
-    pressure: pressure, default None
-        Target pressure for running NPT and cell relaxation. Running
-        NVT MD and fixed-cell relaxation if this is not set.
+    pressure: float, default None
+        Target pressure in atomic unit (eV/Å^3) for running NPT 
+        and cell relaxation. Running NVT MD and fixed-cell 
+        relaxation if this is not set.
+
+    compressibility: float, default 5e-5/bar
+        The compressibility of the material in atomic unit (Å^3/eV).
+        Only relevant for NPT MD.
 
     update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
@@ -139,7 +145,7 @@ def calculate_bulk_fitness(
                 else:
                     dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
                                        taut=md_taut, pressure_au=pressure,
-                                       taup=md_taup, compressibility_au=4.57e-5/units.bar,
+                                       taup=md_taup, compressibility_au=compressibility,
                                        logfile=tag+f'_{rep}.log', trajectory=tag+f'_{rep}.traj', 
                                        append_trajectory=True)
                 traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
@@ -415,8 +421,7 @@ def calculate_surface_fitness(
 
 def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5):
     """
-    Fast centroid insertion with PBC-aware unwrapping (minimum-image 
-    relative to vacancy) and guaranteed minimum distance.
+    Vacancy insertion based on centroid update.
 
     Parameters
     ----------
@@ -424,20 +429,19 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
         Original structure containing 'X' vacancy atoms.
 
     tmp_atoms: ase.Atoms
-        Relaxed structure containing only the real atoms in the 
-        same order as mask.
+        Relaxed structure containing only the real atoms.
 
     target_metal_species: list of strs
-        Symbols considered metal neighbors.
+        Metal species that can be considered as neighbors of vacancies.
 
     neighbor_cutoff: float
-        Cutoff (Å) for NeighborList on original topology.
+        Cutoff (Å) for NeighborList.
 
     Returns
     -------
     pseudo_atoms: ase.Atoms
-        Copy of `atoms` with real atoms from `tmp_atoms` and inserted 
-        'X' positions.
+        Copy of `atoms` with real atoms and cell from `tmp_atoms` and 
+        inserted 'X' positions.
 
     """
 
@@ -452,7 +456,7 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
     for new_j, orig_i in enumerate(new_to_orig):
         orig_to_new[orig_i] = new_j
 
-    # neighborlist built on original full-atom topology (to find which atoms neigh the vacancy)
+    # neighborlist built on original full-atom topology (to find which atoms neighbor the vacancy)
     nl = NeighborList([neighbor_cutoff] * len(atoms), self_interaction=False, bothways=True)
     nl.update(atoms)
 
@@ -462,8 +466,10 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
 
     # relaxed positions and cell for MIC unwrapping and vectorized distance
     R = tmp_atoms.get_positions()   # (N_real,3)
-    cell = np.asarray(tmp_atoms.get_cell())   # (3,3)
+    cell = tmp_atoms.get_cell().copy()   # (3,3)
     inv_cell = np.linalg.inv(cell)
+    orig_cell = atoms.get_cell().copy()
+    orig_inv = np.linalg.inv(orig_cell)
 
     def min_image_min_dist_and_idx(candidate: np.ndarray):
         """
@@ -484,11 +490,10 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
 
     vac_positions = []
     # Precompute fractional coordinates of relaxed atoms (R) in tmp_atoms cell
-    # (not strictly required for centroid, but convenient if needed later)
     # R_frac = R @ inv_cell
     for vi in vac_indices:
         neigh_inds, _ = nl.get_neighbors(vi)
-        # collect mapped relaxed neighbor positions (Cartesian)
+        # collect mapped relaxed neighbor positions
         neigh_pos = []
         for mi in neigh_inds:
             if atoms[mi].symbol in target_metal_species:
@@ -497,13 +502,13 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
                     neigh_pos.append(R[mapped])
         if len(neigh_pos) == 0:
             # no metal neighbors -> keep the original vacancy location
-            vac_positions.append(atoms.positions[vi].copy())
+            orig_frac = atoms.positions[vi] @ orig_inv
+            vac_positions.append(orig_frac @ cell)
             continue
-
         neigh_pos = np.asarray(neigh_pos)   # (M,3)
         # Compute centroid using MIC relative to the vacancy position
         # Convert both neighbor positions and the vacancy position into fractional coords
-        # using the relaxed cell (tmp_atoms cell), then wrap neighbor fractional differences
+        # using the relaxed cell, then wrap neighbor fractional differences
         # to [-0.5,0.5) relative to vacancy fractional coordinate, then convert back.
         vac_frac = (atoms.positions[vi] @ inv_cell)
         neigh_frac = neigh_pos @ inv_cell           
@@ -513,12 +518,11 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
         neigh_images_frac = vac_frac + delta_frac    
         neigh_images_cart = neigh_images_frac @ cell 
         centroid = np.mean(neigh_images_cart, axis=0)
-        # check MIC min distance from centroid to relaxed atoms (R)
+        # check MIC min distance from centroid to relaxed atoms
         min_d, idx, delta_vec = min_image_min_dist_and_idx(centroid)
         if min_d >= min_distance - eps:
             vac_positions.append(centroid)
             continue
-
         # otherwise, nudge centroid away from nearest atom image so distance == min_distance
         # delta_vec is vector from centroid to that atom image (i.e. nearest_image_pos - centroid)
         # nearest_image_pos = centroid + delta_vec
@@ -532,20 +536,21 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
             unit = vec / norm
         # place candidate at nearest_image_pos + unit * (min_distance + tiny)
         candidate = nearest_image_pos + unit * (min_distance + eps)
-        # if candidate is still too close (very rare), fallback to original vacancy position
+        # if candidate is still too close, fallback to original vacancy position
         min_d2, _, _ = min_image_min_dist_and_idx(candidate)
         if min_d2 < min_distance - eps:
-            candidate = atoms.positions[vi].copy()
-
+            orig_frac = atoms.positions[vi] @ orig_inv
+            candidate = orig_frac @ cell
         vac_positions.append(candidate)
 
-    # assemble pseudo_atoms: copy original, replace real atom positions by relaxed positions,
-    # and put computed vacancy 'X' positions
+    # create pseudo_atoms: copy original, replace real atom positions by relaxed positions,
+    # and insert computed vacancy 'X' positions
     pseudo_atoms = atoms.copy()
     if len(real_indices) != 0:
         pseudo_atoms.positions[real_indices] = R
     if vac_indices:
         pseudo_atoms.positions[vac_indices] = np.vstack(vac_positions)
+    pseudo_atoms.cell = cell
 
     return pseudo_atoms
 
@@ -624,7 +629,7 @@ def detect_and_get_model(calc):
 
 def _relax_worker(args):
     (tmp_atoms, calc, fmax, is_last_calc, run_md_flag, md_timestep, md_taut, md_steps, 
-     md_write_interval, pressure, md_taup, temperature) = args
+     md_write_interval, pressure, md_taup, compressibility, temperature) = args
     tmp_atoms.calc = calc
     if is_last_calc and run_md_flag:
         # run MD as in serial function
@@ -637,7 +642,7 @@ def _relax_worker(args):
         else:
             dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=temperature,
                                taut=md_taut, pressure_au=pressure,
-                               taup=md_taup, compressibility_au=4.57e-5/units.bar,
+                               taup=md_taup, compressibility_au=compressibility,
                                logfile=None, trajectory=None, append_trajectory=False)
         dyn.run(md_steps)
     if fmax is not None:
@@ -828,7 +833,8 @@ def calculate_batch_bulk_fitness(
         md_steps,
         md_write_interval,
         pressure=None,
-        md_taup=1000 * units.fs,
+        md_taup=1000*units.fs,
+        compressibility=5e-5/units.bar,
         fix_indices=None,
         update_md_positions=True,
         update_relaxed_positions=False,
@@ -925,7 +931,7 @@ def calculate_batch_bulk_fitness(
             work_args = []
             for tmp, temp in zip(tmp_atoms_list, temps):
                 work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, md_taut,
-                                 md_steps, md_write_interval, pressure, md_taup, temp))
+                                 md_steps, md_write_interval, pressure, md_taup, compressibility, temp))
             results = pool.map(_relax_worker, work_args)
             pool.close()
             pool.join()
