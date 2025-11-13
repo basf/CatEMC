@@ -153,7 +153,6 @@ def calculate_bulk_fitness(
                 dyn.run(md_steps)
                 if update_md_positions:
                     md_atoms = tmp_atoms.copy()
-
             penalize = False
             if fmax is not None:
                 if pressure is None:
@@ -167,9 +166,11 @@ def calculate_bulk_fitness(
 
     epot = tmp_atoms.get_potential_energy()
     if penalize:
+        volume = atoms.get_volume()
         pseudo_atoms = atoms.copy()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     else:
+        volume = tmp_atoms.get_volume()
         if (md_atoms is not None) and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
         elif update_relaxed_positions:
@@ -182,6 +183,7 @@ def calculate_bulk_fitness(
             parprint(f'Something wrong with replica {rep}, where metal indices are mutated into nonmetals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
 
+    pseudo_atoms.info['key_value_pairs']['volume'] = volume
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
     
     write(f"{dir_name}/relaxed_{traj_path.split('/')[-1]}", [atoms, pseudo_atoms])

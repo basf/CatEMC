@@ -97,7 +97,7 @@ class GEEMCAnalysis(object):
                                           'data': {}}
                             rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
                             if pressure is not None:
-                                V = atoms.get_volume()
+                                V = atoms.info['key_value_pairs']['volume']
                                 U += pressure * V
                                 atoms.info['key_value_pairs']['enthalpy'] = U
                                 atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
