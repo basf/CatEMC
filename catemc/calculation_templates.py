@@ -111,7 +111,7 @@ def calculate_bulk_fitness(
                          and (a.symbol in target_metal_species)]
     vac_indices = [a.index for a in atoms if a.symbol == 'X']
     real_indices = [a.index for a in atoms if a.symbol != 'X']    
-    tmp_atoms = atoms[real_indices]
+    tmp_atoms = atoms[real_indices].copy()
 
     for i, calc in enumerate(calculator_list):
         fmax = fmax_list[i]
@@ -123,7 +123,7 @@ def calculate_bulk_fitness(
                     opt.run(fmax=fmax, steps=250)
                 E0 = tmp_atoms.get_potential_energy()
             except:
-                tmp_atoms = atoms[real_indices]
+                tmp_atoms = atoms[real_indices].copy()
                 continue
             if np.isinf(E0):
                 penalize = True
@@ -166,23 +166,21 @@ def calculate_bulk_fitness(
 
     epot = tmp_atoms.get_potential_energy()
     if penalize:
+        pseudo_atoms = copy.deepcopy(atoms)
         volume = atoms.get_volume()
-        pseudo_atoms = atoms.copy()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     else:
         if (md_atoms is not None) and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
-            volume = md_atoms.get_volume()
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
-            volume = tmp_atoms.get_volume()
         else:
-            pseudo_atoms = atoms.copy()
-            volume = atoms.get_volume()
+            pseudo_atoms = copy.deepcopy(atoms)
+        volume = tmp_atoms.get_volume()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
 
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
-            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into nonmetals')
+            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
 
     pseudo_atoms.info['key_value_pairs']['volume'] = volume
@@ -290,7 +288,7 @@ def calculate_surface_fitness(
                          and (a.symbol in target_metal_species)]
     vac_indices = [a.index for a in atoms if a.symbol == 'X']
     real_indices = [a.index for a in atoms if a.symbol != 'X']    
-    tmp_atoms = atoms[real_indices]
+    tmp_atoms = atoms[real_indices].copy()
     tmp_slab_indices = [a.index for a in tmp_atoms if 
                         real_indices[a.index] in slab_indices]
 
@@ -304,7 +302,7 @@ def calculate_surface_fitness(
                     opt.run(fmax=fmax, steps=250)
                 E0 = tmp_atoms.get_potential_energy()                
             except:
-                tmp_atoms = atoms[real_indices]
+                tmp_atoms = atoms[real_indices].copy()
                 continue
             if np.isinf(E0):
                 penalize = True
@@ -393,7 +391,7 @@ def calculate_surface_fitness(
 
     epot = tmp_atoms.get_potential_energy()
     if penalize:
-        pseudo_atoms = atoms.copy()
+        pseudo_atoms = copy.deepcopy(atoms)
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
         fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()] 
     else:
@@ -402,7 +400,7 @@ def calculate_surface_fitness(
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
         else:
-            pseudo_atoms = atoms.copy()
+            pseudo_atoms = copy.deepcopy(atoms)
         num_dict = dict((m, len([a for a in tmp_atoms if a.symbol==m])) 
                         for m in target_metal_species + list(element_column_map.keys()))
         num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
@@ -415,7 +413,7 @@ def calculate_surface_fitness(
         fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
                                   and (real_indices[a.index] not in adsorbate_indices)]
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
-            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into nonmetals')
+            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     pseudo_atoms.info['data']['fragments'] = fragments
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
@@ -423,7 +421,7 @@ def calculate_surface_fitness(
     write(f"{dir_name}/relaxed_{traj_path.split('/')[-1]}", [atoms, pseudo_atoms])
 
 
-def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5):
+def insert_vacancies(atoms, relaxed_atoms, target_metal_species, neighbor_cutoff=2.5):
     """
     Vacancy insertion based on centroid update.
 
@@ -432,7 +430,7 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
     atoms: ase.Atoms
         Original structure containing 'X' vacancy atoms.
 
-    tmp_atoms: ase.Atoms
+    relaxed_atoms: ase.Atoms
         Relaxed structure containing only the real atoms.
 
     target_metal_species: list of strs
@@ -449,10 +447,10 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
 
     """
 
+    tmp_atoms = relaxed_atoms.copy()
     # Indices mapping between original atoms and relaxed atoms
     vac_indices = [i for i, a in enumerate(atoms) if a.symbol == 'X']
     real_indices = [i for i, a in enumerate(atoms) if a.symbol != 'X']
-
     mask = np.ones(len(atoms), dtype=bool)
     mask[vac_indices] = False
     new_to_orig = np.arange(len(atoms))[mask].tolist()
@@ -549,7 +547,7 @@ def insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff=2.5
 
     # create pseudo_atoms: copy original, replace real atom positions by relaxed positions,
     # and insert computed vacancy 'X' positions
-    pseudo_atoms = atoms.copy()
+    pseudo_atoms = copy.deepcopy(atoms)
     if len(real_indices) != 0:
         pseudo_atoms.positions[real_indices] = R
     if vac_indices:
@@ -679,7 +677,8 @@ def _postprocess_bulk_worker(args):
         penalize = True
 
     if penalize:
-        pseudo_atoms = atoms.copy()
+        pseudo_atoms = copy.deepcopy(atoms)
+        volume = atoms.get_volume()
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
     else:
         if (md_atoms is not None) and update_md_positions and not update_relaxed_positions:
@@ -687,15 +686,16 @@ def _postprocess_bulk_worker(args):
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
         else:
-            pseudo_atoms = atoms.copy()
-
+            pseudo_atoms = copy.deepcopy(atoms)
+        volume = tmp_atoms.get_volume() 
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
 
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
-            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into nonmetals')
+            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
 
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
+    pseudo_atoms.info['key_value_pairs']['volume'] = volume
     write(f'{dir_name}/relaxed_atoms_{atoms.info["key_value_pairs"][replica_key]}.traj', [atoms, pseudo_atoms])
 
     return None
@@ -790,7 +790,7 @@ def _postprocess_surface_worker(args):
                 penalize = True
 
     if penalize:
-        pseudo_atoms = atoms.copy()
+        pseudo_atoms = copy.deepcopy(atoms)
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
         fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()]
     else:
@@ -806,14 +806,14 @@ def _postprocess_surface_worker(args):
         elif update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
         else:
-            pseudo_atoms = atoms.copy()
+            pseudo_atoms = copy.deepcopy(atoms)
 
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
         fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
                                   and (real_indices[a.index] not in adsorbate_indices)]
 
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
-            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into nonmetals')
+            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
 
     pseudo_atoms.info['data'] = pseudo_atoms.info.get('data', {})
