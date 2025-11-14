@@ -36,6 +36,7 @@ def calculate_bulk_fitness(
         md_taup=1000*units.fs,
         compressibility=5e-5/units.bar,
         fix_indices=None,
+        optimize_cell=False,
         update_md_positions=True,
         update_relaxed_positions=False,
         neighbor_cutoff=2.5,
@@ -82,6 +83,10 @@ def calculate_bulk_fitness(
     compressibility: float, default 5e-5/bar
         The compressibility of the material in atomic unit (Å^3/eV).
         Only relevant for NPT MD.
+
+    optimize_cell: bool, default False
+        Whether to also relax the cell. Note that NPT MD always 
+        changes the cell, this parameter only controls relaxation.
 
     update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
@@ -155,7 +160,7 @@ def calculate_bulk_fitness(
                     md_atoms = tmp_atoms.copy()
             penalize = False
             if fmax is not None:
-                if pressure is None:
+                if (pressure is None) or not optimize_cell:
                     opt = LBFGS(tmp_atoms, logfile=None)
                 else:
                     ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
@@ -631,7 +636,7 @@ def detect_and_get_model(calc):
 
 def _relax_worker(args):
     (tmp_atoms, calc, fmax, is_last_calc, run_md_flag, md_timestep, md_taut, md_steps, 
-     md_write_interval, pressure, md_taup, compressibility, temperature) = args
+     md_write_interval, pressure, md_taup, temperature, optimize_cell, compressibility) = args
     tmp_atoms.calc = calc
     if is_last_calc and run_md_flag:
         # run MD as in serial function
@@ -649,7 +654,11 @@ def _relax_worker(args):
         dyn.run(md_steps)
     if fmax is not None:
         # perform LBFGS relaxation like serial code
-        opt = LBFGS(tmp_atoms, logfile=None)
+        if (pressure is None) or not optimize_cell:
+            opt = LBFGS(tmp_atoms, logfile=None)
+        else:
+            ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
+            opt = LBFGS(ucf, logfile=None)
         opt.run(fmax=fmax, steps=250)
 
     return tmp_atoms
@@ -840,6 +849,7 @@ def calculate_batch_bulk_fitness(
         md_taup=1000*units.fs,
         compressibility=5e-5/units.bar,
         fix_indices=None,
+        optimize_cell=False,
         update_md_positions=True,
         update_relaxed_positions=False,
         neighbor_cutoff=2.5,
@@ -934,8 +944,9 @@ def calculate_batch_bulk_fitness(
             pool = ctx.Pool(min(len(tmp_atoms_list), multiprocessing.cpu_count()))
             work_args = []
             for tmp, temp in zip(tmp_atoms_list, temps):
-                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, md_taut,
-                                 md_steps, md_write_interval, pressure, md_taup, compressibility, temp))
+                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, 
+                                  md_taut, md_steps, md_write_interval, pressure, md_taup, 
+                                  temp, optimize_cell, compressibility))
             results = pool.map(_relax_worker, work_args)
             pool.close()
             pool.join()
@@ -966,7 +977,7 @@ def calculate_batch_bulk_fitness(
             else:
                 epot = float(energies)
         md_atoms = (md_atoms_list[idx] if (md_atoms_list is not None) else None)
-        post_args.append((dir_name, atoms, tmp_atoms, md_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
+        post_args.append((dir_name, atoms, tmp_atoms, md_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md, 
                           update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot))
 
     pool.map(_postprocess_bulk_worker, post_args)
@@ -1066,7 +1077,8 @@ def calculate_batch_surface_fitness(
             work_args = []
             for tmp, temp in zip(tmp_atoms_list, temps):
                 work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep,
-                                  md_taut, md_steps, md_write_interval, None, None, temp))
+                                  md_taut, md_steps, md_write_interval, None, None, temp,
+                                  False, 0.))
             results = pool.map(_relax_worker, work_args)
             pool.close()
             pool.join()
