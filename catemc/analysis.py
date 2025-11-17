@@ -20,6 +20,7 @@ class GEEMCAnalysis(object):
             calculation_dir,
             pop_size,
             target_metal_species,
+            target_nonmetal_species=None,
             trim_generation=100,
             temperature_key='temperature',
             replica_key='replica',
@@ -29,6 +30,7 @@ class GEEMCAnalysis(object):
         self.calculation_dir = calculation_dir
         self.pop_size = pop_size
         self.target_metal_species = target_metal_species
+        self.target_nonmetal_species = target_nonmetal_species
         self.trim_generation = trim_generation
         self.temperature_key = temperature_key
         self.replica_key = replica_key
@@ -242,6 +244,10 @@ class GEEMCAnalysis(object):
             for rep in self.data[T].keys():
                 rep_temp_map[rep] = T
         metal_pairs = list(combinations(self.target_metal_species, 2))
+        if self.target_nonmetal_species is None:
+            nonmetal_pairs = []
+        else:
+            nonmetal_pairs = list(combinations(self.target_nonmetal_species, 2))
 
         K = len(target_temperatures)  # No. target of temperatures  
         # Build MBAR inputs  
@@ -305,10 +311,10 @@ class GEEMCAnalysis(object):
         # Compute Δμ_{m→n} for each pair
         dmu_estimates = {T: {} for T in target_temperatures}
         for T in target_temperatures:
-            for m1, m2 in metal_pairs:
+            for m1, m2 in metal_pairs + nonmetal_pairs:
                 dmu_estimates[T][f'{m1}2{m2}'] = {}
                 dmu_estimates[T][f'{m2}2{m1}'] = {}
-        for m1, m2 in metal_pairs:
+        for m1, m2 in metal_pairs + nonmetal_pairs:
             # Precompute W_{m→n} for ALL configs, replicas, and target betas
             lot_m12m2 = [t for T in sim_temperatures for lot in self.widom_data[T][f'{m1}2{m2}'] for t in lot]
             dd_temp_m12m2 = {T: defaultdict(list) for T in target_temperatures}

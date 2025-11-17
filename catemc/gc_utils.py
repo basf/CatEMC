@@ -307,6 +307,10 @@ def compute_phi(
             element_eref_map = {e: 0. for e in element_column_map.keys()}
         if element_y2x_map is None:
             element_y2x_map = {e: 0. for e in element_column_map.keys()}
+    c_sum = sum(target_metal_composition.values())
+    if c_sum != 1.:
+        target_metal_composition = {k: v/c_sum for k, v in target_metal_composition.items()}
+
     T = grid[:,-1]
     metal_mu_sum = 0
     if temperature_dmu_map is not None:

@@ -310,7 +310,17 @@ class GEEMC(EMC):
                             operator = EMCInterSwap(allowed_indices=self.mutable_metal_indices, element_pools=self.metal_element_pool)
                         else:
                             operator = EMCInterSwap(allowed_indices=self.mutable_nonmetal_indices, element_pools=self.nonmetal_element_pool)
-                        offsprings, desc = operator.get_new_individual(parents)
+                        if operator.can_interswap(parents):
+                            offsprings, desc = operator.get_new_individual(parents)
+                        else:
+                            # interswap impossible with the current element_pools/allowed_indices -> do two intraswaps
+                            warnings.warn('EMCInterSwap failed, fall back to double intraswaps.')
+                            intra1 = EMCIntraSwap(allowed_indices=operator.allowed_indices, element_pools=operator.element_pools)
+                            offspring1, _ = intra1.get_new_individual([parents[0]])
+                            intra2 = EMCIntraSwap(allowed_indices=operator.allowed_indices, element_pools=operator.element_pools)
+                            offspring2, _ = intra2.get_new_individual([parents[1]])
+                            offsprings = [offspring1, offspring2]
+                            desc = 'Double IntraSwap: Parents {0} {1}'.format(parents[0].info['confid'], parents[1].info['confid'])
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
                         if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
