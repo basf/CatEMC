@@ -35,7 +35,7 @@ class GEEMCAnalysis(object):
         self.acceptance_key = acceptance_key
 
     def prepare_data(self, starting_step=None, ending_step=None, pressure=None,
-                     use_exist=True, raw_score_cutoff=-10000.):
+                     use_exist=True, raw_score_cutoff=-10000., use_tmp_files=False):
 
         """Prepare GE-EMC potential energy and Widom samples. Set the pressure 
         for NpT GE-EMC simulations"""
@@ -61,72 +61,135 @@ class GEEMCAnalysis(object):
                 starting_step = 1
 
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
-            n = 0
-            while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
-                n += 1
-            for i in range(n):
-                # skip entire backup if its block is before starting_step
-                if ((i+1) * self.trim_generation) <= starting_step:
-                    continue
-                db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
-                for j, row in enumerate(db.select('relaxed=1')):
-                    if row.emc_step >= starting_step:
-                        if row.raw_score <= raw_score_cutoff:
+            if use_tmp_files:
+                tmp_files_directory = os.path.join(self.calculation_dir, f'tmp_{self.name}')
+                emc_traj_files = [
+                    f for f in os.listdir(tmp_files_directory) 
+                    if f.startswith('emc_') and f.endswith('.traj')
+                ]
+                for emc_traj_file in emc_traj_files:
+                    trajectory = read(os.path.join(tmp_files_directory, emc_traj_file), index=':')
+                    for atoms in trajectory:
+                        key_value_pairs = atoms.info['key_value_pairs']
+                        data = atoms.info['data']
+                        if key_value_pairs['emc_step'] < starting_step:
                             continue
-                        if (ending_step is not None) and (row.emc_step > ending_step):
+                        if key_value_pairs['raw_score'] <= raw_score_cutoff:
                             continue
-                        # obtain temperature from the row and ensure containers exist for it
-                        T = row.key_value_pairs[self.temperature_key]
+                        if (ending_step is not None) and (key_value_pairs['emc_step'] > ending_step):
+                            continue
+                            
+                        T = key_value_pairs[self.temperature_key]
                         if T not in self.widom_data:
                             self.widom_data[T] = {}
                         if T not in self.data:
                             self.data[T] = {}
-                        dU = -row.delta
+                        dU = -key_value_pairs['delta']
                         if abs(dU) > 100.:
                             continue
                         if abs(dU) < 0.01:
                             continue
-                        atoms = row.toatoms()
-                        U = row.potential_energy
-                        is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
-                        if (row.key_value_pairs[self.acceptance_key] == 1) or is_widom:
-                            atoms.info = {'key_value_pairs': {
-                                              self.temperature_key: T, 
-                                              self.replica_key: row.key_value_pairs[self.replica_key],
-                                          'potential_energy': U}, 
-                                          'data': {}}
-                            rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
+                        U = key_value_pairs['potential_energy']
+                        is_widom = ((data['operation'] == 'interswap') and ('mutated_elements' in data))
+                        if (key_value_pairs[self.acceptance_key] == 1) or is_widom:
+                            rep_latest_step_map[key_value_pairs[self.replica_key]] = key_value_pairs['emc_step']
                             if pressure is not None:
-                                V = row.volume
+                                V = key_value_pairs['volume']
                                 U += pressure * V
                                 atoms.info['key_value_pairs']['enthalpy'] = U
                                 atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
                             # ensure replica list exists and is long enough, then set energy
-                            rep = row.key_value_pairs[self.replica_key]
+                            rep = key_value_pairs[self.replica_key]
                             rep_list = self.data[T].setdefault(rep, [])
-                            needed = row.emc_step - len(rep_list)
+                            needed = key_value_pairs['emc_step'] - len(rep_list)
                             if needed > 0:
                                 rep_list.extend([None] * needed) 
-                            rep_list[row.emc_step-1] = atoms
+                            rep_list[key_value_pairs['emc_step']-1] = atoms
+                            if not is_widom:
+                                continue
+                            m1, m2 = data['mutated_elements']
+                            N1 = len([a for a in atoms if a.symbol == m1]) + 1
+                            N2plus1 = len([a for a in atoms if a.symbol == m2])
+                            W_prefactor = N1 / N2plus1
+                            if pressure is not None:
+                                W_prefactor *= key_value_pairs['volume_ratio']**len(atoms)
+                            latest_acc_step = rep_latest_step_map[key_value_pairs[self.replica_key]]
+                            # ensure dmu key list exists and is long enough, then append the tuple
+                            key = f'{m1}2{m2}'
+                            key_list = self.widom_data[T].setdefault(key, [])
+                            needed = key_value_pairs['emc_step'] - len(key_list)
+                            if needed > 0:
+                                key_list.extend([[] for _ in range(needed)])  # distinct empty lists
+                            key_list[key_value_pairs['emc_step']-1].append(
+                                    (U, dU, W_prefactor, key_value_pairs[self.replica_key], latest_acc_step)
+                            )
+            else:
+                n = 0
+                while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
+                    n += 1
+                for i in range(n):
+                    # skip entire backup if its block is before starting_step
+                    if ((i+1) * self.trim_generation) <= starting_step:
+                        continue
+                    db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
+                    for j, row in enumerate(db.select('relaxed=1')):
+                        if row.emc_step >= starting_step:
+                            if row.raw_score <= raw_score_cutoff:
+                                continue
+                            if (ending_step is not None) and (row.emc_step > ending_step):
+                                continue
+                            # obtain temperature from the row and ensure containers exist for it
+                            T = row.key_value_pairs[self.temperature_key]
+                            if T not in self.widom_data:
+                                self.widom_data[T] = {}
+                            if T not in self.data:
+                                self.data[T] = {}
+                            dU = -row.delta
+                            if abs(dU) > 100.:
+                                continue
+                            if abs(dU) < 0.01:
+                                continue
+                            atoms = row.toatoms()
+                            U = row.potential_energy
+                            is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
+                            if (row.key_value_pairs[self.acceptance_key] == 1) or is_widom:
+                                atoms.info = {'key_value_pairs': {
+                                                self.temperature_key: T, 
+                                                self.replica_key: row.key_value_pairs[self.replica_key],
+                                            'potential_energy': U}, 
+                                            'data': {}}
+                                rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
+                                if pressure is not None:
+                                    V = row.volume
+                                    U += pressure * V
+                                    atoms.info['key_value_pairs']['enthalpy'] = U
+                                    atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
+                                # ensure replica list exists and is long enough, then set energy
+                                rep = row.key_value_pairs[self.replica_key]
+                                rep_list = self.data[T].setdefault(rep, [])
+                                needed = row.emc_step - len(rep_list)
+                                if needed > 0:
+                                    rep_list.extend([None] * needed) 
+                                rep_list[row.emc_step-1] = atoms
 
-                        if not is_widom:
-                            continue
-                        m1, m2 = row.data.mutated_elements
-                        N1 = len([a for a in atoms if a.symbol == m1]) + 1
-                        N2plus1 = len([a for a in atoms if a.symbol == m2])
-                        W_prefactor = N1 / N2plus1
-                        if pressure is not None:
-                            W_prefactor *= row.volume_ratio**len(atoms)
-                        latest_acc_step = rep_latest_step_map[row.key_value_pairs[self.replica_key]]
-                        # ensure dmu key list exists and is long enough, then append the tuple
-                        key = f'{m1}2{m2}'
-                        key_list = self.widom_data[T].setdefault(key, [])
-                        needed = row.emc_step - len(key_list)
-                        if needed > 0:
-                            key_list.extend([[] for _ in range(needed)])  # distinct empty lists
-                        key_list[row.emc_step-1].append(
-                                (U, dU, W_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
-                        )
+                            if not is_widom:
+                                continue
+                            m1, m2 = row.data.mutated_elements
+                            N1 = len([a for a in atoms if a.symbol == m1]) + 1
+                            N2plus1 = len([a for a in atoms if a.symbol == m2])
+                            W_prefactor = N1 / N2plus1
+                            if pressure is not None:
+                                W_prefactor *= row.volume_ratio**len(atoms)
+                            latest_acc_step = rep_latest_step_map[row.key_value_pairs[self.replica_key]]
+                            # ensure dmu key list exists and is long enough, then append the tuple
+                            key = f'{m1}2{m2}'
+                            key_list = self.widom_data[T].setdefault(key, [])
+                            needed = row.emc_step - len(key_list)
+                            if needed > 0:
+                                key_list.extend([[] for _ in range(needed)])  # distinct empty lists
+                            key_list[row.emc_step-1].append(
+                                    (U, dU, W_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
+                            )
 
             # Assign the previous energy if energy is None at a step (forward-fill per replica)
             for T, dd in self.data.items():
