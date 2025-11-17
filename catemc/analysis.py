@@ -234,7 +234,7 @@ class GEEMCAnalysis(object):
                 NlnV_kn.append(volume_samples)
         U_kn = np.array(U_kn)  # Shape (K, N_total)
         if volume_correction:
-            U_kn -= np.array(N_lnV_kn)
+            U_kn -= np.array(NlnV_kn)
         mbar = MBAR(U_kn, samples_per_T, relative_tolerance=1e-7, 
                     solver_protocol='robust', maximum_iterations=30000)  
         w_nk = mbar.weights()
