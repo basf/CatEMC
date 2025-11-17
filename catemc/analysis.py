@@ -93,7 +93,7 @@ class GEEMCAnalysis(object):
                             atoms.info = {'key_value_pairs': {
                                               self.temperature_key: T, 
                                               self.replica_key: row.key_value_pairs[self.replica_key],
-                                              'potential_energy': U}, 
+                                          'potential_energy': U}, 
                                           'data': {}}
                             rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
                             if pressure is not None:
