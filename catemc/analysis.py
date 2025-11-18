@@ -1,6 +1,6 @@
 from .gc_utils import compute_phi
 from ase.geometry.analysis import Analysis
-from ase.neighborlist import natural_cutoffs
+from ase.neighborlist import neighbor_list, natural_cutoffs
 from ase.parallel import parprint
 from ase.io import read, write
 from ase.db import connect
@@ -54,14 +54,12 @@ class GEEMCAnalysis(object):
             else:
                 parprint(f'Cannot find MBAR data file, collect data instead.')
         if collect_data:
-            # initialize containers (no pre-defined temperatures)
-            self.widom_data = {}      # T -> {key -> list_of_step_lists}
-            self.data = {}   # T -> {rep -> list_of_step_values}
-
+            # initialize containers
+            self.widom_data = {}
+            self.data = {}
             # normalize starting_step
             if starting_step is None:
                 starting_step = 1
-
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
@@ -153,6 +151,8 @@ class GEEMCAnalysis(object):
 
         """Get the EMC trajectory of a given replica number."""
 
+        if not hasattr(self, 'data'):
+            raise RuntimeError('No trajectory data found, run prepare_data() first.')
         traj = []
         for T, dd in self.data.items():
             if replica in dd.keys():
@@ -170,6 +170,8 @@ class GEEMCAnalysis(object):
            for NpT GE-EMC simulations."""
 
         from pymbar import MBAR
+        if not hasattr(self, 'data'):
+            raise RuntimeError('No trajectory data found, run prepare_data() first.')
         sim_temperatures = sorted(list(self.data.keys()))
         if target_temperatures is None:
             target_temperatures = sim_temperatures
@@ -433,6 +435,174 @@ class GEEMCAnalysis(object):
         with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_estimates.pkl', 'wb') as handle:
             pickle.dump(dmu_estimates, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+    def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
+                temperature=None, cutoff=None, use_energy_mask=False):
+        """
+        Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
+        alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
+
+        starting_step, ending_step, sample_stride: subsampling EMC steps 
+        temperature: if provided, analyze only that T, otherwise all Ts.
+        cutoff: neighbor cutoff for first shell, use natural_cutoffs by default.
+        use_energy_mask: if True, skip running neighbor_list for replicas whose
+            potential energy equals that at the previous step for acceleration.
+        """
+
+        if not hasattr(self, 'data'):
+            raise RuntimeError('No trajectory data found, run prepare_data() first.')
+        # build target species lists (exclude vacancies 'X')
+        metals = [m for m in (self.target_metal_species or []) if m != 'X']
+        nonmetals = [n for n in (self.target_nonmetal_species or []) if n != 'X']
+        elem_list = metals + nonmetals
+        # unordered hetero pairs + homo pairs
+        pairs = list(combinations(elem_list, 2)) + [(e, e) for e in elem_list]
+        sim_temps = sorted(self.data.keys())
+        if temperature is None:
+            temps = sim_temps
+        else:
+            if temperature not in sim_temps:
+                raise KeyError(f'Temperature {temperature} not found in data.')
+            temps = [temperature]
+
+        # per-temperature SRO data collection
+        sro_data = {}
+        for T in temps:
+            rep_dict = self.data[T]
+            # step bounds aligned by replica lists length
+            max_steps = max((len(lst) for lst in rep_dict.values()), default=0)
+            s0 = 1 if starting_step is None else int(starting_step)
+            s1 = max_steps if ending_step is None else int(min(ending_step, max_steps))
+            if s1 < s0:
+                raise ValueError('Invalid step range or no steps in requested range.')
+            steps = list(range(s0, s1 + 1, int(sample_stride)))
+            # prepare output dict: for each pair, a list of composite alphas
+            pair_step_alpha = {pair: [] for pair in pairs}
+            last_neigh_info = {}
+            for step in steps:
+                reps_atoms = []
+                for rep, alist in rep_dict.items():
+                    if len(alist) >= step and alist[step - 1] is not None:
+                        reps_atoms.append((rep, alist[step - 1]))
+                R = len(reps_atoms)
+                if R == 0:
+                    # no data at this step
+                    for pair in pairs:
+                        pair_step_alpha[pair].append(np.nan)
+                    continue
+
+                # 1) build or reuse per-replica counts and neighbor histograms
+                rep_neigh_info = {}
+                for rep, atoms in reps_atoms:
+                    energy = None
+                    try:
+                        energy = atoms.info['key_value_pairs'].get('potential_energy', None)
+                    except Exception:
+                        energy = None
+                    reuse = False
+                    if use_energy_mask and (rep in last_neigh_info):
+                        prev_energy = last_neigh_info[rep].get('energy', None)
+                        if (prev_energy is not None) and (energy is not None) and (energy == prev_energy):
+                            # reuse cached neighbor info and counts (skip neighbor_list)
+                            rep_neigh_info[rep] = last_neigh_info[rep]
+                            reuse = True
+                    if not reuse:
+                        # compute counts and per-reference neighbor histograms using neighbor_list
+                        syms = np.array(atoms.get_chemical_symbols())
+                        # counts for composite concentration: only targeted species and ignore 'X'
+                        filtered_syms = syms[(syms != 'X') & np.isin(syms, elem_list)]
+                        counts = Counter(filtered_syms.tolist())
+                        # neighbor_list gives directed pairs i->j within cutoff
+                        if cutoff is None:
+                            cutoff_local = natural_cutoffs(atoms)
+                        else:
+                            cutoff_local = cutoff
+                        i_idx, j_idx = neighbor_list('ij', atoms, cutoff_local)
+                        if i_idx.size == 0:
+                            # empty neighbor structure
+                            per_ref = {}
+                        else:
+                            si = syms[i_idx]
+                            sj = syms[j_idx]
+                            per_ref = {}
+                            # for each reference species m we collect neighbors around all m atoms
+                            for m in elem_list:
+                                mask_i = (si == m)
+                                if not np.any(mask_i):
+                                    # no reference atoms of this species in this replica
+                                    continue
+                                neigh_syms = sj[mask_i]
+                                # filter neighbors to targeted species only
+                                if neigh_syms.size == 0:
+                                    continue
+                                keep = np.isin(neigh_syms, elem_list)
+                                neigh_syms = neigh_syms[keep]
+                                total_neigh = neigh_syms.size
+                                if total_neigh == 0:
+                                    continue
+                                uniq, cnts = np.unique(neigh_syms, return_counts=True)
+                                neigh_map = dict(zip(uniq.tolist(), cnts.tolist()))
+                                per_ref[m] = (int(total_neigh), neigh_map)
+
+                        cache_info = {'energy': energy, 'counts': counts, 'per_ref': per_ref}
+                        rep_neigh_info[rep] = cache_info
+                        last_neigh_info[rep] = cache_info
+
+                # 2) compute composite concentrations c_n(R) using rep_neigh_info counts
+                total_counts = Counter()
+                for rep, info in rep_neigh_info.items():
+                    total_counts.update(info.get('counts', Counter()))
+                total_metal_count = sum(total_counts[e] for e in metals) if metals else 0
+                total_nonmetal_count = sum(total_counts[e] for e in nonmetals) if nonmetals else 0
+                cR = {}
+                for e in elem_list:
+                    if e in metals:
+                        if total_metal_count > 0:
+                            cR[e] = (total_counts.get(e, 0) / total_metal_count)
+                        else:
+                            cR[e] = np.nan
+                    else:
+                        if total_nonmetal_count > 0:
+                            cR[e] = (total_counts.get(e, 0) / total_nonmetal_count)
+                        else:
+                            cR[e] = np.nan
+
+                # 3) for every pair compute average SRO over composite replicas
+                for pair in pairs:
+                    m, n = pair
+                    alpha_sum = 0.
+                    valid_count = 0
+                    for rep, info in rep_neigh_info.items():
+                        per_ref = info.get('per_ref', {})
+                        if m not in per_ref:
+                            # no reference atoms of type m in this replica -> undefined
+                            continue
+                        total_neigh, neigh_map = per_ref[m]
+                        if total_neigh == 0:
+                            continue
+                        count_n = neigh_map.get(n, 0)
+                        P_mn_r = float(count_n) / float(total_neigh)
+                        c_n = cR.get(n, np.nan)
+                        delta = 1. if m == n else 0.
+                        denom = delta - c_n
+                        if denom == 0 or np.isnan(denom):
+                            continue
+                        alpha_r = (P_mn_r - c_n) / denom
+                        alpha_sum += alpha_r
+                        valid_count += 1
+                    if valid_count == 0:
+                        pair_step_alpha[pair].append(np.nan)
+                    else:
+                        pair_step_alpha[pair].append(float(alpha_sum / float(valid_count)))
+            sro_data[T] = pair_step_alpha
+
+        # save pickle
+        fname = f'{self.calculation_dir}/{self.name}_sro_data.pkl' if temperature is None \
+                else f'{self.calculation_dir}/{self.name}_sro_data_{temperature}K.pkl'
+        with open(fname, 'wb') as handle:
+            pickle.dump(sro_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        return sro_data
+
 
 class GCEMCAnalysis(object):
 
@@ -537,6 +707,8 @@ class GCEMCAnalysis(object):
 
         """Get the EMC trajectory of a given replica number."""
 
+        if not hasattr(self, 'data'):
+            raise RuntimeError('No trajectory data found, run prepare_data() first.')
         traj = []
         for T, dd in self.data.items():
             if replica in dd.keys():
@@ -558,6 +730,8 @@ class GCEMCAnalysis(object):
         You can also add more rows to reaction_conditions to consider states that are
         not included in the simulation."""
 
+        if not hasattr(self, 'data'):
+            raise RuntimeError('No trajectory data found, run prepare_data() first.')
         from pymbar import MBAR, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
         all_species = self.target_metal_species + list(element_column_map.keys())
@@ -733,6 +907,8 @@ class GCEMCAnalysis(object):
         temperature. You can also add more rows to reaction_conditions to consider 
         states that are not included in the simulation."""
 
+        if not hasattr(self, 'data'):
+            raise RuntimeError('No trajectory data found, run prepare_data() first.')
         from pymbar import MBAR, FES, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
         all_species = self.target_metal_species + list(element_column_map.keys())
