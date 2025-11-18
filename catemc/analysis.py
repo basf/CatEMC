@@ -435,6 +435,8 @@ class GEEMCAnalysis(object):
         with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_estimates.pkl', 'wb') as handle:
             pickle.dump(dmu_estimates, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+        return dmu_estimates
+
     def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
                 temperature=None, cutoff=None, use_energy_mask=False):
         """
@@ -894,6 +896,8 @@ class GCEMCAnalysis(object):
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
             pickle.dump(expectations, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+        return expectations
+
     def get_structural_fes(self, z_surf, reaction_conditions, element_column_map,
                            element_eref_map, element_y2x_map, temperature_dmu_map=None,
                            starting_step=None, ending_step=None, sample_stride=1,
@@ -1084,3 +1088,5 @@ class GCEMCAnalysis(object):
 
         with open(f'{self.calculation_dir}/{self.name}_mbar_fes.pkl', 'wb') as handle:
             pickle.dump(fes_map, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        return fes_map
