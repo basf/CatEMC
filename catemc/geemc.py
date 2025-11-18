@@ -391,8 +391,9 @@ class GEEMC(EMC):
             # Update the population to allow new candidates to enter
             self.dc.add_more_relaxed_candidates(relaxed_candidates)
             self.pop.update()
-            if (gen_num + gi) % self.exchange_generation == 0:
-                self.pop.exchange(keep_composition=True)
+            if (self.exchange_generation is not None) and (self.exchange_generation > 0):
+                if (gen_num + gi) % self.exchange_generation == 0:
+                    self.pop.exchange(keep_composition=True)
             
             for atoms in self.pop.pop:
                 rep = atoms.info['key_value_pairs'][self.replica_key]

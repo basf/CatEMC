@@ -282,7 +282,7 @@ def calculate_surface_fitness(
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
     sas = adsorption_sites
-    mu = atoms.info['data']['mu']
+    mu = atoms.info['data'].get('mu', None)
     atoms = rattle_close_atoms(atoms, min_distance=0.1)
     md_atoms = None
     if fix_indices is None:
@@ -409,10 +409,12 @@ def calculate_surface_fitness(
         num_dict = dict((m, len([a for a in tmp_atoms if a.symbol==m])) 
                         for m in target_metal_species + list(element_column_map.keys()))
         num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
-
-        phi = compute_phi(num_dict, target_metal_species, target_metal_composition,
-                          temperature_dmu_map, np.array([np.append(mu, T)]), element_column_map, 
-                          element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
+        if mu is None:
+            cond_arr = np.array([T])
+        else:
+            cond_arr = np.array([np.append(mu, T)])
+        phi = compute_phi(num_dict, target_metal_species, target_metal_composition, temperature_dmu_map, cond_arr, 
+                          element_column_map, element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
 
         fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
@@ -718,7 +720,7 @@ def _postprocess_surface_worker(args):
 
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
-    mu = atoms.info['data']['mu']
+    mu = atoms.info['data'].get('mu', None)
     md_atoms_local = md_atoms
 
     atoms = rattle_close_atoms(atoms, min_distance=0.1)
@@ -806,8 +808,11 @@ def _postprocess_surface_worker(args):
         num_dict = dict((m, len([a for a in tmp_atoms if a.symbol == m]))
                         for m in target_metal_species + list(element_column_map.keys()))
         num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
-        phi = compute_phi(num_dict, target_metal_species, target_metal_composition,
-                          temperature_dmu_map, np.array([np.append(mu, T)]),
+        if mu is None:
+            cond_arr = np.array([T])
+        else:
+            cond_arr = np.array([np.append(mu, T)])
+        phi = compute_phi(num_dict, target_metal_species, target_metal_composition, temperature_dmu_map, cond_arr,
                           element_column_map, element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
 
         if (md_atoms_local is not None) and update_md_positions and not update_relaxed_positions:

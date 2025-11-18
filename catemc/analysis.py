@@ -57,7 +57,6 @@ class GEEMCAnalysis(object):
             # initialize containers
             self.widom_data = {}
             self.data = {}
-            # normalize starting_step
             if starting_step is None:
                 starting_step = 1
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
@@ -644,12 +643,10 @@ class GCEMCAnalysis(object):
             else:
                 parprint(f'Cannot find MBAR data file, collect data instead.')
         if collect_data:
-            # initialize containers (no pre-defined temperatures)
-            self.data = {}   # T -> {rep -> list_of_step_values}
-            # normalize starting_step
+            # initialize containers
+            self.data = {} 
             if starting_step is None:
                 starting_step = 1
-
             rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
@@ -677,9 +674,9 @@ class GCEMCAnalysis(object):
                                               self.replica_key: row.key_value_pairs[self.replica_key],
                                               'potential_energy': row.potential_energy}, 
                                           'data': {}}
-                            atoms.info['data']['mu'] = row.data.mu
-                            atoms.info['data']['mu_window'] = row.data.mu_window
-                            atoms.info['data']['fragments'] = row.data.fragments
+                            atoms.info['data']['mu'] = row.data.get('mu', None)
+                            atoms.info['data']['mu_window'] = row.data.get('mu_window', None)
+                            atoms.info['data']['fragments'] = row.data.get('fragments', None)
                             # ensure replica list exists and is long enough, then set energy
                             rep = row.key_value_pairs[self.replica_key]
                             rep_list = self.data[T].setdefault(rep, [])
@@ -736,12 +733,16 @@ class GCEMCAnalysis(object):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
         from pymbar import MBAR, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
-        all_species = self.target_metal_species + list(element_column_map.keys())
+        nonmetal_species = list(self.element_column_map.keys()) if self.element_column_map else []
+        all_species = list(self.target_metal_species) + nonmetal_species
         metal_pairs = list(combinations(self.target_metal_species, 2))
         all_atom_pairs = list(combinations(all_species, 2)) + [(m,m) for m in all_species]
         if vacancy_indices is None:
             vacancy_indices = []
-        grid = reaction_conditions.copy()
+        if reaction_conditions is None:
+            grid = np.array(sim_temperatures)
+        else:
+            grid = reaction_conditions.copy()
         K = grid.shape[0]
         parprint(f'Number of states: {K}')
         
