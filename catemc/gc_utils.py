@@ -296,37 +296,68 @@ def stirling(x):
     return x * (np.log(x) - 1) + np.log((2*np.pi*x)**0.5)
 
 
-def compute_phi(
-        num_dict, target_metal_species, target_metal_composition, 
-        temperature_dmu_map, grid, element_column_map, element_eref_map, 
-        element_y2x_map, num_metal, epot, dimensionless=True,
-        ):
+def compute_phi(num_dict, target_metal_species, target_metal_composition,
+                temperature_dmu_map, grid, element_column_map, element_eref_map, 
+                element_y2x_map, num_metal, epot, dimensionless=True):
+    """
+    Vectorized function for computing microscopic GC potential energies.
+    - accepts grid as either 1D array of temperatures or 2D array where last column is T;
+    - if temperature_dmu_map is None, metal contributions are treated as zero;
+    - if element_column_map is None or empty, non-metal contributions are treated as zero.
+    """
 
-    if element_column_map is not None:
-        if element_eref_map is None:
-            element_eref_map = {e: 0. for e in element_column_map.keys()}
-        if element_y2x_map is None:
-            element_y2x_map = {e: 0. for e in element_column_map.keys()}
+    # normalize bulk composition
     c_sum = sum(target_metal_composition.values())
-    if c_sum != 1.:
-        target_metal_composition = {k: v/c_sum for k, v in target_metal_composition.items()}
+    if c_sum != 0:
+        target_metal_composition = {k: v / c_sum for k, v in target_metal_composition.items()}
+    grid = np.asarray(grid)
+    if grid.ndim == 1:
+        T_arr = grid
+    elif grid.ndim == 2:
+        T_arr = grid[:, -1]
+    else:
+        raise ValueError('compute_phi: unexpected grid shape')
 
-    T = grid[:,-1]
-    metal_mu_sum = 0
-    if temperature_dmu_map is not None:
-        for m, n in combinations(target_metal_species, 2):
-            dc_surf = (num_dict[n] - num_dict[m]) / num_metal
-            dc_bulk = target_metal_composition[n] - target_metal_composition[m]
-            dmu_T = np.empty(T.size, dtype=float)
-            for key, d in temperature_dmu_map.items():
-                dmu_T[T==key] = d[f'{m}2{n}']
-            metal_mu_sum += (dc_surf - dc_bulk) * dmu_T
-    phi = epot - num_metal / len(target_metal_species) * metal_mu_sum
-    if element_column_map is not None:
-        for k, col in element_column_map.items():
-            phi -= (num_dict[k] - element_y2x_map[k] * num_metal) * (grid[:,col] + element_eref_map[k])
+    # metal chemical potential contribution
+    if temperature_dmu_map is None:
+        metal_mu_sum = np.zeros_like(T_arr, dtype=float)
+    else:
+        # temperature_dmu_map expected: {T: {'A2B': dmu_AB, ... }, ...}
+        metal_mu_sum = np.zeros_like(T_arr, dtype=float)
+        for m in target_metal_species:
+            for n in target_metal_species:
+                if m == n:
+                    continue
+                dc_surf = (num_dict.get(n, 0) - num_dict.get(m, 0)) / max(1.0, len(target_metal_species))
+                dc_bulk = target_metal_composition.get(n, 0.0) - target_metal_composition.get(m, 0.0)
+                pair_key = f"{m}2{n}"
+                dmu_vector = np.zeros_like(T_arr, dtype=float)
+                # fill dmu_vector using provided temperature_dmu_map when keys match
+                for T_key, dmap in temperature_dmu_map.items():
+                    if pair_key in dmap:
+                        # find indices where grid temperature equals T_key
+                        idx = np.where(np.isclose(T_arr, T_key))[0]
+                        if idx.size > 0:
+                            dmu_vector[idx] = dmap[pair_key]
+                metal_mu_sum += (dc_surf - dc_bulk) * dmu_vector
+    phi = epot - (float(num_metal) / max(1.0, len(target_metal_species))) * metal_mu_sum
+
+    # non-metal contributions
+    if element_column_map:
+        for elem, col in element_column_map.items():
+            nk = num_dict.get(elem, 0)
+            y2x = (element_y2x_map.get(elem, 0.0) if element_y2x_map is not None else 0.0)
+            eref = (element_eref_map.get(elem, 0.0) if element_eref_map is not None else 0.0)
+            # grid handling: if grid 2D, assume chemical potential is in grid[:,col]; if grid 1D,
+            # then user must have passed the correct per-state values as a 1D array aligned with T
+            if grid.ndim == 2:
+                mu_vals = grid[:, col]
+            else:
+                # grid is 1D (temperature-only): there are no mu dims -> treat mu as zero
+                mu_vals = np.zeros_like(T_arr, dtype=float)
+            phi = phi - (nk - y2x * num_metal) * (mu_vals + eref)
 
     if dimensionless:
-        phi /= (units.kB * T)
+        phi = phi / (units.kB * T_arr)
 
     return phi

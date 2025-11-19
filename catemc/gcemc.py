@@ -925,27 +925,25 @@ class GCEMC(EMC):
                             pickle.dump(sas, handle, protocol=pickle.HIGHEST_PROTOCOL)
                     except:
                         pass
-            if (gen_num + gi) % self.mu_walk_generation == 0:
-                if gen_num + gi >= self.bias_starting_step:
-                    df_path = f"{self.calculation_dir}/{self.name}_free_energy_differences.npy"
-                    df = np.load(df_path)
-                else:
-                    df = None
-                self.pop.mu_walk(
-                    element_column_map=self.element_column_map,
-                    multiple_try=True,
-                    reaction_conditions=self.reaction_conditions,
-                    free_energy_differences=df,
-                )
-            if (gen_num + gi) % self.exchange_generation == 0:
-                self.pop.exchange(
-                    exchange_within_temperature=True,
-                    prefactor="gc",
-                    element_column_map=self.element_column_map,
-                    temperature_species_internal_map=self.tsi_map,
-                    no_internal_indices=self.mutable_nonmetal_indices,
-                )
-
+            if (self.mu_walk_generation is not None) and (self.mu_walk_generation > 0):
+                if (gen_num + gi) % self.mu_walk_generation == 0:
+                    if gen_num + gi >= self.bias_starting_step:
+                        df_path = f'{self.calculation_dir}/{self.name}_free_energy_differences.npy'
+                        df = np.load(df_path)
+                    else:
+                        df = None
+                    self.pop.mu_walk(element_column_map=self.element_column_map,
+                                     multiple_try=True,
+                                     reaction_conditions=self.reaction_conditions,
+                                     free_energy_differences=df)
+            if (self.exchange_generation is not None) and (self.exchange_generation > 0):
+                if (gen_num + gi) % self.exchange_generation == 0:
+                    self.pop.exchange(
+                            exchange_within_temperature=True, prefactor='gc', 
+                            element_column_map=self.element_column_map,
+                            temperature_species_internal_map=self.tsi_map,
+                            no_internal_indices=self.mutable_nonmetal_indices)
+            
             for atoms in self.pop.pop:
                 # atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
                 rep = atoms.info["key_value_pairs"][self.replica_key]
