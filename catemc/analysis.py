@@ -734,7 +734,7 @@ class GCEMCAnalysis(object):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
         from pymbar import MBAR, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
-        nonmetal_species = list(self.element_column_map.keys()) if self.element_column_map else []
+        nonmetal_species = list(element_column_map.keys()) if element_column_map else []
         all_species = list(self.target_metal_species) + nonmetal_species
         metal_pairs = list(combinations(self.target_metal_species, 2))
         all_atom_pairs = list(combinations(all_species, 2)) + [(m,m) for m in all_species]
@@ -917,7 +917,8 @@ class GCEMCAnalysis(object):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
         from pymbar import MBAR, FES, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
-        all_species = self.target_metal_species + list(element_column_map.keys())
+        nonmetal_species = list(element_column_map.keys()) if element_column_map else []
+        all_species = list(self.target_metal_species) + nonmetal_species
         metal_pairs = list(combinations(self.target_metal_species, 2))
         all_atom_pairs = list(combinations(all_species, 2)) + [(m,m) for m in all_species]
         if vacancy_indices is None:
