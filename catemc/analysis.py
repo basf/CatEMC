@@ -437,7 +437,7 @@ class GEEMCAnalysis(object):
         return dmu_estimates
 
     def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
-                temperature=None, cutoff=None, use_energy_mask=False):
+                temperature=None, cutoff=None, metal_only=True, use_energy_mask=False):
         """
         Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
         alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
@@ -454,7 +454,8 @@ class GEEMCAnalysis(object):
         # build target species lists (exclude vacancies 'X')
         metals = [m for m in (self.target_metal_species or []) if m != 'X']
         nonmetals = [n for n in (self.target_nonmetal_species or []) if n != 'X']
-        elem_list = metals + nonmetals
+        if not metal_only:
+            elem_list = metals + nonmetals
         # unordered hetero pairs + homo pairs
         pairs = list(combinations(elem_list, 2)) + [(e, e) for e in elem_list]
         sim_temps = sorted(self.data.keys())
