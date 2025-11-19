@@ -40,7 +40,7 @@ fig, ax = plt.subplots(figsize=(2.5, 2.3), gridspec_kw = {'wspace':0, 'hspace':0
 
 vmin, vmax = 0., 0.2
 levels = np.linspace(vmin, vmax, 6)
-x_Ovac_avg = expectations['x_Ovac']
+x_Ovac_avg = expectations['x_lattice_vac']
 Z = np.empty((len(dmu_H), len(dmu_O)), dtype=float)
 Z.fill(np.nan)
 for iy, muH in enumerate(dmu_H):
