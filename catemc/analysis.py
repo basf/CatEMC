@@ -519,6 +519,8 @@ class GEEMCAnalysis(object):
         nonmetals = [n for n in (self.target_nonmetal_species or []) if n != 'X']
         if not metal_only:
             elem_list = metals + nonmetals
+        else:
+            elem_list = metals
         # unordered hetero pairs + homo pairs
         pairs = list(combinations(elem_list, 2)) + [(e, e) for e in elem_list]
         sim_temps = sorted(self.data.keys())
