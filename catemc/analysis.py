@@ -379,56 +379,65 @@ class GEEMCAnalysis(object):
                 dmu_estimates[T][f'{m2}2{m1}']['estimate'] = dmu_m22m1_T
 
         if wls_correction:
-            M = len(self.target_metal_species)
-            temperatures = sorted(dmu_estimates.keys())
-            wls_dmu_estimates = {T: {} for T in temperatures}
-            for T, dd in dmu_estimates.items():
-                # Initialize Laplacian and RHS
-                L = np.zeros((M, M))
-                b = np.zeros(M)
-                # iterate over the raw directed entries present in dd
-                # assume keys are like 'Co2Ni' representing Co -> Ni
-                for key, info in dd.items():
-                    # parse species
-                    m1, m2 = key.split('2')
-                    if (m1 not in self.target_metal_species) or (m2 not in self.target_metal_species):
+            def compute_wls_for_species_list(species_list, mu_dict):
+                if (species_list is None) or (len(species_list) == 0):
+                    return {}
+                M_local = len(species_list)
+                # build Laplacian and RHS from directed estimates in mu_dict
+                L = np.zeros((M_local, M_local))
+                b = np.zeros(M_local)
+                for key, mu_info in mu_dict.items():
+                    # parse species from key like 'Co2Ni'
+                    s1, s2 = key.split('2')
+                    if (s1 not in species_list) or (s2 not in species_list):
                         continue
-                    i = self.target_metal_species.index(m1)
-                    j = self.target_metal_species.index(m2)
-                    # get the directed estimate d_k
-                    w = info.get('weight')
-                    dmu_raw = info.get('estimate')
-                    if dmu_raw is None:
+                    i = species_list.index(s1)
+                    j = species_list.index(s2)
+                    w = mu_info.get('weight')
+                    dmu_raw = mu_info.get('estimate')
+                    if (dmu_raw is None) or (w is None):
                         continue
-                    # Update Laplacian L and RHS b
                     L[i, i] += w
                     L[j, j] += w
                     L[i, j] -= w
                     L[j, i] -= w
-                    # Update RHS: add contributions for directed eq mu_j - mu_i = dmu_raw
                     b[i] -= w * dmu_raw
                     b[j] += w * dmu_raw
-            
-                # Reference constraint μ_Co = 0  (keep same reference index)
+                # apply reference constraint: set first species in list to zero
                 ref_idx = 0
-                keep_mask = np.arange(M) != ref_idx
+                keep_mask = np.arange(M_local) != ref_idx
                 L_red = L[keep_mask, :][:, keep_mask]
-                b_red = b[keep_mask] - L[keep_mask, ref_idx] * 0.0
-                # Solve reduced system robustly
+                b_red = b[keep_mask] - L[keep_mask, ref_idx] * 0.
                 try:
                     mu_red = np.linalg.solve(L_red, b_red)
                 except np.linalg.LinAlgError:
                     mu_red = np.linalg.lstsq(L_red, b_red, rcond=None)[0]
-                # combine into full mu vector
-                mu = np.zeros(M)
-                mu[ref_idx] = 0.0
+                mu = np.zeros(M_local)
+                mu[ref_idx] = 0.
                 mu[keep_mask] = mu_red
-            
-                # produce corrected differences for all unordered pairs
-                for m1, m2 in combinations(self.target_metal_species, 2):
-                    i = self.target_metal_species.index(m1)
-                    j = self.target_metal_species.index(m2)
-                    wls_dmu_estimates[T][f'{m1}2{m2}'] = mu[j] - mu[i]
+                # produce corrected differences for unordered pairs from this species set
+                out = {}
+                for s1, s2 in combinations(species_list, 2):
+                    i = species_list.index(s1)
+                    j = species_list.index(s2)
+                    out[f'{s1}2{s2}'] = mu[j] - mu[i]
+                return out
+
+            temperatures = sorted(dmu_estimates.keys())
+            wls_dmu_estimates = {T: {} for T in temperatures}
+            for T, dd in dmu_estimates.items():
+                # metals
+                metal_corrected = compute_wls_for_species_list(self.target_metal_species, dd)
+                # non-metals (if any)
+                nonmetal_corrected = {}
+                if self.target_nonmetal_species is not None:
+                    nonmetal_corrected = compute_wls_for_species_list(self.target_nonmetal_species, dd)
+                # merge
+                merged = {}
+                merged.update(metal_corrected)
+                merged.update(nonmetal_corrected)
+                wls_dmu_estimates[T] = merged
+
             dmu_estimates = wls_dmu_estimates
                     
         with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_estimates.pkl', 'wb') as handle:
