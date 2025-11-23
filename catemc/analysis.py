@@ -530,8 +530,6 @@ class GEEMCAnalysis(object):
             elem_list = metals
         else:
             elem_list = metals + nonmetals
-        else:
-            elem_list = metals
         # unordered hetero pairs + homo pairs
         pairs = list(combinations(elem_list, 2)) + [(e, e) for e in elem_list]
         sim_temps = sorted(self.data.keys())
@@ -991,7 +989,7 @@ class GCEMCAnalysis(object):
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
-        from pymbar import MBAR, FES, timeseries
+        from pymbar import FES, timeseries
         sim_temperatures = sorted(list(self.data.keys()))
         nonmetal_species = list(element_column_map.keys()) if element_column_map else []
         all_species = list(self.target_metal_species) + nonmetal_species
@@ -1042,7 +1040,7 @@ class GCEMCAnalysis(object):
                                     atoms.info['data'][f'ads_coverage_{ads}'] = 0.
                             if vacancy_indices:
                                 x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.position[2] < z_surf)]) / len(vacancy_indices)
-                                atoms.info['data'][f'x_lattice_vac'] = x_vac
+                                atoms.info['data']['x_lattice_vac'] = x_vac
                             surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.position[2] > z_surf)]]
                             surf_atoms.pbc = [1,1,0]
                             surf_num_dict = Counter(surf_atoms.symbols)
@@ -1123,7 +1121,7 @@ class GCEMCAnalysis(object):
 
         if len(kept_indices_list) == 0:
             uniq, counts = np.unique(sample_state, return_counts=True)
-            raise RuntimeError(f'No subsampled indices found for any occupied state. ' +
+            raise RuntimeError('No subsampled indices found for any occupied state. ' +
                                f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
         kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
         kept_indices.sort()
