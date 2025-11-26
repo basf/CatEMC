@@ -611,7 +611,8 @@ class GCEMC(EMC):
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                         offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
                         offsprings[idx].info['key_value_pairs'][self.replica_key] = rep
-                        offsprings[idx].info['data']['mu'] = parents[idx].info['data']['mu']
+                        if 'mu' in offsprings[idx].info['data']:
+                            offsprings[idx].info['data']['mu'] = parents[idx].info['data']['mu']
                         if 'mu_window' in parents[idx].info['data']:
                             offsprings[idx].info['data']['mu_window'] = parents[idx].info['data']['mu_window']
                         write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
@@ -622,12 +623,13 @@ class GCEMC(EMC):
                         continue
                     T = parents[0].info['key_value_pairs'][self.temperature_key]
                     species_probabilities = None
-                    adsorbate_species = self.adsorbate_species.copy()
-                    if self.other_adsorbate_species is not None:
-                        species_probabilities = {k: 1. for k in adsorbate_species}
-                        for k in self.other_adsorbate_species:
-                            species_probabilities[k] = 0.
-                        adsorbate_species += self.other_adsorbate_species
+                    if self.adsorbate_species is not None:
+                        adsorbate_species = self.adsorbate_species.copy()
+                        if self.other_adsorbate_species is not None:
+                            species_probabilities = {k: 1. for k in adsorbate_species}
+                            for k in self.other_adsorbate_species:
+                                species_probabilities[k] = 0.
+                            adsorbate_species += self.other_adsorbate_species
 
                     site_path = f'{self.calculation_dir}/tmp_{self.name}/sites_{rep}.pkl'
                     if (self.mutable_nonmetal_indices is None) or (self.nonmetal_element_pool is None):
@@ -673,15 +675,16 @@ class GCEMC(EMC):
                                                          adsorption_sites=site_path, 
                                                          catalyst_indices=self.slab_indices, 
                                                          dmax=self.adsorbate_surface_dmax)]
-                    weights += [self.adsorbate_insertion_rate, self.adsorbate_removal_rate, self.adsorbate_displacement_rate, 
-                                self.adsorbate_mutation_rate*2/3, self.adsorbate_mutation_rate*1/3]
+                        weights += [self.adsorbate_insertion_rate, self.adsorbate_removal_rate, self.adsorbate_displacement_rate, 
+                                    self.adsorbate_mutation_rate*2/3, self.adsorbate_mutation_rate*1/3]
                     operator = random.choices(population=operators, weights=weights)[0]
                     offspring, desc = operator.get_new_individual(parents)
                     if offspring == parents[0]:
                         warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                     offspring.info['key_value_pairs'][self.temperature_key] = parents[0].info['key_value_pairs'][self.temperature_key]
                     offspring.info['key_value_pairs'][self.replica_key] = rep
-                    offspring.info['data']['mu'] = parents[0].info['data']['mu']
+                    if 'mu' in offspring.info['data']:
+                        offspring.info['data']['mu'] = parents[0].info['data']['mu']
                     if 'mu_window' in parents[0].info['data']:
                         offspring.info['data']['mu_window'] = parents[0].info['data']['mu_window']
                     write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)

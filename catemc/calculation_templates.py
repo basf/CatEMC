@@ -418,9 +418,10 @@ def calculate_surface_fitness(
         phi = compute_phi(num_dict, target_metal_species, target_metal_composition, temperature_dmu_map, cond_arr, 
                           element_column_map, element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
-
-        fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
-                                  and (real_indices[a.index] not in adsorbate_indices)]
+        fragments = adsorbates
+        if element_column_map is not None:
+            fragments += [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
+                          and (real_indices[a.index] not in adsorbate_indices)]                       
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
             parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
@@ -827,9 +828,10 @@ def _postprocess_surface_worker(args):
             pseudo_atoms = copy.deepcopy(atoms)
 
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
-        fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
-                                  and (real_indices[a.index] not in adsorbate_indices)]
-
+        fragments = adsorbates
+        if element_column_map is not None:
+            fragments += [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
+                          and (real_indices[a.index] not in adsorbate_indices)]                       
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
             parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
