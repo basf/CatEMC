@@ -333,7 +333,7 @@ def compute_phi(num_dict, target_metal_species, target_metal_composition,
                 # fill dmu_T vector using provided temperature_dmu_map
                 for T_key, dmap in temperature_dmu_map.items():
                     if pair_key in dmap:
-                        dmu_T[T==key] = dmap[pair_key]
+                        dmu_T[T==T_key] = dmap[pair_key]
                 metal_mu_sum += (dc_surf - dc_bulk) * dmu_T
     phi = epot - num_metal / len(target_metal_species) * metal_mu_sum
 
