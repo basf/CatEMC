@@ -338,7 +338,7 @@ def compute_phi(num_dict, target_metal_species, target_metal_composition,
     phi = epot - num_metal / len(target_metal_species) * metal_mu_sum
 
     # non-metal contributions
-    if element_column_map:
+    if element_column_map is not None:
         for elem, col in element_column_map.items():
             nk = num_dict.get(elem, 0)
             y2x = (element_y2x_map.get(elem, 0.) if element_y2x_map is not None else 0.)
