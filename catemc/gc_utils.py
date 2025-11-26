@@ -306,7 +306,7 @@ def compute_phi(num_dict, target_metal_species, target_metal_composition,
 
     # normalize bulk composition
     c_sum = sum(target_metal_composition.values())
-    if c_sum != 0:
+    if c_sum != 1.:
         target_metal_composition = {k: v / c_sum for k, v in target_metal_composition.items()}
     grid = np.asarray(grid)
     if grid.ndim == 1:
