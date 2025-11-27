@@ -341,8 +341,9 @@ def calculate_surface_fitness(
     if not penalize:
         if any(a for a in tmp_atoms if a.position[2] < atoms.positions[:,2].min()):
             penalize = True
-        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and 
-        (a.position[2] > atoms.positions[:,2].max() + adsorbate_surface_dmax)):
+        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and (
+        adsorbate_surface_dmax is not None) and (
+        a.position[2] > atoms.positions[:,2].max() + adsorbate_surface_dmax)):
             penalize = True
         try:
             nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate',
@@ -406,8 +407,9 @@ def calculate_surface_fitness(
             pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
         else:
             pseudo_atoms = copy.deepcopy(atoms)
+        nonmetal_species = [] if (element_column_map is None) else list(element_column_map.keys())
         num_dict = dict((m, len([a for a in tmp_atoms if a.symbol==m])) 
-                        for m in target_metal_species + list(element_column_map.keys()))
+                        for m in target_metal_species + nonmetal_species)
         num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
         if mu is None:
             cond_arr = np.array([T])
@@ -416,9 +418,10 @@ def calculate_surface_fitness(
         phi = compute_phi(num_dict, target_metal_species, target_metal_composition, temperature_dmu_map, cond_arr, 
                           element_column_map, element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
-
-        fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
-                                  and (real_indices[a.index] not in adsorbate_indices)]
+        fragments = adsorbates
+        if element_column_map is not None:
+            fragments += [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
+                          and (real_indices[a.index] not in adsorbate_indices)]                       
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
             parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
@@ -742,8 +745,9 @@ def _postprocess_surface_worker(args):
     if not penalize:
         if any(a for a in tmp_atoms if a.position[2] < atoms.positions[:, 2].min()):
             penalize = True
-        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and
-               (a.position[2] > atoms.positions[:, 2].max() + adsorbate_surface_dmax)):
+        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and (
+        adsorbate_surface_dmax is not None) and (
+        a.position[2] > atoms.positions[:,2].max() + adsorbate_surface_dmax)):
             penalize = True
         try:
             nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate',
@@ -805,8 +809,9 @@ def _postprocess_surface_worker(args):
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
         fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()]
     else:
-        num_dict = dict((m, len([a for a in tmp_atoms if a.symbol == m]))
-                        for m in target_metal_species + list(element_column_map.keys()))
+        nonmetal_species = [] if (element_column_map is None) else list(element_column_map.keys())
+        num_dict = dict((m, len([a for a in tmp_atoms if a.symbol==m])) 
+                        for m in target_metal_species + nonmetal_species)
         num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
         if mu is None:
             cond_arr = np.array([T])
@@ -823,9 +828,10 @@ def _postprocess_surface_worker(args):
             pseudo_atoms = copy.deepcopy(atoms)
 
         pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
-        fragments = adsorbates + [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
-                                  and (real_indices[a.index] not in adsorbate_indices)]
-
+        fragments = adsorbates
+        if element_column_map is not None:
+            fragments += [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
+                          and (real_indices[a.index] not in adsorbate_indices)]                       
         if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
             parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
             pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff

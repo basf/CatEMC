@@ -714,9 +714,10 @@ class GCEMC(EMC):
                             self.temperature_key
                         ] = parents[idx].info["key_value_pairs"][self.temperature_key]
                         offsprings[idx].info["key_value_pairs"][self.replica_key] = rep
-                        offsprings[idx].info["data"]["mu"] = parents[idx].info["data"][
-                            "mu"
-                        ]
+                        if "mu" in offsprings[idx].info["data"]:
+                            offsprings[idx].info["data"]["mu"] = parents[idx].info[
+                                "data"
+                            ]["mu"]
                         if "mu_window" in parents[idx].info["data"]:
                             offsprings[idx].info["data"]["mu_window"] = parents[
                                 idx
@@ -734,12 +735,13 @@ class GCEMC(EMC):
                         continue
                     T = parents[0].info["key_value_pairs"][self.temperature_key]
                     species_probabilities = None
-                    adsorbate_species = self.adsorbate_species.copy()
-                    if self.other_adsorbate_species is not None:
-                        species_probabilities = {k: 1.0 for k in adsorbate_species}
-                        for k in self.other_adsorbate_species:
-                            species_probabilities[k] = 0.0
-                        adsorbate_species += self.other_adsorbate_species
+                    if self.adsorbate_species is not None:
+                        adsorbate_species = self.adsorbate_species.copy()
+                        if self.other_adsorbate_species is not None:
+                            species_probabilities = {k: 1.0 for k in adsorbate_species}
+                            for k in self.other_adsorbate_species:
+                                species_probabilities[k] = 0.0
+                            adsorbate_species += self.other_adsorbate_species
 
                     site_path = (
                         f"{self.calculation_dir}/tmp_{self.name}/sites_{rep}.pkl"
@@ -811,13 +813,13 @@ class GCEMC(EMC):
                                 dmax=self.adsorbate_surface_dmax,
                             ),
                         ]
-                    weights += [
-                        self.adsorbate_insertion_rate,
-                        self.adsorbate_removal_rate,
-                        self.adsorbate_displacement_rate,
-                        self.adsorbate_mutation_rate * 2 / 3,
-                        self.adsorbate_mutation_rate * 1 / 3,
-                    ]
+                        weights += [
+                            self.adsorbate_insertion_rate,
+                            self.adsorbate_removal_rate,
+                            self.adsorbate_displacement_rate,
+                            self.adsorbate_mutation_rate * 2 / 3,
+                            self.adsorbate_mutation_rate * 1 / 3,
+                        ]
                     operator = random.choices(population=operators, weights=weights)[0]
                     offspring, desc = operator.get_new_individual(parents)
                     if offspring == parents[0]:
@@ -828,7 +830,8 @@ class GCEMC(EMC):
                         0
                     ].info["key_value_pairs"][self.temperature_key]
                     offspring.info["key_value_pairs"][self.replica_key] = rep
-                    offspring.info["data"]["mu"] = parents[0].info["data"]["mu"]
+                    if "mu" in offspring.info["data"]:
+                        offspring.info["data"]["mu"] = parents[0].info["data"]["mu"]
                     if "mu_window" in parents[0].info["data"]:
                         offspring.info["data"]["mu_window"] = parents[0].info["data"][
                             "mu_window"
@@ -928,22 +931,28 @@ class GCEMC(EMC):
             if (self.mu_walk_generation is not None) and (self.mu_walk_generation > 0):
                 if (gen_num + gi) % self.mu_walk_generation == 0:
                     if gen_num + gi >= self.bias_starting_step:
-                        df_path = f'{self.calculation_dir}/{self.name}_free_energy_differences.npy'
+                        df_path = f"{self.calculation_dir}/{self.name}_free_energy_differences.npy"
                         df = np.load(df_path)
                     else:
                         df = None
-                    self.pop.mu_walk(element_column_map=self.element_column_map,
-                                     multiple_try=True,
-                                     reaction_conditions=self.reaction_conditions,
-                                     free_energy_differences=df)
-            if (self.exchange_generation is not None) and (self.exchange_generation > 0):
+                    self.pop.mu_walk(
+                        element_column_map=self.element_column_map,
+                        multiple_try=True,
+                        reaction_conditions=self.reaction_conditions,
+                        free_energy_differences=df,
+                    )
+            if (self.exchange_generation is not None) and (
+                self.exchange_generation > 0
+            ):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(
-                            exchange_within_temperature=True, prefactor='gc', 
-                            element_column_map=self.element_column_map,
-                            temperature_species_internal_map=self.tsi_map,
-                            no_internal_indices=self.mutable_nonmetal_indices)
-            
+                        exchange_within_temperature=True,
+                        prefactor="gc",
+                        element_column_map=self.element_column_map,
+                        temperature_species_internal_map=self.tsi_map,
+                        no_internal_indices=self.mutable_nonmetal_indices,
+                    )
+
             for atoms in self.pop.pop:
                 # atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
                 rep = atoms.info["key_value_pairs"][self.replica_key]
