@@ -109,9 +109,7 @@ def compute_interswap_prefactor(
     ect11, ect12 = Counter(atoms1.symbols), Counter(trial_atoms1.symbols)
     mutated_elements = [k for k, v in ect11.items() if v != ect12[k]]
     mutated_elements.sort(key=lambda x: ect12[x] - ect11[x])
-    print("INTERSWAP COUNTERS:", ect11, ect12)
     m1, m2 = mutated_elements
-    print("MUTATED ELEMENTS:", m1, m2)
     N11 = len([a for a in atoms1 if a.symbol == m1])
     N12 = len([a for a in atoms1 if a.symbol == m2])
     N21 = len([a for a in atoms2 if a.symbol == m1])
