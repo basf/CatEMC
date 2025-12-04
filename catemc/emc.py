@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Algorithm for canonical evolutionary Monte Carlo (EMC) run"""
+
 from .emc_population import EMCPopulation
-from .emc_operators import (
-        EMCCutSpliceCrossover,
-        EMCIntraSwap)
+from .emc_operators import EMCCutSpliceCrossover, EMCIntraSwap
 from .subprocess_manager import SubprocessManager
 from ase.io import read, write
 from ase.io.trajectory import Trajectory
@@ -19,7 +18,6 @@ import sys
 
 
 class EMC(object):
-
     """
     Main algorithm for canonical evolutionary Monte Carlo (EMC).
 
@@ -59,26 +57,26 @@ class EMC(object):
         The rate of performing intraswap operations in the catalyst slab.
 
     metal_element_pool: list of strs, default None
-        The list of target metal elements (including vacancy 'X') that should be 
+        The list of target metal elements (including vacancy 'X') that should be
         mutable during the EMC run.
 
     nonmetal_element_pool: list of strs, default None
-        The list of target non-metal elements (including vacancy 'X') that should 
+        The list of target non-metal elements (including vacancy 'X') that should
         be mutable during the EMC run.
 
     mutable_metal_indices: list of ints, default None
-        The list of metal atom (or 'X' which represents vacancy) indices that are 
-        allowed to mutate during the EMC run. Default None means all metal indices 
+        The list of metal atom (or 'X' which represents vacancy) indices that are
+        allowed to mutate during the EMC run. Default None means all metal indices
         are mutable.
 
     mutable_nonmetal_indices: list of ints, default None
         The list of non-metal (or 'X' which represents vacancy) indices that are
-        allowed to mutate during the EMC run. Default None means all non-metal 
+        allowed to mutate during the EMC run. Default None means all non-metal
         indices are mutable.
 
     raw_score_cutoff: float, default -10000.
-        The fitness score for candidates that are should not be considered in the 
-        sampling. This could be structures that are unphysical / failed to relax by 
+        The fitness score for candidates that are should not be considered in the
+        sampling. This could be structures that are unphysical / failed to relax by
         the calculator.
 
     temperature_key: str, default 'temperature'
@@ -106,30 +104,32 @@ class EMC(object):
 
     """
 
-    def __init__(self, name,
-            calculation_dir,
-            calculation_script,
-            input_pop,
-            fix_indices=None,
-            trim_generation=100,
-            md_generation=10,
-            exchange_generation=1,
-            crossover_rate=0.,
-            intraswap_rate=0.,
-            metal_element_pool=None,
-            nonmetal_element_pool=None,
-            mutable_metal_indices=None,
-            mutable_nonmetal_indices=None,
-            raw_score_cutoff=-10000.,
-            temperature_key='temperature',
-            replica_key='replica',
-            acceptance_key='accepted',
-            gpu_devices=1,
-            procs_per_device=10,
-            batching=False,
-            max_retries=3,
-            verbose=True):
-
+    def __init__(
+        self,
+        name,
+        calculation_dir,
+        calculation_script,
+        input_pop,
+        fix_indices=None,
+        trim_generation=100,
+        md_generation=10,
+        exchange_generation=1,
+        crossover_rate=0.0,
+        intraswap_rate=0.0,
+        metal_element_pool=None,
+        nonmetal_element_pool=None,
+        mutable_metal_indices=None,
+        mutable_nonmetal_indices=None,
+        raw_score_cutoff=-10000.0,
+        temperature_key="temperature",
+        replica_key="replica",
+        acceptance_key="accepted",
+        gpu_devices=1,
+        procs_per_device=10,
+        batching=False,
+        max_retries=3,
+        verbose=True,
+    ):
         self.name = name
         self.calculation_dir = calculation_dir
         self.calculation_script = calculation_script
@@ -155,51 +155,49 @@ class EMC(object):
         self.verbose = verbose
         # Initialize subprocess manager with GPU-aware retry logic
         self.subprocess_manager = SubprocessManager(
-            max_retries=max_retries,
-            initial_delay=0.5,
-            retry_delay=2.0,
-            verbose=verbose
+            max_retries=max_retries, initial_delay=0.5, retry_delay=2.0, verbose=verbose
         )
 
     def get_pop(self):
-
         # Define the logfile path
-        log_path = self.calculation_dir + '/{}.log'.format(self.name)
+        log_path = self.calculation_dir + "/{}.log".format(self.name)
         # Set the population
-        pop = EMCPopulation(data_connection=self.dc,
-                population_size=len(self.input_pop),
-                logfile=log_path,
-                temperature_key=self.temperature_key, 
-                replica_key=self.replica_key,
-                acceptance_key=self.acceptance_key,
-                verbose=self.verbose)
+        pop = EMCPopulation(
+            data_connection=self.dc,
+            population_size=len(self.input_pop),
+            logfile=log_path,
+            temperature_key=self.temperature_key,
+            replica_key=self.replica_key,
+            acceptance_key=self.acceptance_key,
+            verbose=self.verbose,
+        )
 
         return pop
 
     def trim_asedb(self):
-
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
-        tmp_asedb = PrepareDB(asedb_path[:-3] + '_tmp.db', population_size=self.pop_size)
+        asedb_path = self.calculation_dir + "/{}.db".format(self.name)
+        tmp_asedb = PrepareDB(
+            asedb_path[:-3] + "_tmp.db", population_size=self.pop_size
+        )
         current_pop = self.pop.get_current_population()
         i = 0
-        while os.path.isfile(asedb_path[:-3] + '_bak{}.db'.format(i)):
+        while os.path.isfile(asedb_path[:-3] + "_bak{}.db".format(i)):
             i += 1
-        shutil.copy(asedb_path, asedb_path[:-3] + '_bak{}.db'.format(i))
+        shutil.copy(asedb_path, asedb_path[:-3] + "_bak{}.db".format(i))
         os.remove(asedb_path)
-        shutil.move(asedb_path[:-3] + '_tmp.db', asedb_path)
+        shutil.move(asedb_path[:-3] + "_tmp.db", asedb_path)
         self.dc = DataConnection(asedb_path)
         self.dc.add_more_relaxed_candidates(current_pop)
 
     def connect_data_with_trim(self, starting_step):
-
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self.calculation_dir + "/{}.db".format(self.name)
         db = connect(asedb_path)
         relaxed_images = []
         unrelaxed_iamges = []
-        for i, row in enumerate(db.select('relaxed<=1')):
+        for i, row in enumerate(db.select("relaxed<=1")):
             atoms = row.toatoms()
-            atoms.info['key_value_pairs'] = row.key_value_pairs
-            atoms.info['data'] = row.data
+            atoms.info["key_value_pairs"] = row.key_value_pairs
+            atoms.info["data"] = row.data
             if row.emc_step < starting_step:
                 if row.relaxed:
                     relaxed_images.append(atoms)
@@ -209,27 +207,36 @@ class EMC(object):
         os.remove(asedb_path)
         asedb = PrepareDB(asedb_path, population_size=self.pop_size)
         for atoms in unrelaxed_images:
-            if 'key_value_pairs' not in atoms.info:
-                atoms.info['key_value_pairs'] = {}
-            if 'data' not in atoms.info:
-                atoms.info['data'] = {}
-            kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
-                      self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
-                      self.acceptance_key: 0}
-            asedb.add_unrelaxed_candidate(atoms, 
-                    emc_step=atoms.info['key_value_pairs']['emc_step'],
-                    data=atoms.info['data'],
-                    **kwargs)
+            if "key_value_pairs" not in atoms.info:
+                atoms.info["key_value_pairs"] = {}
+            if "data" not in atoms.info:
+                atoms.info["data"] = {}
+            kwargs = {
+                self.temperature_key: atoms.info["key_value_pairs"][
+                    self.temperature_key
+                ],
+                self.replica_key: atoms.info["key_value_pairs"][self.replica_key],
+                self.acceptance_key: 0,
+            }
+            asedb.add_unrelaxed_candidate(
+                atoms,
+                emc_step=atoms.info["key_value_pairs"]["emc_step"],
+                data=atoms.info["data"],
+                **kwargs,
+            )
         self.dc = DataConnection(asedb_path)
         self.dc.add_more_relaxed_candidates(relaxed_images)
 
-    def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None, batching=False):
-
-        replicas = [c.info['key_value_pairs'][self.replica_key] for c in unrelaxed_candidates]
+    def get_relaxed_candidates(
+        self, unrelaxed_candidates, run_md=False, add_args=None, batching=False
+    ):
+        replicas = [
+            c.info["key_value_pairs"][self.replica_key] for c in unrelaxed_candidates
+        ]
         if self.fix_indices is None:
-            fix_indices_str = 'None'
+            fix_indices_str = "None"
         else:
-            fix_indices_str = ','.join(map(str, self.fix_indices))
+            fix_indices_str = ",".join(map(str, self.fix_indices))
         if self.gpu_devices is None:
             gpu_devices = [0]
         else:
@@ -242,102 +249,165 @@ class EMC(object):
         gpu_device = gpu_devices[0]
 
         for i, atoms in enumerate(unrelaxed_candidates):
-            rep = atoms.info['key_value_pairs'][self.replica_key]
-            if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
+            rep = atoms.info["key_value_pairs"][self.replica_key]
+            if os.path.exists(
+                f"{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj"
+            ):
                 continue
             if batching:
                 # Append current atoms and decide whether to flush the batch.
-                device_for_current = gpu_devices[(i // self.procs_per_device) % len(gpu_devices)]
+                device_for_current = gpu_devices[
+                    (i // self.procs_per_device) % len(gpu_devices)
+                ]
                 if not batch_images:
                     batch_start_index = i
                 batch_images.append(atoms)
-                is_last = (i == len(unrelaxed_candidates) - 1)
+                is_last = i == len(unrelaxed_candidates) - 1
                 device_for_next = None
                 if not is_last:
-                    device_for_next = gpu_devices[((i + 1) // self.procs_per_device) % len(gpu_devices)]
-                if (len(batch_images) >= self.procs_per_device) or (device_for_next is not None and device_for_next != device_for_current) or is_last:
-                    reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
-                    arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}'
+                    device_for_next = gpu_devices[
+                        ((i + 1) // self.procs_per_device) % len(gpu_devices)
+                    ]
+                if (
+                    (len(batch_images) >= self.procs_per_device)
+                    or (
+                        device_for_next is not None
+                        and device_for_next != device_for_current
+                    )
+                    or is_last
+                ):
+                    reps_str = "_".join(
+                        [
+                            str(a.info["key_value_pairs"][self.replica_key])
+                            for a in batch_images
+                        ]
+                    )
+                    write(
+                        f"{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj",
+                        batch_images,
+                    )
+                    arg_str = f"{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}"
                     if add_args is not None:
                         for arg in add_args:
-                            arg_str += f' {arg}'
+                            arg_str += f" {arg}"
                     # Prepare command for subprocess manager
-                    cmd = [sys.executable, f'{self.calculation_dir}/{self.calculation_script}'] + arg_str.split()
-                    commands_to_run.append({
-                        'cmd': cmd,
-                        'gpu_id': device_for_current,
-                        'max_concurrent': self.procs_per_device,
-                        'job_id': f'batch_{reps_str}'
-                    })
+                    cmd = [
+                        sys.executable,
+                        f"{self.calculation_dir}/{self.calculation_script}",
+                    ] + arg_str.split()
+                    commands_to_run.append(
+                        {
+                            "cmd": cmd,
+                            "gpu_id": device_for_current,
+                            "max_concurrent": self.procs_per_device,
+                            "job_id": f"batch_{reps_str}",
+                        }
+                    )
                     # reset batch_images for next batch
                     batch_images = []
                     batch_start_index = None
             else:
-                gpu_device = gpu_devices[(i//self.procs_per_device)%len(self.gpu_devices)]
-                write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', atoms)
-                arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj {int(run_md)} {gpu_device} {fix_indices_str}'
+                gpu_device = gpu_devices[
+                    (i // self.procs_per_device) % len(self.gpu_devices)
+                ]
+                write(f"{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj", atoms)
+                arg_str = f"{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj {int(run_md)} {gpu_device} {fix_indices_str}"
                 if add_args is not None:
                     for arg in add_args:
-                        arg_str += f' {arg}'
+                        arg_str += f" {arg}"
                 # Prepare command for subprocess manager
-                cmd = [sys.executable, f'{self.calculation_dir}/{self.calculation_script}'] + arg_str.split()
-                commands_to_run.append({
-                    'cmd': cmd,
-                    'gpu_id': gpu_device,
-                    'max_concurrent': self.procs_per_device,
-                    'job_id': f'replica_{rep}'
-                })
+                cmd = [
+                    sys.executable,
+                    f"{self.calculation_dir}/{self.calculation_script}",
+                ] + arg_str.split()
+                commands_to_run.append(
+                    {
+                        "cmd": cmd,
+                        "gpu_id": gpu_device,
+                        "max_concurrent": self.procs_per_device,
+                        "job_id": f"replica_{rep}",
+                    }
+                )
 
         # flush any remaining partial batch that wasn't submitted
         if batching and batch_images:
             # decide device based on batch_start_index (the index where this batch started)
-            device_for_current = gpu_devices[(batch_start_index // self.procs_per_device) % len(gpu_devices)]
-            reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
-            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
-            arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}'
+            device_for_current = gpu_devices[
+                (batch_start_index // self.procs_per_device) % len(gpu_devices)
+            ]
+            reps_str = "_".join(
+                [str(a.info["key_value_pairs"][self.replica_key]) for a in batch_images]
+            )
+            write(
+                f"{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj",
+                batch_images,
+            )
+            arg_str = f"{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}"
             if add_args is not None:
                 for arg in add_args:
-                    arg_str += f' {arg}'
+                    arg_str += f" {arg}"
             # Prepare command for subprocess manager
-            cmd = [sys.executable, f'{self.calculation_dir}/{self.calculation_script}'] + arg_str.split()
-            commands_to_run.append({
-                'cmd': cmd,
-                'gpu_id': device_for_current,
-                'max_concurrent': self.procs_per_device,
-                'job_id': f'batch_{reps_str}'
-            })
+            cmd = [
+                sys.executable,
+                f"{self.calculation_dir}/{self.calculation_script}",
+            ] + arg_str.split()
+            commands_to_run.append(
+                {
+                    "cmd": cmd,
+                    "gpu_id": device_for_current,
+                    "max_concurrent": self.procs_per_device,
+                    "job_id": f"batch_{reps_str}",
+                }
+            )
             batch_images = []
             batch_start_index = None
 
         # Run all commands with the subprocess manager (with retry logic)
         if commands_to_run:
             if self.verbose:
-                print(f'[EMC] Submitting {len(commands_to_run)} calculation jobs')
+                print(f"[EMC] Submitting {len(commands_to_run)} calculation jobs")
             results = self.subprocess_manager.run_batch_sync(commands_to_run)
             # Check if any jobs failed after all retries
-            failed_jobs = [cmd['job_id'] for cmd, success in zip(commands_to_run, results) if not success]
+            failed_jobs = [
+                cmd["job_id"]
+                for cmd, success in zip(commands_to_run, results)
+                if not success
+            ]
             if failed_jobs:
-                print(f'[EMC] Warning: {len(failed_jobs)} jobs failed after {self.max_retries} retries: {failed_jobs}')
+                print(
+                    f"[EMC] Warning: {len(failed_jobs)} jobs failed after {self.max_retries} retries: {failed_jobs}"
+                )
 
         # Wait for all output files to appear
-        while not all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj') for rep in replicas):
+        while not all(
+            os.path.exists(
+                f"{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj"
+            )
+            for rep in replicas
+        ):
             time.sleep(1)
 
-        relaxed_candidates = [read(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj', index=-1) for rep in replicas]
+        relaxed_candidates = [
+            read(
+                f"{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj",
+                index=-1,
+            )
+            for rep in replicas
+        ]
         for rep in replicas:
-            os.remove(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj')
+            os.remove(
+                f"{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj"
+            )
 
         return relaxed_candidates
 
     def run(self, starting_step=1, total_steps=10000, restart_with_trim=False):
-
-        """                                    
+        """
         Parameters
         ----------
         starting_step: int, default 1
             (Re)starting from a certain EMC step.
-                                               
+
         total_steps: int, default 10000
             The total number of EMC steps that the algorithm should run.
 
@@ -350,57 +420,72 @@ class EMC(object):
         restart = True
         self.pop_size = len(self.input_pop)
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self.calculation_dir + "/{}.db".format(self.name)
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
             for atoms in self.input_pop:
-                if 'key_value_pairs' not in atoms.info:
-                    atoms.info['key_value_pairs'] = {}
-                if 'data' not in atoms.info:
-                    atoms.info['data'] = {}
-                kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
-                          self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
-                          self.acceptance_key: 0}
-                asedb.add_unrelaxed_candidate(atoms, 
-                        emc_step=atoms.info['key_value_pairs']['emc_step'],
-                        data=atoms.info['data'],
-                        **kwargs)
+                if "key_value_pairs" not in atoms.info:
+                    atoms.info["key_value_pairs"] = {}
+                if "data" not in atoms.info:
+                    atoms.info["data"] = {}
+                kwargs = {
+                    self.temperature_key: atoms.info["key_value_pairs"][
+                        self.temperature_key
+                    ],
+                    self.replica_key: atoms.info["key_value_pairs"][self.replica_key],
+                    self.acceptance_key: 0,
+                }
+                asedb.add_unrelaxed_candidate(
+                    atoms,
+                    emc_step=atoms.info["key_value_pairs"]["emc_step"],
+                    data=atoms.info["data"],
+                    **kwargs,
+                )
         if restart_with_trim:
             self.connect_data_with_trim(starting_step=starting_step)
         else:
             self.dc = DataConnection(asedb_path)
-        if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
-            os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
+        if not os.path.isdir(f"{self.calculation_dir}/tmp_{self.name}"):
+            os.mkdir(f"{self.calculation_dir}/tmp_{self.name}")
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
-            for atoms in relaxed_candidates:                  
-                atoms.info['key_value_pairs'][self.acceptance_key] = 1
+            relaxed_candidates = self.get_relaxed_candidates(
+                unrelaxed_candidates, run_md=True, batching=self.batching
+            )
+            for atoms in relaxed_candidates:
+                atoms.info["key_value_pairs"][self.acceptance_key] = 1
         else:
             relaxed_candidates = []
 
         self.ntask = 1
-        self.pop = self.get_pop()                                             
+        self.pop = self.get_pop()
         if self.trim_generation == -1:
-            parprint('Restarting from the final population of the previously-converged EMC run. ' + 
-                     'All other previously-stored structures are discarded from the ASE database.')
+            parprint(
+                "Restarting from the final population of the previously-converged EMC run. "
+                + "All other previously-stored structures are discarded from the ASE database."
+            )
             self.trim_asedb()
-            self.pop = self.get_pop() 
+            self.pop = self.get_pop()
         # Update the population to allow new candidates to enter
         self.dc.add_more_relaxed_candidates(relaxed_candidates)
         self.pop.update()
         if not restart:
             for atoms in self.pop.pop:
-                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
+                # atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
+                rep = atoms.info["key_value_pairs"][self.replica_key]
+                traj = Trajectory(
+                    f"{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj", "a"
+                )
                 traj.write(atoms)
         if restart_with_trim:
             for atoms in self.pop.pop:
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = read(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', index=f':{starting_step}')
-                write(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', traj)
+                rep = atoms.info["key_value_pairs"][self.replica_key]
+                traj = read(
+                    f"{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj",
+                    index=f":{starting_step}",
+                )
+                write(f"{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj", traj)
         rates_sum = self.intraswap_rate + self.crossover_rate
         if rates_sum != 1:
             self.intraswap_rate /= rates_sum
@@ -415,99 +500,176 @@ class EMC(object):
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
-                parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
-            parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
-            
+                parprint(
+                    "ASE database trimed at generation {0}. Restart from current population.".format(
+                        gen_num + gi
+                    )
+                )
+            parprint("Creating and evaluating generation {0}".format(gen_num + gi))
+
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
-                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
+                relaxed_candidates = self.get_relaxed_candidates(
+                    unrelaxed_candidates, run_md=True, batching=self.batching
+                )
                 for atoms in relaxed_candidates:
-                    atoms.info['key_value_pairs'][self.acceptance_key] = 1
+                    atoms.info["key_value_pairs"][self.acceptance_key] = 1
                 # Update the population to allow new candidates to enter
-                self.dc.add_more_relaxed_candidates(relaxed_candidates) 
+                self.dc.add_more_relaxed_candidates(relaxed_candidates)
                 self.pop.update()
 
             n_crossover_pairs = round((self.pop_size * self.crossover_rate) / 2)
-            all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs=0)
+            all_parents = self.pop.get_all_parents(
+                n_crossover_pairs, n_interswap_pairs=0
+            )
             for parents in all_parents:
                 if len(parents) == 2:
                     if self.nonmetal_element_pool is None:
                         element_pool = self.metal_element_pool
                         allowed_indices = self.mutable_metal_indices
                     else:
-                        element_pool = self.metal_element_pool + self.nonmetal_element_pool
-                        if (self.mutable_metal_indices is None) or (self.mutable_nonmetal_indices is None):
+                        element_pool = (
+                            self.metal_element_pool + self.nonmetal_element_pool
+                        )
+                        if (self.mutable_metal_indices is None) or (
+                            self.mutable_nonmetal_indices is None
+                        ):
                             allowed_indices = None
                         else:
-                            allowed_indices = self.mutable_metal_indices + self.mutable_nonmetal_indices
-                    operator = EMCCutSpliceCrossover(allowed_indices=allowed_indices, elements=element_pool, keep_composition=True)
+                            allowed_indices = (
+                                self.mutable_metal_indices
+                                + self.mutable_nonmetal_indices
+                            )
+                    operator = EMCCutSpliceCrossover(
+                        allowed_indices=allowed_indices,
+                        elements=element_pool,
+                        keep_composition=True,
+                    )
                     offsprings, desc = operator.get_new_individual(parents)
                     for idx in range(2):
-                        rep = parents[idx].info['key_value_pairs'][self.replica_key]
-                        if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
+                        rep = parents[idx].info["key_value_pairs"][self.replica_key]
+                        if os.path.exists(
+                            f"{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj"
+                        ):
                             continue
                         if offsprings[idx] == parents[idx]:
-                            warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
-                        offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
-                        offsprings[idx].info['key_value_pairs'][self.replica_key] = rep
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
+                            warnings.warn(
+                                f"Offspring identical to parent. Something with replica {rep} went wrong"
+                            )
+                        offsprings[idx].info["key_value_pairs"][
+                            self.temperature_key
+                        ] = parents[idx].info["key_value_pairs"][self.temperature_key]
+                        offsprings[idx].info["key_value_pairs"][self.replica_key] = rep
+                        write(
+                            f"{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj",
+                            offsprings[idx],
+                        )
 
                 elif len(parents) == 1:
-                    rep = parents[0].info['key_value_pairs'][self.replica_key]
-                    if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
+                    rep = parents[0].info["key_value_pairs"][self.replica_key]
+                    if os.path.exists(
+                        f"{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj"
+                    ):
                         continue
                     if self.nonmetal_element_pool is None:
                         allowed_indices = self.mutable_metal_indices
                         element_pools = self.metal_element_pool
                     else:
-                        if (self.mutable_metal_indices is None) or (self.mutable_nonmetal_indices is None):
+                        if (self.mutable_metal_indices is None) or (
+                            self.mutable_nonmetal_indices is None
+                        ):
                             allowed_indices = None
                         else:
-                            allowed_indices = [self.mutable_metal_indices, self.mutable_nonmetal_indices]
-                        element_pools = [self.metal_element_pool, self.nonmetal_element_pool]
-                    operator = EMCIntraSwap(allowed_indices=allowed_indices, element_pools=element_pools)
+                            allowed_indices = [
+                                self.mutable_metal_indices,
+                                self.mutable_nonmetal_indices,
+                            ]
+                        element_pools = [
+                            self.metal_element_pool,
+                            self.nonmetal_element_pool,
+                        ]
+                    operator = EMCIntraSwap(
+                        allowed_indices=allowed_indices, element_pools=element_pools
+                    )
                     offspring, desc = operator.get_new_individual(parents)
                     if offspring == parents[0]:
-                        warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
-                    offspring.info['key_value_pairs'][self.temperature_key] = parents[0].info['key_value_pairs'][self.temperature_key]
-                    offspring.info['key_value_pairs'][self.replica_key] = rep
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
+                        warnings.warn(
+                            f"Offspring identical to parent. Something with replica {rep} went wrong"
+                        )
+                    offspring.info["key_value_pairs"][self.temperature_key] = parents[
+                        0
+                    ].info["key_value_pairs"][self.temperature_key]
+                    offspring.info["key_value_pairs"][self.replica_key] = rep
+                    write(
+                        f"{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj",
+                        offspring,
+                    )
 
-            replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
-            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
+            replicas = sorted(
+                [
+                    c.info["key_value_pairs"][self.replica_key]
+                    for lst in all_parents
+                    for c in lst
+                ]
+            )
+            unrelaxed_offsprings = [
+                read(f"{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj")
+                for rep in replicas
+            ]
+            relaxed_offsprings = self.get_relaxed_candidates(
+                unrelaxed_offsprings, run_md=False, batching=self.batching
+            )
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:
-                    rep1 = parents[0].info['key_value_pairs'][self.replica_key]
-                    rep2 = parents[1].info['key_value_pairs'][self.replica_key]
+                    rep1 = parents[0].info["key_value_pairs"][self.replica_key]
+                    rep2 = parents[1].info["key_value_pairs"][self.replica_key]
                     relaxed_offspring1 = relaxed_offsprings[replicas.index(rep1)]
-                    relaxed_offspring2 = relaxed_offsprings[replicas.index(rep2)] 
-                    relaxed_offspring1.info['data']['operation'] = parents[0].info['data']['for_operation']
-                    relaxed_offspring2.info['data']['operation'] = parents[1].info['data']['for_operation']
-                    relaxed_offspring1.info['key_value_pairs']['emc_step'] = gen_num + gi
-                    relaxed_offspring2.info['key_value_pairs']['emc_step'] = gen_num + gi
+                    relaxed_offspring2 = relaxed_offsprings[replicas.index(rep2)]
+                    relaxed_offspring1.info["data"]["operation"] = parents[0].info[
+                        "data"
+                    ]["for_operation"]
+                    relaxed_offspring2.info["data"]["operation"] = parents[1].info[
+                        "data"
+                    ]["for_operation"]
+                    relaxed_offspring1.info["key_value_pairs"]["emc_step"] = (
+                        gen_num + gi
+                    )
+                    relaxed_offspring2.info["key_value_pairs"]["emc_step"] = (
+                        gen_num + gi
+                    )
                     relaxed_candidates += self.pop.evaluate_offsprings(
-                            parents, [relaxed_offspring1, relaxed_offspring2], 
-                            raw_score_cutoff=self.raw_score_cutoff)
+                        parents,
+                        [relaxed_offspring1, relaxed_offspring2],
+                        raw_score_cutoff=self.raw_score_cutoff,
+                    )
                 elif len(parents) == 1:
-                    rep = parents[0].info['key_value_pairs'][self.replica_key]
+                    rep = parents[0].info["key_value_pairs"][self.replica_key]
                     relaxed_offspring = relaxed_offsprings[replicas.index(rep)]
-                    relaxed_offspring.info['data']['operation'] = parents[0].info['data']['for_operation']
-                    relaxed_offspring.info['key_value_pairs']['emc_step'] = gen_num + gi
+                    relaxed_offspring.info["data"]["operation"] = parents[0].info[
+                        "data"
+                    ]["for_operation"]
+                    relaxed_offspring.info["key_value_pairs"]["emc_step"] = gen_num + gi
                     relaxed_candidates += self.pop.evaluate_offsprings(
-                            parents, [relaxed_offspring], raw_score_cutoff=self.raw_score_cutoff)
+                        parents,
+                        [relaxed_offspring],
+                        raw_score_cutoff=self.raw_score_cutoff,
+                    )
 
             # Update the population to allow new candidates to enter
             self.dc.add_more_relaxed_candidates(relaxed_candidates)
             self.pop.update()
-            if (self.exchange_generation is not None) and (self.exchange_generation > 0):
+            if (self.exchange_generation is not None) and (
+                self.exchange_generation > 0
+            ):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(keep_composition=True)
-            
+
             for atoms in self.pop.pop:
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
+                rep = atoms.info["key_value_pairs"][self.replica_key]
+                traj = Trajectory(
+                    f"{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj", "a"
+                )
                 traj.write(atoms)
 
             gi += 1

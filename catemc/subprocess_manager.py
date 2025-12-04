@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Async subprocess manager with GPU access retry logic"""
+
 import asyncio
 import random
 from typing import List, Dict
@@ -43,8 +44,9 @@ class SubprocessManager:
             self._semaphore_dict[key] = asyncio.Semaphore(max_concurrent)
         return self._semaphore_dict[key]
 
-    async def _run_subprocess_with_retry(self, cmd: List[str], gpu_id: int,
-                                         max_concurrent: int, job_id: str) -> bool:
+    async def _run_subprocess_with_retry(
+        self, cmd: List[str], gpu_id: int, max_concurrent: int, job_id: str
+    ) -> bool:
         """
         Run a single subprocess with retry logic.
 
@@ -69,7 +71,9 @@ class SubprocessManager:
         for attempt in range(self.max_retries + 1):
             async with semaphore:
                 if self.verbose and attempt > 0:
-                    print(f"[SubprocessManager] Retry {attempt}/{self.max_retries} for job {job_id}")
+                    print(
+                        f"[SubprocessManager] Retry {attempt}/{self.max_retries} for job {job_id}"
+                    )
 
                 # Add small random delay to prevent simultaneous GPU access
                 await asyncio.sleep(self.initial_delay + random.random() * 0.5)
@@ -79,7 +83,7 @@ class SubprocessManager:
                     process = await asyncio.create_subprocess_exec(
                         *cmd,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                        stderr=asyncio.subprocess.PIPE,
                     )
 
                     # Wait for completion
@@ -88,35 +92,50 @@ class SubprocessManager:
                     # Check for success
                     if process.returncode == 0:
                         if self.verbose:
-                            print(f"[SubprocessManager] Job {job_id} completed successfully")
+                            print(
+                                f"[SubprocessManager] Job {job_id} completed successfully"
+                            )
                         return True
                     else:
                         stderr_str = stderr.decode() if stderr else ""
                         if self.verbose:
-                            print(f"[SubprocessManager] Job {job_id} failed with return code {process.returncode}")
+                            print(
+                                f"[SubprocessManager] Job {job_id} failed with return code {process.returncode}"
+                            )
 
                         # Check for pthread error
-                        if "pthread_create()" in stderr_str or "Resource temporarily unavailable" in stderr_str:
+                        if (
+                            "pthread_create()" in stderr_str
+                            or "Resource temporarily unavailable" in stderr_str
+                        ):
                             if attempt < self.max_retries:
                                 # Exponential backoff with jitter
-                                delay = self.retry_delay * (2 ** attempt) + random.random()
+                                delay = (
+                                    self.retry_delay * (2**attempt) + random.random()
+                                )
                                 if self.verbose:
-                                    print(f"[SubprocessManager] Detected GPU access error. Retrying in {delay:.2f}s...")
+                                    print(
+                                        f"[SubprocessManager] Detected GPU access error. Retrying in {delay:.2f}s..."
+                                    )
                                 await asyncio.sleep(delay)
                                 continue
 
                         # Non-retryable error or max retries reached
                         if self.verbose:
-                            print(f"[SubprocessManager] Job {job_id} failed after {attempt + 1} attempts")
+                            print(
+                                f"[SubprocessManager] Job {job_id} failed after {attempt + 1} attempts"
+                            )
                             if stderr_str:
-                                print(f"[SubprocessManager] Error output: {stderr_str[:500]}")
+                                print(
+                                    f"[SubprocessManager] Error output: {stderr_str[:500]}"
+                                )
                         return False
 
                 except Exception as e:
                     if self.verbose:
                         print(f"[SubprocessManager] Exception for job {job_id}: {e}")
                     if attempt < self.max_retries:
-                        delay = self.retry_delay * (2 ** attempt) + random.random()
+                        delay = self.retry_delay * (2**attempt) + random.random()
                         await asyncio.sleep(delay)
                         continue
                     return False
@@ -145,10 +164,10 @@ class SubprocessManager:
         for cmd_info in commands:
             task = asyncio.create_task(
                 self._run_subprocess_with_retry(
-                    cmd=cmd_info['cmd'],
-                    gpu_id=cmd_info['gpu_id'],
-                    max_concurrent=cmd_info['max_concurrent'],
-                    job_id=cmd_info['job_id']
+                    cmd=cmd_info["cmd"],
+                    gpu_id=cmd_info["gpu_id"],
+                    max_concurrent=cmd_info["max_concurrent"],
+                    job_id=cmd_info["job_id"],
                 )
             )
             tasks.append(task)
@@ -185,9 +204,16 @@ class SubprocessManager:
         return asyncio.run(self.run_batch(commands))
 
 
-def run_subprocess_with_retry(python_path: str, script_path: str, args: str,
-                               gpu_id: int, max_concurrent: int, job_id: str,
-                               max_retries: int = 3, verbose: bool = True) -> bool:
+def run_subprocess_with_retry(
+    python_path: str,
+    script_path: str,
+    args: str,
+    gpu_id: int,
+    max_concurrent: int,
+    job_id: str,
+    max_retries: int = 3,
+    verbose: bool = True,
+) -> bool:
     """
     Convenience function to run a single subprocess with retry logic.
 
@@ -217,11 +243,13 @@ def run_subprocess_with_retry(python_path: str, script_path: str, args: str,
     """
     cmd = [python_path, script_path] + args.split()
     manager = SubprocessManager(max_retries=max_retries, verbose=verbose)
-    commands = [{
-        'cmd': cmd,
-        'gpu_id': gpu_id,
-        'max_concurrent': max_concurrent,
-        'job_id': job_id
-    }]
+    commands = [
+        {
+            "cmd": cmd,
+            "gpu_id": gpu_id,
+            "max_concurrent": max_concurrent,
+            "job_id": job_id,
+        }
+    ]
     results = manager.run_batch_sync(commands)
     return results[0]
