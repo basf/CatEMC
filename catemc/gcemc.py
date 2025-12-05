@@ -611,7 +611,7 @@ class GCEMC(EMC):
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                         offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
                         offsprings[idx].info['key_value_pairs'][self.replica_key] = rep
-                        if 'mu' in offsprings[idx].info['data']:
+                        if 'mu' in parents[idx].info['data']:
                             offsprings[idx].info['data']['mu'] = parents[idx].info['data']['mu']
                         if 'mu_window' in parents[idx].info['data']:
                             offsprings[idx].info['data']['mu_window'] = parents[idx].info['data']['mu_window']
@@ -683,7 +683,7 @@ class GCEMC(EMC):
                         warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                     offspring.info['key_value_pairs'][self.temperature_key] = parents[0].info['key_value_pairs'][self.temperature_key]
                     offspring.info['key_value_pairs'][self.replica_key] = rep
-                    if 'mu' in offspring.info['data']:
+                    if 'mu' in parents[0].info['data']:
                         offspring.info['data']['mu'] = parents[0].info['data']['mu']
                     if 'mu_window' in parents[0].info['data']:
                         offspring.info['data']['mu_window'] = parents[0].info['data']['mu_window']
