@@ -1,6 +1,6 @@
 # CatEMC
 
-**CatEMC** is a Python package for running evolutionary Monte Carlo (EMC) simulations for complex bulk/surface hetergeneous catalyst materials. The pacakge provides tools to (1) generate populations of structures and μ-windows, (2) run Gibbs ensemble evolutionary Monte Carlo (GE-EMC) bulk simulation at different temperatures, or run grand canonical evolutionary Monte Carlo (GC-EMC) simultions at different temperatures and reaction conditions, (3) analyze GE-EMC simulation data to estimate metal chemical potential differences, or analyze GC-EMC simulation data to estimate expectations of structural properties and free-energy surfaces. For more details please read the [CatEMC documentation](https://ShaunHan.github.io/CatEMC/).
+**CatEMC** is a Python package for running evolutionary Monte Carlo (EMC) simulations for complex bulk/surface hetergeneous catalyst materials. The pacakge provides tools to (1) generate populations of structures and μ-windows, (2) run Gibbs ensemble evolutionary Monte Carlo (GE-EMC) bulk simulation at different temperatures, or run grand canonical evolutionary Monte Carlo (GC-EMC) simultions at different temperatures and reaction conditions, (3) analyze GE-EMC simulation data to estimate metal chemical potential differences, or analyze GC-EMC simulation data to estimate expectations of structural properties and free-energy surfaces. For more details please read the [CatEMC documentation](https://ShaunHan.github.io/CatEMC).
 
 ![png](images/catemc_workflow.png)
 
@@ -16,7 +16,7 @@ Shuang Han: hanshuangshiren@gmail.com
 
 Python environment: we recommend Python 3.9+ and a virtualenv or conda env. Install key packages used by the code:
 
-   * `autoadsorbate`, `acat`, `ase`, `pymbar`
+   * [`autoadsorbate`](https://github.com/basf/autoadsorbate), [`acat`](https://gitlab.com/asm-dtu/acat), [`ase`](https://gitlab.com/ase/ase), [`pymbar`](https://github.com/choderalab/pymbar)
 
 ---
 
