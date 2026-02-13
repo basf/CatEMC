@@ -226,6 +226,7 @@ class EMC(object):
         batch_images = []
         batch_start_index = None
         gpu_device = gpu_devices[0]
+        procs = []
         for i, atoms in enumerate(unrelaxed_candidates):
             rep = atoms.info['key_value_pairs'][self.replica_key]
             if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
@@ -247,7 +248,11 @@ class EMC(object):
                     if add_args is not None:
                         for arg in add_args:
                             arg_str += f' {arg}'
-                    os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
+                    # create a log file per job and launch with Popen so we can poll exit codes
+                    logpath = f'{self.calculation_dir}/tmp_{self.name}/job_{reps_str if "reps_str" in locals() else rep}.log'
+                    cmd = f'python {self.calculation_dir}/{self.calculation_script} {arg_str}'
+                    p = subprocess.Popen(cmd, shell=True, stdout=open(logpath, 'ab'), stderr=subprocess.STDOUT, cwd=self.calculation_dir)
+                    procs.append({'proc': p, 'reps': (reps_list if 'reps_list' in locals() else [rep]), 'log': logpath})
                     # reset batch_images for next batch
                     batch_images = []
                     batch_start_index = None 
@@ -258,11 +263,29 @@ class EMC(object):
                 if add_args is not None:
                     for arg in add_args:
                         arg_str += f' {arg}'
-                os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
+                # create a log file per job and launch with Popen so we can poll exit codes
+                logpath = f'{self.calculation_dir}/tmp_{self.name}/job_{reps_str if "reps_str" in locals() else rep}.log'
+                cmd = f'python {self.calculation_dir}/{self.calculation_script} {arg_str}'
+                p = subprocess.Popen(cmd, shell=True, stdout=open(logpath, 'ab'), stderr=subprocess.STDOUT, cwd=self.calculation_dir)
+                procs.append({'proc': p, 'reps': (reps_list if 'reps_list' in locals() else [rep]), 'log': logpath})
             if (i % (len(gpu_devices)*self.procs_per_device) == (len(gpu_devices)*self.procs_per_device-1)
             ) or (i == len(unrelaxed_candidates) - 1):
-                while not all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{replicas[j]}.traj') for j in range(i+1)):
+                # wait until all expected relaxed files for this chunk exist, but also
+                # check subprocess exit codes and fail fast if any returned non-zero.
+                while True:
+                    # check whether all expected output files exist for the chunk
+                    files_ok = all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{r}.traj')
+                                   for entry in procs for r in entry['reps'])
+                    # check processes for failures
+                    for entry in procs:
+                        ret = entry['proc'].poll()
+                        if ret is not None and ret != 0:
+                            raise RuntimeError(f'Parallel job for replicas {entry["reps"]} failed with exit code {ret}. See log {entry["log"]}')
+                    if files_ok:
+                        break
                     time.sleep(5)
+                # clear procs for the next chunk
+                procs = []
 
         # flush any remaining partial batch that wasn't submitted
         if batching and batch_images:
@@ -274,7 +297,11 @@ class EMC(object):
             if add_args is not None:
                 for arg in add_args:
                     arg_str += f' {arg}'
-            os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
+            # create a log file per job and launch with Popen so we can poll exit codes
+            logpath = f'{self.calculation_dir}/tmp_{self.name}/job_{reps_str if "reps_str" in locals() else rep}.log'
+            cmd = f'python {self.calculation_dir}/{self.calculation_script} {arg_str}'
+            p = subprocess.Popen(cmd, shell=True, stdout=open(logpath, 'ab'), stderr=subprocess.STDOUT, cwd=self.calculation_dir)
+            procs.append({'proc': p, 'reps': (reps_list if 'reps_list' in locals() else [rep]), 'log': logpath})
             batch_images = []
             batch_start_index = None
 
