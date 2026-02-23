@@ -12,6 +12,8 @@ from ase.filters import FrechetCellFilter
 from ase.io.trajectory import Trajectory
 from ase.md.nvtberendsen import NVTBerendsen
 from ase.md.nptberendsen import NPTBerendsen
+from ase.md.langevin import Langevin
+from ase.md.langevinbaoab import LangevinBAOAB
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.parallel import parprint
 import importlib
@@ -32,6 +34,8 @@ def calculate_bulk_fitness(
         md_taut,
         md_steps,
         md_write_interval,
+        md_type='berendsen',
+        md_friction=None,
         pressure=None,
         md_taup=1000*units.fs,
         compressibility=5e-5/units.bar,
@@ -72,8 +76,10 @@ def calculate_bulk_fitness(
     run_md: bool
         Whether to run molecular dynamics or not.
 
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup: 
-        MD parameters
+    md_timestep, md_taut, md_steps, md_write_interval, md_taup,
+    md_type, md_friction: 
+        MD parameters and type (only support 'berendsen' and 
+        'langevin' so far).
 
     pressure: float, default None
         Target pressure in atomic unit (eV/Å^3) for running NPT 
@@ -144,15 +150,26 @@ def calculate_bulk_fitness(
                 MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
                 Stationary(tmp_atoms)
                 if pressure is None:                                                              
-                    dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
-                                       taut=md_taut, logfile=tag+f'_{rep}.log',
+                    if md_type == 'berendsen':
+                        dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
+                                           taut=md_taut, logfile=tag+f'_{rep}.log',
+                                           trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                    elif md_type == 'langevin':
+                        dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                       friction=md_friction, logfile=tag+f'_{rep}.log',
                                        trajectory=tag+f'_{rep}.traj', append_trajectory=True)
                 else:
-                    dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
-                                       taut=md_taut, pressure_au=pressure,
-                                       taup=md_taup, compressibility_au=compressibility,
-                                       logfile=tag+f'_{rep}.log', trajectory=tag+f'_{rep}.traj', 
-                                       append_trajectory=True)
+                    if md_type == 'berendsen':
+                        dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                           taut=md_taut, pressure_au=pressure,
+                                           taup=md_taup, compressibility_au=compressibility,
+                                           logfile=tag+f'_{rep}.log', trajectory=tag+f'_{rep}.traj', 
+                                           append_trajectory=True)
+                    elif md_type == 'langevin':
+                        dyn = LangevinBAOAB(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                            T_tau=md_taut, hydrostatic=True, externalstress=pressure,
+                                            P_tau=md_taup, logfile=tag+f'_{rep}.log', 
+                                            trajectory=tag+f'_{rep}.traj', append_trajectory=True)
                 traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
                 dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
@@ -199,19 +216,21 @@ def calculate_surface_fitness(
         traj_path,
         calculator_list,
         fmax_list,
-        md_write_interval,
         target_metal_species,
         target_metal_composition,
         allowed_adsorbate_species,
-        run_md,
-        md_timestep,
-        md_taut,
-        md_steps,
         element_column_map,
         element_eref_map,
         element_y2x_map,
         adsorption_sites, 
-        slab_indices, 
+        slab_indices,
+        run_md,
+        md_timestep,
+        md_taut,
+        md_steps,
+        md_write_interval,
+        md_type='berendsen',
+        md_friction=None,
         fix_indices=None,
         temperature_dmu_map=None,
         update_md_positions=True,
@@ -256,8 +275,10 @@ def calculate_surface_fitness(
     run_md: bool
         Whether to run molecular dynamics or not.
 
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup: 
-        MD parameters.
+    md_timestep, md_taut, md_steps, md_write_interval, md_taup, 
+    md_type, md_friction:
+        MD parameters and type (only support 'berendsen' and 
+        'langevin' so far).
 
     pressure: float, default None
         Target pressure for running NPT and cell relaxation. Running
@@ -322,10 +343,14 @@ def calculate_surface_fitness(
                 tag = f"{dir_name}/md"
                 MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
                 Stationary(tmp_atoms)
-                dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
-                                   taut=md_taut, logfile=tag+f'_{rep}.log',
+                if md_type == 'berendsen':
+                    dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
+                                       taut=md_taut, logfile=tag+f'_{rep}.log',
+                                       trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                elif md_type == 'langevin':
+                    dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                   friction=md_friction, logfile=tag+f'_{rep}.log',
                                    trajectory=tag+f'_{rep}.traj', append_trajectory=True)
-                                                                                                  
                 traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
                 dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
