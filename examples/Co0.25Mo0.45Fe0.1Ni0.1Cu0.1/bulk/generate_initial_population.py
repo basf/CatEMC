@@ -1,5 +1,6 @@
 from catemc.generate import generate_population
 from acat.build.ordering import RandomOrderingGenerator as ROG
+from ase.build import bulk
 from ase.io import read, write
 from ase.visualize import view
 import numpy as np
