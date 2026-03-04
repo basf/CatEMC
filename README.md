@@ -720,19 +720,12 @@ To plot surface phase diagrams for certain structural properties, you can use th
 ```python
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-from matplotlib.colors import ListedColormap
-import seaborn as sns
 import numpy as np
-from ase.io import read, write
-from ase.units import kB
-from itertools import combinations
-from collections import defaultdict
+from matplotlib.colors import TwoSlopeNorm
+from matplotlib import font_manager
 import pickle
 
 matplotlib.rcParams.update(matplotlib.rcParamsDefault)
-# Set font properties
-from matplotlib import font_manager
 font_path = '/mnt/nfs/source/arial.ttf'
 font_manager.fontManager.addfont(font_path)
 prop = font_manager.FontProperties(fname=font_path)
@@ -750,34 +743,46 @@ grid = np.array(np.meshgrid(dmu_O, dmu_H, sim_temperatures)).T.reshape(-1, 3)
 
 with open(f'{system_name}_mbar_expectations.pkl', 'rb') as handle:
     expectations = pickle.load(handle)
-# List of metal names for subtitles
+
 metal_species = ['Co', 'Ni', 'Mg', 'Zn', 'Mn', 'Al']
 metal_composition = {'Co':0.2/3,'Ni':0.2/3,'Mg':0.2/3,'Zn':0.2/3,'Mn':0.2/3,'Al':2/3}
 
-# === Plotting ===
-fig, axes = plt.subplots(2, 3, figsize=(7.3, 4.5), gridspec_kw = {'wspace':0, 'hspace':0})
+fig, axes = plt.subplots(2, 3, figsize=(7.3, 4.5), gridspec_kw={'wspace':0, 'hspace':0})
 axes_flat = axes.flatten()
-# Uniform color scale
-vmin, vmax = 0., 5.
-levels = np.linspace(vmin, vmax, 6)
+
+# consistent 1-centered log colorbar (0..5)
+vmax_display = 5.0
+vmin_effective = 1.0 / vmax_display
+vmin_log = np.log10(vmin_effective)
+vcenter_log = 0.0
+vmax_log = np.log10(vmax_display)
+cmap = plt.cm.RdBu_r
+cmap.set_bad('lightgray')
+cmap.set_under('#000000')
+cmap.set_over('#67000d')
+norm = TwoSlopeNorm(vmin=vmin_log, vcenter=vcenter_log, vmax=vmax_log)
+levels_log = np.linspace(vmin_log, vmax_log, 300)
+tiny_under = 1e-9
 
 for i, ax in enumerate(axes_flat):
     m = metal_species[i]
     x_surf_avg = expectations[f'x_surf_{m}'] / metal_composition[m]
 
-    # allocate Z with shape (Ny, Nx) since contourf expects rows->y (dmu_H), cols->x (dmu_O)
     Z = np.empty((len(dmu_H), len(dmu_O)), dtype=float)
     Z.fill(np.nan)
-    # fill Z by matching mu_O, mu_H using np.isclose
     for iy, muH in enumerate(dmu_H):
         for ix, muO in enumerate(dmu_O):
             idx = np.where(np.isclose(grid[:,0], muO) & np.isclose(grid[:,1], muH) & np.isclose(grid[:,-1], T))[0]
             assert idx.size == 1
             Z[iy, ix] = x_surf_avg[idx[0]]
-    Z[Z==0] = np.nan
-    cmap = matplotlib.cm.turbo
-    cmap.set_bad('lightgray')
-    cf = ax.contourf(dmu_O, dmu_H, Z, levels=np.arange(vmin,vmax,1e-3), cmap=cmap, extend='max')
+
+    zeros_mask = (Z == 0.0)
+    if np.any(zeros_mask):
+        Z[zeros_mask] = tiny_under
+    Z = np.ma.masked_invalid(Z)
+    logZ = np.ma.log10(Z)
+
+    cf = ax.contourf(dmu_O, dmu_H, logZ, levels=levels_log, cmap=cmap, norm=norm, extend='both')
     cf.set_rasterized(True)
     ax.set_title(f'{m}', fontsize=12, y=0.8)
     if i in [3, 4, 5]:
@@ -797,10 +802,21 @@ for i, ax in enumerate(axes_flat):
     if i not in [0, 3]:
         ax.set_yticklabels([])
 
-# Create a single common colorbar
-cbar = fig.colorbar(cf, ax=axes_flat.tolist(), orientation='vertical', fraction=0.02, pad=0.02)
-cbar.ax.set_yticks([0., 1., 2., 3., 4., 5.])
+cbar = fig.colorbar(cf, ax=axes_flat.tolist(), orientation='vertical', fraction=0.02, pad=0.02, extend='both')
+requested_values = [0.0, 0.3, 0.5, 1.0, 2.0, 3.0, 5.0]
+tick_logs = []
+tick_labels = []
+for val in requested_values:
+    if val == 0.0:
+        tick_logs.append(vmin_log); tick_labels.append('0')
+    else:
+        tick_logs.append(np.log10(val)); tick_labels.append(f'{int(val)}' if val == int(val) and val >= 1 else (f'{val:.2g}' if val < 1 else f'{val:g}'))
+tick_pairs = [(t, lab) for t, lab in zip(tick_logs, tick_labels) if (t >= vmin_log - 1e-12) and (t <= vmax_log + 1e-12)]
+if tick_pairs:
+    ticks_final, labels_final = zip(*tick_pairs)
+    cbar.set_ticks(list(ticks_final)); cbar.set_ticklabels(list(labels_final))
 cbar.set_label(r'Average $c_m^{\rm{surf}} / c_m^{\rm{bulk}}$', fontsize=12)
+cbar.ax.tick_params(labelsize=10)
 
 plt.show()
 plt.clf()

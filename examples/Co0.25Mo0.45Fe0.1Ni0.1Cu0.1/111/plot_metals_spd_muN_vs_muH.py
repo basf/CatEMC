@@ -1,17 +1,12 @@
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-from matplotlib.colors import ListedColormap
 import numpy as np
-from ase.io import read, write
-from ase.units import kB
-from itertools import combinations
+from matplotlib.colors import TwoSlopeNorm
+from matplotlib import font_manager
 from collections import defaultdict
 import pickle
 
-
 matplotlib.rcParams.update(matplotlib.rcParamsDefault)
-from matplotlib import font_manager
 font_path = '/mnt/nfs/source/arial.ttf'
 font_manager.fontManager.addfont(font_path)
 prop = font_manager.FontProperties(fname=font_path)
@@ -22,7 +17,7 @@ plt.rcParams['svg.fonttype'] = 'none'
 
 system_name = 'Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111'
 target_temperatures = [573, 673, 773, 800, 873]
-E_N2 = -16.293 + 0.155  # Etot incl. ZPE RPBE 
+E_N2 = -16.293 + 0.155  # Etot incl. ZPE RPBE
 E_H2 = -6.984 + 0.269   # Etot incl. ZPE RPBE
 E_NH3 = -19.502 + 0.906 # Etot incl. ZPE RPBE
 dmu_N = np.arange(-1., 0.001, 0.025)
@@ -40,16 +35,31 @@ grid = np.vstack([grid, cond1, cond2])
 
 with open(f'{system_name}_mbar_expectations.pkl', 'rb') as handle:
     expectations = pickle.load(handle)
+
 metal_species = ['Co','Mo','Fe','Ni','Cu']
 metal_composition = {'Co': 0.25, 'Mo': 0.45, 'Fe': 0.1, 'Ni': 0.1, 'Cu': 0.1}
 
-fig, axes = plt.subplots(1, 5, figsize=(12.3, 2.3), gridspec_kw = {'wspace':0, 'hspace':0})
+fig, axes = plt.subplots(1, 5, figsize=(12.3, 2.3), gridspec_kw={'wspace':0, 'hspace':0})
 axes_flat = axes.flatten()
-vmin, vmax = 0., 5.
-levels = np.linspace(vmin, vmax, 6)
+
+# consistent color scale (1-centered in log-space; display 0..5)
+vmax_display = 5.0
+vmin_effective = 1.0 / vmax_display
+vmin_log = np.log10(vmin_effective)
+vcenter_log = 0.0
+vmax_log = np.log10(vmax_display)
+cmap = plt.cm.RdBu_r
+cmap.set_bad('lightgray')
+cmap.set_under('#000000')   # zeros -> black
+cmap.set_over('#67000d')    # saturated red
+norm = TwoSlopeNorm(vmin=vmin_log, vcenter=vcenter_log, vmax=vmax_log)
+levels_log = np.linspace(vmin_log, vmax_log, 300)
+tiny_under = 1e-9
+
 for i, ax in enumerate(axes_flat):
     m = metal_species[i]
     x_surf_avg = expectations[f'x_surf_{m}'] / metal_composition[m]
+
     Z = np.empty((len(dmu_H), len(dmu_N)), dtype=float)
     Z.fill(np.nan)
     for iy, muH in enumerate(dmu_H):
@@ -57,30 +67,52 @@ for i, ax in enumerate(axes_flat):
             idx = np.where(np.isclose(grid[:,0], muN) & np.isclose(grid[:,1], muH) & np.isclose(grid[:,-1], T))[0]
             assert idx.size == 1
             Z[iy, ix] = x_surf_avg[idx[0]]
-    Z[Z==0] = np.nan
-    cmap = matplotlib.cm.turbo
-    cmap.set_bad('lightgray')
+
+    zeros_mask = (Z == 0.0)
+    if np.any(zeros_mask):
+        Z[zeros_mask] = tiny_under
+    Z = np.ma.masked_invalid(Z)
+    logZ = np.ma.log10(Z)
+
     X = dmu_N
     Y = dmu_H
-    cf = ax.contourf(X, Y, Z, levels=np.arange(vmin,vmax,1e-3), cmap=cmap, extend='max')
+
+    cf = ax.contourf(X, Y, logZ, levels=levels_log, cmap=cmap, norm=norm, extend='both')
     cf.set_rasterized(True)
     ax.set_title(f'{m}', fontsize=12, y=0.8)
     ax.set_xlabel(r'$\Delta \mu_{\rm{N}}$ / eV', fontsize=10)
-    if i in [0]:
+    if i == 0:
         ax.set_ylabel(r'$\Delta \mu_{\rm{H}}$ / eV', fontsize=10)
-    if i in [4]:
+    if i == 4:
         ax.set_xlim([X.min(), X.max()])
     else:
         ax.set_xlim([X.min(), X.max()-0.001])
     ax.set_ylim([Y.min(), Y.max()])
-    if i not in [0]:
+    if i != 0:
         ax.set_yticklabels([])
     ax.set_xticks([-1., -0.8, -0.6, -0.4, -0.2])
-    ax.scatter(early_dmu_N, early_dmu_H, marker='o', c='gold', s=50, alpha=1., edgecolors='black', zorder=3, clip_on=False)
-    ax.scatter(equil_dmu_N, equil_dmu_H, marker='*', c='gold', s=100, alpha=1., edgecolors='black', zorder=3, clip_on=False)
-cbar = fig.colorbar(cf, ax=axes_flat.tolist(), orientation='vertical', fraction=0.02, pad=0.02)
-cbar.ax.set_yticks([0., 1., 2., 3., 4., 5.])
+    ax.scatter(early_dmu_N, early_dmu_H, marker='o', c='gold', s=50, edgecolors='black', zorder=3, clip_on=False)
+    ax.scatter(equil_dmu_N, equil_dmu_H, marker='*', c='gold', s=100, edgecolors='black', zorder=3, clip_on=False)
+
+# colorbar with requested ticks
+cbar = fig.colorbar(cf, ax=axes_flat.tolist(), orientation='vertical', fraction=0.02, pad=0.02, extend='both')
+requested_values = [0.0, 0.3, 0.5, 1.0, 2.0, 3.0, 5.0]
+tick_logs = []
+tick_labels = []
+for val in requested_values:
+    if val == 0.0:
+        tick_logs.append(vmin_log)
+        tick_labels.append('0')
+    else:
+        tick_logs.append(np.log10(val))
+        tick_labels.append(f'{int(val)}' if val == int(val) and val >= 1 else (f'{val:.2g}' if val < 1 else f'{val:g}'))
+tick_pairs = [(t, lab) for t, lab in zip(tick_logs, tick_labels) if (t >= vmin_log - 1e-12) and (t <= vmax_log + 1e-12)]
+if tick_pairs:
+    ticks_final, labels_final = zip(*tick_pairs)
+    cbar.set_ticks(list(ticks_final))
+    cbar.set_ticklabels(list(labels_final))
 cbar.set_label(r'Average $c_m^{\rm{surf}} / c_m^{\rm{bulk}}$', fontsize=12)
+cbar.ax.tick_params(labelsize=10)
 
 plt.savefig(f'{system_name}_metals_spd_muN_vs_muH.png', bbox_inches='tight', dpi=600)
 plt.savefig(f'{system_name}_metals_spd_muN_vs_muH.svg', bbox_inches='tight', dpi=600, format='svg')
