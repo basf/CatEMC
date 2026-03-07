@@ -114,8 +114,10 @@ class GEEMCAnalysis(object):
                         N1 = len([a for a in atoms if a.symbol == m1]) + 1
                         N2plus1 = len([a for a in atoms if a.symbol == m2])
                         W_prefactor = N1 / N2plus1
-                        if pressure is not None:
-                            W_prefactor *= row.volume_ratio**len(atoms)
+                        if pressure is None:
+                            V_prefactor = 1.
+                        else:
+                            V_prefactor = row.volume_ratio**len(atoms)
                         latest_acc_step = rep_latest_step_map[row.key_value_pairs[self.replica_key]]
                         # ensure dmu key list exists and is long enough, then append the tuple
                         key = f'{m1}2{m2}'
@@ -124,7 +126,7 @@ class GEEMCAnalysis(object):
                         if needed > 0:
                             key_list.extend([[] for _ in range(needed)])  # distinct empty lists
                         key_list[row.emc_step-1].append(
-                                (U, dU, W_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
+                                (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
                         )
 
             # Assign the previous energy if energy is None at a step (forward-fill per replica)
@@ -162,11 +164,13 @@ class GEEMCAnalysis(object):
         write(f'{self.calculation_dir}/{self.name}_geemc_{replica}.traj', traj)
 
     def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1, 
-                          target_temperatures=None, volume_correction=False, wls_correction=True):
+                          target_temperatures=None, volume_correction=False, wls_correction=True,
+                          excess_only=False):
 
         """Get the MBAR-estimated chemical potential differences between all 
            metal pairs with/without WLS correction. Turn on volume_correction
-           for NpT GE-EMC simulations."""
+           for NpT GE-EMC simulations. Turn on excess_only for estimating
+           only the excess chemical potential differences (excluding ideal)."""
 
         from pymbar import MBAR
         if not hasattr(self, 'data'):
@@ -256,19 +260,27 @@ class GEEMCAnalysis(object):
             # Precompute W_{m→n} for ALL configs, replicas, and target betas
             lot_m12m2 = [t for T in sim_temperatures for lot in self.widom_data[T][f'{m1}2{m2}'] for t in lot]
             dd_temp_m12m2 = {T: defaultdict(list) for T in target_temperatures}
-            for U_new, dU, W_prefactor, rep, latest_acc_step in lot_m12m2:
+            for U_new, dU, W_prefactor, V_prefactor, rep, latest_acc_step in lot_m12m2:
                 if latest_acc_step > starting_step:
                     T_origin = rep_temp_map[rep]
                     for T in target_temperatures:
-                        W = W_prefactor * np.exp(-dU / (units.kB*T))
+                        if excess_only:
+                            W = np.exp(-dU / (units.kB*T))
+                        else:
+                            W = W_prefactor * np.exp(-dU / (units.kB*T))
+                        W *= V_prefactor
                         dd_temp_m12m2[T][(T_origin, latest_acc_step)].append(W)
             lot_m22m1 = [t for T in sim_temperatures for lot in self.widom_data[T][f'{m2}2{m1}'] for t in lot]
             dd_temp_m22m1 = {T: defaultdict(list) for T in target_temperatures}
-            for U_new, dU, W_prefactor, rep, latest_acc_step in lot_m22m1:
+            for U_new, dU, W_prefactor, V_prefactor, rep, latest_acc_step in lot_m22m1:
                 if latest_acc_step > starting_step:
                     T_origin = rep_temp_map[rep]
                     for T in target_temperatures:
-                        W = W_prefactor * np.exp(-dU / (units.kB*T))
+                        if excess_only:
+                            W = np.exp(-dU / (units.kB*T))
+                        else:
+                            W = W_prefactor * np.exp(-dU / (units.kB*T))
+                        W *= V_prefactor
                         dd_temp_m22m1[T][(T_origin, latest_acc_step)].append(W)
 
             # SUBSAMPLE BY SIMULATION-STEP BIN WIDTH = sample_stride
