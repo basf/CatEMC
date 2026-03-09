@@ -14,6 +14,8 @@ import os
 
 class GEEMCAnalysis(object):
 
+     """Analysis class for bulk GE-EMC simulations."""
+
     def __init__(self, name,
             calculation_dir,
             pop_size,
@@ -38,6 +40,9 @@ class GEEMCAnalysis(object):
 
     def prepare_data(self, starting_step=None, ending_step=None, pressure=None,
                      use_exist=True, raw_score_cutoff=-10000.):
+
+        """Prepare GE-EMC potential energy and Widom samples. Set the pressure
+        for NpT GE-EMC simulations"""
 
         collect_data = True
         if use_exist and (self.interswap_within_key is None):
@@ -189,6 +194,8 @@ class GEEMCAnalysis(object):
 
     def get_trajectory(self, replica):
 
+        """Get the EMC trajectory of a given replica number."""
+
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
         traj = []
@@ -210,6 +217,11 @@ class GEEMCAnalysis(object):
     def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1,
                           target_temperatures=None, volume_correction=False, wls_correction=True,
                           excess_only=False):
+
+        """Get the MBAR-estimated chemical potential differences between all
+        metal pairs with/without WLS correction. Turn on volume_correction
+        for NpT GE-EMC simulations. Turn on excess_only for estimating
+        only the excess chemical potential differences (excluding ideal)."""
 
         from pymbar import MBAR
         if not hasattr(self, 'data'):
@@ -511,6 +523,16 @@ class GEEMCAnalysis(object):
 
     def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
                 temperature=None, cutoff=None, metal_only=True, use_energy_mask=False):
+        """
+        Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
+        alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
+
+        starting_step, ending_step, sample_stride: subsampling EMC steps 
+        temperature: if provided, analyze only that T, otherwise all Ts.
+        cutoff: neighbor cutoff for first shell, use natural_cutoffs by default.
+        use_energy_mask: if True, skip running neighbor_list for replicas whose
+            potential energy equals that at the previous step for acceleration.
+        """
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
