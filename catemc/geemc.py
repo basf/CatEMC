@@ -213,14 +213,15 @@ class GEEMC(EMC):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
             for atoms in self.input_pop:
-                if 'key_value_pairs' not in atoms.info:
-                    atoms.info['key_value_pairs'] = {}
+                assert 'key_value_pairs' in atoms.info
                 if 'data' not in atoms.info:
                     atoms.info['data'] = {}
-                kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
+                kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key],
                           self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
                           self.acceptance_key: 0}
-                asedb.add_unrelaxed_candidate(atoms, 
+                if self.interswap_within_key is not None:
+                    kwargs[self.interswap_within_key] = atoms.info['key_value_pairs'][self.interswap_within_key]
+                asedb.add_unrelaxed_candidate(atoms,
                         emc_step=atoms.info['key_value_pairs']['emc_step'],
                         data=atoms.info['data'],
                         **kwargs)
@@ -344,6 +345,9 @@ class GEEMC(EMC):
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                         offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
                         offsprings[idx].info['key_value_pairs'][self.replica_key] = rep
+                        if self.interswap_within_key is not None:
+                            offsprings[idx].info['key_value_pairs'][self.interswap_within_key] = \
+                                    parents[idx].info['key_value_pairs'][self.interswap_within_key]
                         write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
@@ -365,6 +369,9 @@ class GEEMC(EMC):
                         warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                     offspring.info['key_value_pairs'][self.temperature_key] = parents[0].info['key_value_pairs'][self.temperature_key]
                     offspring.info['key_value_pairs'][self.replica_key] = rep
+                    if self.interswap_within_key is not None:
+                        offspring.info['key_value_pairs'][self.interswap_within_key] = \
+                                parents[0].info['key_value_pairs'][self.interswap_within_key]
                     write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])

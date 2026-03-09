@@ -482,8 +482,7 @@ class GCEMC(EMC):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
             for atoms in self.input_pop:
-                if 'key_value_pairs' not in atoms.info:
-                    atoms.info['key_value_pairs'] = {}
+                assert 'key_value_pairs' in atoms.info
                 if 'data' not in atoms.info:
                     atoms.info['data'] = {}
                 kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
