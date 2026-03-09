@@ -181,14 +181,15 @@ class GEEMC(EMC):
         self.intraswap_rate = intraswap_rate
         self.interswap_within_key = interswap_within_key
         
-    def run(self, starting_step=1, total_steps=10000, restart_with_trim=False):
+    def run(self, starting_step=None, total_steps=10000, restart_with_trim=False):
 
         """                                    
         Parameters
         ----------
-        starting_step: int, default 1
-            (Re)starting from a certain EMC step.
-                                               
+        starting_step: int, default None
+            (Re)starting from a certain EMC step. Default None is to
+            restart from the latest step assuming tmp_* folder exists.
+
         total_steps: int, default 10000
             The total number of EMC steps that the algorithm should run.
 
@@ -200,6 +201,12 @@ class GEEMC(EMC):
 
         restart = True
         self.pop_size = len(self.input_pop)
+        if starting_step is None:
+            if os.path.isfile(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj'):
+                atoms0 = read(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj', index=-1)
+                starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
+            else:
+                starting_step = 1
         # Connect to the ase db
         asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
         if not os.path.isfile(asedb_path):

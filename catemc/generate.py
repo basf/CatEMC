@@ -85,6 +85,9 @@ def generate_population(
         target_metal_species = []
     elif isinstance(target_metal_species, str):
         target_metal_species = [target_metal_species]
+    if set(template.symbols).isdisjoint(set(target_metal_species)):
+        for atoms in template:
+            atoms.symbol = target_metal_species[0] 
     if (target_nonmetal_species is not None) and isinstance(target_nonmetal_species, str):
         target_nonmetal_species = [target_nonmetal_species]
     if ngen <= 0:
