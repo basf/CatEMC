@@ -14,8 +14,6 @@ import os
 
 class GEEMCAnalysis(object):
 
-    """Analysis class for bulk GE-EMC simulations."""
-
     def __init__(self, name,
             calculation_dir,
             pop_size,
@@ -24,7 +22,8 @@ class GEEMCAnalysis(object):
             trim_generation=100,
             temperature_key='temperature',
             replica_key='replica',
-            acceptance_key='accepted'):
+            acceptance_key='accepted',
+            interswap_within_key=None):
 
         self.name = name
         self.calculation_dir = calculation_dir
@@ -35,26 +34,24 @@ class GEEMCAnalysis(object):
         self.temperature_key = temperature_key
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
+        self.interswap_within_key = interswap_within_key
 
     def prepare_data(self, starting_step=None, ending_step=None, pressure=None,
                      use_exist=True, raw_score_cutoff=-10000.):
 
-        """Prepare GE-EMC potential energy and Widom samples. Set the pressure 
-        for NpT GE-EMC simulations"""
-
         collect_data = True
-        if use_exist:
-            if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl') and os.path.isfile(
-            f'{self.calculation_dir}/{self.name}_mbar_data.pkl'):                
-                with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl', 'rb') as handle:
+        if use_exist and (self.interswap_within_key is None):
+            widom_path = f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl'
+            data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
+            if os.path.isfile(widom_path) and os.path.isfile(data_path):
+                with open(widom_path, 'rb') as handle:
                     self.widom_data = pickle.load(handle)
-                with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'rb') as handle:
+                with open(data_path, 'rb') as handle:
                     self.data = pickle.load(handle)
                 collect_data = False
             else:
                 parprint(f'Cannot find MBAR data file, collect data instead.')
         if collect_data:
-            # initialize containers
             self.widom_data = {}
             self.data = {}
             if starting_step is None:
@@ -64,7 +61,6 @@ class GEEMCAnalysis(object):
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
                 n += 1
             for i in range(n):
-                # skip entire backup if its block is before starting_step
                 if ((i+1) * self.trim_generation) <= starting_step:
                     continue
                 db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
@@ -74,12 +70,25 @@ class GEEMCAnalysis(object):
                             continue
                         if (ending_step is not None) and (row.emc_step > ending_step):
                             continue
-                        # obtain temperature from the row and ensure containers exist for it
                         T = row.key_value_pairs[self.temperature_key]
-                        if T not in self.widom_data:
-                            self.widom_data[T] = {}
-                        if T not in self.data:
-                            self.data[T] = {}
+                        if self.interswap_within_key is None:
+                            group_value = None
+                        else:
+                            group_value = row.key_value_pairs[self.interswap_within_key]
+                        if self.interswap_within_key is None:
+                            if T not in self.widom_data:
+                                self.widom_data[T] = {}
+                            if T not in self.data:
+                                self.data[T] = {}
+                        else:
+                            if group_value not in self.widom_data:
+                                self.widom_data[group_value] = {}
+                            if group_value not in self.data:
+                                self.data[group_value] = {}
+                            if T not in self.widom_data[group_value]:
+                                self.widom_data[group_value][T] = {}
+                            if T not in self.data[group_value]:
+                                self.data[group_value][T] = {}
                         dU = -row.delta
                         if abs(dU) > 100.:
                             continue
@@ -90,9 +99,9 @@ class GEEMCAnalysis(object):
                         is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
                         if (row.key_value_pairs[self.acceptance_key] == 1) or is_widom:
                             atoms.info = {'key_value_pairs': {
-                                              self.temperature_key: T, 
+                                              self.temperature_key: T,
                                               self.replica_key: row.key_value_pairs[self.replica_key],
-                                          'potential_energy': U}, 
+                                          'potential_energy': U},
                                           'data': {}}
                             rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
                             if pressure is not None:
@@ -100,14 +109,19 @@ class GEEMCAnalysis(object):
                                 U += pressure * V
                                 atoms.info['key_value_pairs']['enthalpy'] = U
                                 atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
-                            # ensure replica list exists and is long enough, then set energy
                             rep = row.key_value_pairs[self.replica_key]
-                            rep_list = self.data[T].setdefault(rep, [])
-                            needed = row.emc_step - len(rep_list)
-                            if needed > 0:
-                                rep_list.extend([None] * needed) 
-                            rep_list[row.emc_step-1] = atoms
-
+                            if self.interswap_within_key is None:
+                                rep_list = self.data[T].setdefault(rep, [])
+                                needed = row.emc_step - len(rep_list)
+                                if needed > 0:
+                                    rep_list.extend([None] * needed)
+                                rep_list[row.emc_step-1] = atoms
+                            else:
+                                rep_list = self.data[group_value][T].setdefault(rep, [])
+                                needed = row.emc_step - len(rep_list)
+                                if needed > 0:
+                                    rep_list.extend([None] * needed)
+                                rep_list[row.emc_step-1] = atoms
                         if not is_widom:
                             continue
                         m1, m2 = row.data.mutated_elements
@@ -119,514 +133,535 @@ class GEEMCAnalysis(object):
                         else:
                             V_prefactor = row.volume_ratio**len(atoms)
                         latest_acc_step = rep_latest_step_map[row.key_value_pairs[self.replica_key]]
-                        # ensure dmu key list exists and is long enough, then append the tuple
                         key = f'{m1}2{m2}'
-                        key_list = self.widom_data[T].setdefault(key, [])
-                        needed = row.emc_step - len(key_list)
-                        if needed > 0:
-                            key_list.extend([[] for _ in range(needed)])  # distinct empty lists
-                        key_list[row.emc_step-1].append(
+                        if self.interswap_within_key is None:
+                            key_list = self.widom_data[T].setdefault(key, [])
+                            needed = row.emc_step - len(key_list)
+                            if needed > 0:
+                                key_list.extend([[] for _ in range(needed)])
+                            key_list[row.emc_step-1].append(
                                 (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
-                        )
-
-            # Assign the previous energy if energy is None at a step (forward-fill per replica)
-            for T, dd in self.data.items():
-                for rep in list(dd.keys()):
-                    atoms_prev = None
-                    newlist = []
-                    for atoms in dd[rep]:
-                        if atoms is not None:
-                            atoms_prev = atoms
-                            newlist.append(atoms)
+                            )
                         else:
-                            newlist.append(atoms_prev)
-                    dd[rep] = newlist
+                            key_list = self.widom_data[group_value][T].setdefault(key, [])
+                            needed = row.emc_step - len(key_list)
+                            if needed > 0:
+                                key_list.extend([[] for _ in range(needed)])
+                            key_list[row.emc_step-1].append(
+                                (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
+                            )
 
-            # save pickles
-            with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl', 'wb') as handle:
-                pickle.dump(self.widom_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
-                pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            if self.interswap_within_key is None:
+                for T, dd in self.data.items():
+                    for rep in list(dd.keys()):
+                        atoms_prev = None
+                        newlist = []
+                        for atoms in dd[rep]:
+                            if atoms is not None:
+                                atoms_prev = atoms
+                                newlist.append(atoms)
+                            else:
+                                newlist.append(atoms_prev)
+                        dd[rep] = newlist
+                with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl', 'wb') as handle:
+                    pickle.dump(self.widom_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
+                    pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            else:
+                for group_value, dgroup in self.data.items():
+                    for T, dd in dgroup.items():
+                        for rep in list(dd.keys()):
+                            atoms_prev = None
+                            newlist = []
+                            for atoms in dd[rep]:
+                                if atoms is not None:
+                                    atoms_prev = atoms
+                                    newlist.append(atoms)
+                                else:
+                                    newlist.append(atoms_prev)
+                            dd[rep] = newlist
+                for group_value in self.data.keys():
+                    gv_str = str(group_value)
+                    with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data_{gv_str}.pkl', 'wb') as handle:
+                        pickle.dump(self.widom_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
+                    with open(f'{self.calculation_dir}/{self.name}_mbar_data_{gv_str}.pkl', 'wb') as handle:
+                        pickle.dump(self.data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def get_trajectory(self, replica):
-
-        """Get the EMC trajectory of a given replica number."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
         traj = []
-        for T, dd in self.data.items():
-            if replica in dd.keys():
-                for atoms in dd[replica]:
-                    if atoms is not None:
-                        traj.append(atoms)
-
+        if self.interswap_within_key is None:
+            for T, dd in self.data.items():
+                if replica in dd.keys():
+                    for atoms in dd[replica]:
+                        if atoms is not None:
+                            traj.append(atoms)
+        else:
+            for group_value, group_dict in self.data.items():
+                for T, dd in group_dict.items():
+                    if replica in dd.keys():
+                        for atoms in dd[replica]:
+                            if atoms is not None:
+                                traj.append(atoms)
         write(f'{self.calculation_dir}/{self.name}_geemc_{replica}.traj', traj)
 
-    def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1, 
+    def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1,
                           target_temperatures=None, volume_correction=False, wls_correction=True,
                           excess_only=False):
-
-        """Get the MBAR-estimated chemical potential differences between all 
-           metal pairs with/without WLS correction. Turn on volume_correction
-           for NpT GE-EMC simulations. Turn on excess_only for estimating
-           only the excess chemical potential differences (excluding ideal)."""
 
         from pymbar import MBAR
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
-        sim_temperatures = sorted(list(self.data.keys()))
-        if target_temperatures is None:
-            target_temperatures = sim_temperatures
+
+        if self.interswap_within_key is None:
+            groups = {None: self.data}
         else:
-            target_temperatures += sim_temperatures
-            target_temperatures = sorted(set(target_temperatures))
-        rep_temp_map = {}
-        for T in sim_temperatures:
-            for rep in self.data[T].keys():
-                rep_temp_map[rep] = T
-        metal_pairs = list(combinations(self.target_metal_species, 2))
-        if self.target_nonmetal_species is None:
-            nonmetal_pairs = []
-        else:
-            nonmetal_pairs = list(combinations(self.target_nonmetal_species, 2))
+            groups = self.data
 
-        K = len(target_temperatures)  # No. target of temperatures  
-        # Build MBAR inputs  
-        temp_step_idx_map = {T: {} for T in sim_temperatures}
-        samples_per_T = np.zeros(K, dtype=int)  
+        all_group_results = {}
+        for group_value, local_data in groups.items():
+            local_widom = self.widom_data[group_value] if self.interswap_within_key is not None else self.widom_data
+            sim_temperatures = sorted(list(local_data.keys()))
+            if target_temperatures is None:
+                local_target_temperatures = sim_temperatures.copy()
+            else:
+                local_target_temperatures = sorted(set(target_temperatures + sim_temperatures))
+            rep_temp_map = {}
+            for T in sim_temperatures:
+                for rep in local_data[T].keys():
+                    rep_temp_map[rep] = T
+            metal_pairs = list(combinations(self.target_metal_species, 2))
+            if self.target_nonmetal_species is None:
+                nonmetal_pairs = []
+            else:
+                nonmetal_pairs = list(combinations(self.target_nonmetal_species, 2))
 
-        # Fill energy matrix and widom data
-        if starting_step is None:
-            starting_step = 1
-        if ending_step is None:
-            max_steps = 0
-            for T, rep_dict in self.data.items():
-                for rep, lst in rep_dict.items():
-                    if lst:
-                        max_steps = max(max_steps, len(lst))
-            ending_step = max_step + 1
-        parprint(f'Ending step: {ending_step}')
+            K = len(local_target_temperatures)
+            temp_step_idx_map = {T: {} for T in sim_temperatures}
+            samples_per_T = np.zeros(K, dtype=int)
 
-        betas = [1/(units.kB * T) for T in target_temperatures]
-        samples = []
-        volume_samples = []
-        idx = 0
-        for T in sim_temperatures:
-            samples_T = []
-            volume_samples_T = []
-            for n_minus_1 in range(ending_step):
-                if n_minus_1 + 1 >= starting_step:
-                    try:
+            if starting_step is None:
+                starting_step = 1
+            if ending_step is None:
+                max_steps = 0
+                for T, rep_dict in local_data.items():
+                    for rep, lst in rep_dict.items():
+                        if lst:
+                            max_steps = max(max_steps, len(lst))
+                ending_step = max_steps + 1
+            parprint(f'Ending step: {ending_step}')
+
+            betas = [1/(units.kB * T) for T in local_target_temperatures]
+            samples = []
+            volume_samples = []
+            idx = 0
+            for T in sim_temperatures:
+                samples_T = []
+                volume_samples_T = []
+                for n_minus_1 in range(ending_step):
+                    if n_minus_1 + 1 >= starting_step:
+                        try:
+                            if volume_correction:
+                                H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in local_data[T].values())
+                                NlnV = sum(lst[n_minus_1].info['key_value_pairs']['NlnV'] for lst in local_data[T].values())
+                            else:
+                                U = sum(lst[n_minus_1].info['key_value_pairs']['potential_energy'] for lst in local_data[T].values())
+                        except:
+                            break
+                        temp_step_idx_map[T][n_minus_1+1] = idx
                         if volume_correction:
-                            H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in self.data[T].values())
-                            NlnV = sum(lst[n_minus_1].info['key_value_pairs']['NlnV'] for lst in self.data[T].values())
+                            samples_T.append(H)
+                            volume_samples_T.append(NlnV)
                         else:
-                            U = sum(lst[n_minus_1].info['key_value_pairs']['potential_energy'] for lst in self.data[T].values())
-                    except:
-                        break
-                    temp_step_idx_map[T][n_minus_1+1] = idx
-                    if volume_correction:
-                        samples_T.append(H)
-                        volume_samples_T.append(NlnV)
-                    else:
-                        samples_T.append(U)
-                    idx += 1
-            samples_per_T[target_temperatures.index(T)] = len(samples_T)
-            samples += samples_T
+                            samples_T.append(U)
+                        idx += 1
+                samples_per_T[local_target_temperatures.index(T)] = len(samples_T)
+                samples += samples_T
+                if volume_correction:
+                    volume_samples += volume_samples_T
+            samples = np.array(samples)
+            U_kn = []
+            NlnV_kn = []
+            for k, T in enumerate(local_target_temperatures):
+                U_kn.append(betas[k] * samples)
+                if volume_correction:
+                    NlnV_kn.append(volume_samples)
+            U_kn = np.array(U_kn)
             if volume_correction:
-                volume_samples += volume_samples_T
-        samples = np.array(samples)
-        U_kn = []  # Reduced energy matrix (K x N_total)
-        NlnV_kn = []
-        for k, T in enumerate(target_temperatures):
-            U_kn.append(betas[k] * samples)
-            if volume_correction:
-                NlnV_kn.append(volume_samples)
-        U_kn = np.array(U_kn)  # Shape (K, N_total)
-        if volume_correction:
-            U_kn -= np.array(NlnV_kn)
-        mbar = MBAR(U_kn, samples_per_T, relative_tolerance=1e-7, 
-                    solver_protocol='robust', maximum_iterations=30000)  
-        w_nk = mbar.weights()
+                U_kn -= np.array(NlnV_kn)
+            mbar = MBAR(U_kn, samples_per_T, relative_tolerance=1e-7,
+                        solver_protocol='robust', maximum_iterations=30000)
+            w_nk = mbar.weights()
 
-        # Compute Δμ_{m→n} for each pair
-        dmu_estimates = {T: {} for T in target_temperatures}
-        for T in target_temperatures:
+            dmu_estimates = {T: {} for T in local_target_temperatures}
+            for T in local_target_temperatures:
+                for m1, m2 in metal_pairs + nonmetal_pairs:
+                    dmu_estimates[T][f'{m1}2{m2}'] = {}
+                    dmu_estimates[T][f'{m2}2{m1}'] = {}
             for m1, m2 in metal_pairs + nonmetal_pairs:
-                dmu_estimates[T][f'{m1}2{m2}'] = {}
-                dmu_estimates[T][f'{m2}2{m1}'] = {}
-        for m1, m2 in metal_pairs + nonmetal_pairs:
-            # Precompute W_{m→n} for ALL configs, replicas, and target betas
-            lot_m12m2 = [t for T in sim_temperatures for lot in self.widom_data[T][f'{m1}2{m2}'] for t in lot]
-            dd_temp_m12m2 = {T: defaultdict(list) for T in target_temperatures}
-            for U_new, dU, W_prefactor, V_prefactor, rep, latest_acc_step in lot_m12m2:
-                if latest_acc_step > starting_step:
-                    T_origin = rep_temp_map[rep]
-                    for T in target_temperatures:
-                        if excess_only:
-                            W = np.exp(-dU / (units.kB*T))
-                        else:
-                            W = W_prefactor * np.exp(-dU / (units.kB*T))
-                        W *= V_prefactor
-                        dd_temp_m12m2[T][(T_origin, latest_acc_step)].append(W)
-            lot_m22m1 = [t for T in sim_temperatures for lot in self.widom_data[T][f'{m2}2{m1}'] for t in lot]
-            dd_temp_m22m1 = {T: defaultdict(list) for T in target_temperatures}
-            for U_new, dU, W_prefactor, V_prefactor, rep, latest_acc_step in lot_m22m1:
-                if latest_acc_step > starting_step:
-                    T_origin = rep_temp_map[rep]
-                    for T in target_temperatures:
-                        if excess_only:
-                            W = np.exp(-dU / (units.kB*T))
-                        else:
-                            W = W_prefactor * np.exp(-dU / (units.kB*T))
-                        W *= V_prefactor
-                        dd_temp_m22m1[T][(T_origin, latest_acc_step)].append(W)
+                lot_key = f'{m1}2{m2}'
+                lot_m12m2 = []
+                for T in sim_temperatures:
+                    if lot_key in local_widom[T]:
+                        for lot in local_widom[T][lot_key]:
+                            for t in lot:
+                                lot_m12m2.append(t)
+                dd_temp_m12m2 = {T: defaultdict(list) for T in local_target_temperatures}
+                for U_new, dU, W_prefactor, V_prefactor, rep, latest_acc_step in lot_m12m2:
+                    if latest_acc_step > starting_step:
+                        T_origin = rep_temp_map[rep]
+                        for T in local_target_temperatures:
+                            if excess_only:
+                                W = np.exp(-dU / (units.kB*T))
+                            else:
+                                W = W_prefactor * np.exp(-dU / (units.kB*T))
+                            W *= V_prefactor
+                            dd_temp_m12m2[T][(T_origin, latest_acc_step)].append(W)
+                lot_key_rev = f'{m2}2{m1}'
+                lot_m22m1 = []
+                for T in sim_temperatures:
+                    if lot_key_rev in local_widom[T]:
+                        for lot in local_widom[T][lot_key_rev]:
+                            for t in lot:
+                                lot_m22m1.append(t)
+                dd_temp_m22m1 = {T: defaultdict(list) for T in local_target_temperatures}
+                for U_new, dU, W_prefactor, V_prefactor, rep, latest_acc_step in lot_m22m1:
+                    if latest_acc_step > starting_step:
+                        T_origin = rep_temp_map[rep]
+                        for T in local_target_temperatures:
+                            if excess_only:
+                                W = np.exp(-dU / (units.kB*T))
+                            else:
+                                W = W_prefactor * np.exp(-dU / (units.kB*T))
+                            W *= V_prefactor
+                            dd_temp_m22m1[T][(T_origin, latest_acc_step)].append(W)
 
-            # SUBSAMPLE BY SIMULATION-STEP BIN WIDTH = sample_stride
-            # Keep the first sample in each integer bin of width `sample_stride`
-            # (binning applied separately for each T_origin).
-            if (sample_stride is not None) and (sample_stride > 1):
-                def subsample_dd_by_step(dd_temp):
-                    dd_sub = {T: defaultdict(list) for T in target_temperatures}
-                    for T in target_temperatures:
-                        # group keys by T_origin
-                        keys = list(dd_temp[T].keys())  # each key = (T_origin, step)
-                        by_origin = defaultdict(list)
-                        for (T_origin, step) in keys:
-                            by_origin[T_origin].append(step)
-                        # for each origin, bin steps and pick representative step in each bin
-                        for T_origin, steps in by_origin.items():
-                            steps_arr = np.array(sorted(steps))
-                            if steps_arr.size == 0:
-                                continue
-                            # compute bins relative to starting_step so bins align with emc steps
-                            bins = ((steps_arr - starting_step) // int(sample_stride)).astype(int)
-                            # pick first sample in each unique bin
-                            #_, first_idx = np.unique(bins, return_index=True)
-                            #keep_steps = steps_arr[first_idx]
-                            # pick last sample in each unique bin
-                            unique_bins, last_pos_rev = np.unique(bins[::-1], return_index=True)
-                            last_pos = bins.size - 1 - last_pos_rev
-                            keep_steps = steps_arr[last_pos]
-                            for step in keep_steps:
-                                dd_sub[T][(T_origin, int(step))] = dd_temp[T][(T_origin, int(step))]
-                    return dd_sub
+                if (sample_stride is not None) and (sample_stride > 1):
+                    def subsample_dd_by_step(dd_temp):
+                        dd_sub = {T: defaultdict(list) for T in local_target_temperatures}
+                        for T in local_target_temperatures:
+                            keys = list(dd_temp[T].keys())
+                            by_origin = defaultdict(list)
+                            for (T_origin, step) in keys:
+                                by_origin[T_origin].append(step)
+                            for T_origin, steps in by_origin.items():
+                                steps_arr = np.array(sorted(steps))
+                                if steps_arr.size == 0:
+                                    continue
+                                bins = ((steps_arr - starting_step) // int(sample_stride)).astype(int)
+                                unique_bins, last_pos_rev = np.unique(bins[::-1], return_index=True)
+                                last_pos = bins.size - 1 - last_pos_rev
+                                keep_steps = steps_arr[last_pos]
+                                for step in keep_steps:
+                                    dd_sub[T][(T_origin, int(step))] = dd_temp[T][(T_origin, int(step))]
+                        return dd_sub
 
-                dd_temp_m12m2 = subsample_dd_by_step(dd_temp_m12m2)
-                dd_temp_m22m1 = subsample_dd_by_step(dd_temp_m22m1)
+                    dd_temp_m12m2 = subsample_dd_by_step(dd_temp_m12m2)
+                    dd_temp_m22m1 = subsample_dd_by_step(dd_temp_m22m1)
 
-            # Compute valid ids and MBAR expectations
-            valid_m12m2_ids, valid_m22m1_ids = [], []
-            valid_W_m12m2, valid_W_m22m1 = [[] for _ in range(K)], [[] for _ in range(K)]
-            valid_w_m12m2_kn, valid_w_m22m1_kn = [[] for _ in range(K)], [[] for _ in range(K)]
-            Wbar_m12m2_lol = [[None for _ in range(U_kn.shape[1])] for _ in range(K)]
-            Wbar_m22m1_lol = [[None for _ in range(U_kn.shape[1])] for _ in range(K)]
-            valid_m12m2_samples_per_T = np.zeros(K, dtype=int)
-            valid_m22m1_samples_per_T = np.zeros(K, dtype=int)
+                valid_m12m2_ids, valid_m22m1_ids = [], []
+                valid_W_m12m2, valid_W_m22m1 = [[] for _ in range(K)], [[] for _ in range(K)]
+                valid_w_m12m2_kn, valid_w_m22m1_kn = [[] for _ in range(K)], [[] for _ in range(K)]
+                Wbar_m12m2_lol = [[None for _ in range(U_kn.shape[1])] for _ in range(K)]
+                Wbar_m22m1_lol = [[None for _ in range(U_kn.shape[1])] for _ in range(K)]
+                valid_m12m2_samples_per_T = np.zeros(K, dtype=int)
+                valid_m22m1_samples_per_T = np.zeros(K, dtype=int)
 
-            for k, T in enumerate(target_temperatures):
-                for tup, W_lst in dd_temp_m12m2[T].items():
-                    T_origin, n = tup
+                for k, T in enumerate(local_target_temperatures):
+                    for tup, W_lst in dd_temp_m12m2[T].items():
+                        T_origin, n = tup
+                        try:
+                            idx = temp_step_idx_map[T_origin][n]
+                        except:
+                            continue
+                        weights = np.full(len(W_lst), w_nk[idx,k] / len(W_lst)).tolist()
+                        valid_W_m12m2[k] += W_lst
+                        valid_w_m12m2_kn[k] += weights
+                        if k == 0:
+                            valid_m12m2_ids.append(idx)
+                        Wbar_m12m2_lol[k][idx] = np.mean(W_lst)
+                        if T == T_origin:
+                            valid_m12m2_samples_per_T[local_target_temperatures.index(T_origin)] += 1
+                    for tup, W_lst in dd_temp_m22m1[T].items():
+                        T_origin, n = tup
+                        try:
+                            idx = temp_step_idx_map[T_origin][n]
+                        except:
+                            continue
+                        weights = np.full(len(W_lst), w_nk[idx,k] / len(W_lst)).tolist()
+                        valid_W_m22m1[k] += W_lst
+                        valid_w_m22m1_kn[k] += weights
+                        if k == 0:
+                            valid_m22m1_ids.append(idx)
+                        Wbar_m22m1_lol[k][idx] = np.mean(W_lst)
+                        if T == T_origin:
+                            valid_m22m1_samples_per_T[local_target_temperatures.index(T_origin)] += 1
+
+                valid_m12m2_ids = [i for i, Wbar in enumerate(Wbar_m12m2_lol[0]) if Wbar is not None]
+                valid_m22m1_ids = [i for i, Wbar in enumerate(Wbar_m22m1_lol[0]) if Wbar is not None]
+                if len(valid_m12m2_ids) == 0:
+                    Wbar_m12m2_arr = np.zeros((K,0), dtype=float)
+                else:
+                    Wbar_m12m2_arr = np.array(Wbar_m12m2_lol, dtype=float)[:,valid_m12m2_ids]
+                if len(valid_m22m1_ids) == 0:
+                    Wbar_m22m1_arr = np.zeros((K,0), dtype=float)
+                else:
+                    Wbar_m22m1_arr = np.array(Wbar_m22m1_lol, dtype=float)[:,valid_m22m1_ids]
+
+                if Wbar_m12m2_arr.shape[1] > 0:
+                    mbar_m12m2 = MBAR(U_kn[:,valid_m12m2_ids], valid_m12m2_samples_per_T,
+                                      relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)
+                    res_m12m2 = mbar_m12m2.compute_expectations(Wbar_m12m2_arr, compute_uncertainty=True, state_dependent=True)
+                    E_W_m12m2, sigma_W_m12m2 = res_m12m2['mu'], res_m12m2['sigma']
+                else:
+                    E_W_m12m2 = np.zeros(K)
+                    sigma_W_m12m2 = np.zeros(K)
+                if Wbar_m22m1_arr.shape[1] > 0:
+                    mbar_m22m1 = MBAR(U_kn[:,valid_m22m1_ids], valid_m22m1_samples_per_T,
+                                      relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)
+                    res_m22m1 = mbar_m22m1.compute_expectations(Wbar_m22m1_arr, compute_uncertainty=True, state_dependent=True)
+                    E_W_m22m1, sigma_W_m22m1 = res_m22m1['mu'], res_m22m1['sigma']
+                else:
+                    E_W_m22m1 = np.zeros(K)
+                    sigma_W_m22m1 = np.zeros(K)
+
+                for k, T in enumerate(local_target_temperatures):
+                    beta_target = 1/(units.kB * T)
+                    E_W_m12m2_T, Var_W_m12m2_T = E_W_m12m2[k], sigma_W_m12m2[k]**2
+                    E_W_m22m1_T, Var_W_m22m1_T = E_W_m22m1[k], sigma_W_m22m1[k]**2
+                    Var_dmu_m12m2_T = Var_W_m12m2_T / (beta_target * E_W_m12m2_T)**2 if E_W_m12m2_T != 0 else np.inf
+                    Var_dmu_m22m1_T = Var_W_m22m1_T / (beta_target * E_W_m22m1_T)**2 if E_W_m22m1_T != 0 else np.inf
+                    dmu_m12m2_T = -(1/beta_target) * np.log(E_W_m12m2_T) if E_W_m12m2_T > 0 else None
+                    dmu_m22m1_T = -(1/beta_target) * np.log(E_W_m22m1_T) if E_W_m22m1_T > 0 else None
+                    w_m12m2_T = 1 / Var_dmu_m12m2_T if np.isfinite(Var_dmu_m12m2_T) and Var_dmu_m12m2_T != 0 else None
+                    w_m22m1_T = 1 / Var_dmu_m22m1_T if np.isfinite(Var_dmu_m22m1_T) and Var_dmu_m22m1_T != 0 else None
+                    dmu_estimates[T][f'{m1}2{m2}']['weight'] = w_m12m2_T
+                    dmu_estimates[T][f'{m1}2{m2}']['estimate'] = dmu_m12m2_T
+                    dmu_estimates[T][f'{m2}2{m1}']['weight'] = w_m22m1_T
+                    dmu_estimates[T][f'{m2}2{m1}']['estimate'] = dmu_m22m1_T
+
+            if wls_correction:
+                def compute_wls_for_species_list(species_list, mu_dict):
+                    if (species_list is None) or (len(species_list) == 0):
+                        return {}
+                    M_local = len(species_list)
+                    L = np.zeros((M_local, M_local))
+                    b = np.zeros(M_local)
+                    for key, mu_info in mu_dict.items():
+                        s1, s2 = key.split('2')
+                        if (s1 not in species_list) or (s2 not in species_list):
+                            continue
+                        i = species_list.index(s1)
+                        j = species_list.index(s2)
+                        w = mu_info.get('weight')
+                        dmu_raw = mu_info.get('estimate')
+                        if (dmu_raw is None) or (w is None):
+                            continue
+                        L[i, i] += w
+                        L[j, j] += w
+                        L[i, j] -= w
+                        L[j, i] -= w
+                        b[i] -= w * dmu_raw
+                        b[j] += w * dmu_raw
+                    ref_idx = 0
+                    keep_mask = np.arange(M_local) != ref_idx
+                    L_red = L[keep_mask, :][:, keep_mask]
+                    b_red = b[keep_mask] - L[keep_mask, ref_idx] * 0.
                     try:
-                        idx = temp_step_idx_map[T_origin][n]
-                    except:
-                        continue
-                    weights = np.full(len(W_lst), w_nk[idx,k] / len(W_lst)).tolist()
-                    valid_W_m12m2[k] += W_lst
-                    valid_w_m12m2_kn[k] += weights
-                    if k == 0:
-                        valid_m12m2_ids.append(idx)
-                    Wbar_m12m2_lol[k][idx] = np.mean(W_lst) # Average W per sample
-                    if T == T_origin:
-                        # Count the samples from origin T
-                        valid_m12m2_samples_per_T[target_temperatures.index(T_origin)] += 1 
-                for tup, W_lst in dd_temp_m22m1[T].items():
-                    T_origin, n = tup
-                    try:
-                        idx = temp_step_idx_map[T_origin][n]
-                    except:
-                        continue
-                    weights = np.full(len(W_lst), w_nk[idx,k] / len(W_lst)).tolist()
-                    valid_W_m22m1[k] += W_lst
-                    valid_w_m22m1_kn[k] += weights
-                    if k == 0:
-                        valid_m22m1_ids.append(idx)
-                    Wbar_m22m1_lol[k][idx] = np.mean(W_lst) # Average W per sample
-                    if T == T_origin:
-                        # Count the samples from origin T
-                        valid_m22m1_samples_per_T[target_temperatures.index(T_origin)] += 1 
+                        mu_red = np.linalg.solve(L_red, b_red)
+                    except np.linalg.LinAlgError:
+                        mu_red = np.linalg.lstsq(L_red, b_red, rcond=None)[0]
+                    mu = np.zeros(M_local)
+                    mu[ref_idx] = 0.
+                    mu[keep_mask] = mu_red
+                    out = {}
+                    for s1, s2 in combinations(species_list, 2):
+                        i = species_list.index(s1)
+                        j = species_list.index(s2)
+                        out[f'{s1}2{s2}'] = mu[j] - mu[i]
+                    return out
 
-            valid_m12m2_ids = [i for i, Wbar in enumerate(Wbar_m12m2_lol[0]) if Wbar is not None]
-            valid_m22m1_ids = [i for i, Wbar in enumerate(Wbar_m22m1_lol[0]) if Wbar is not None]
-            Wbar_m12m2_arr = np.array(Wbar_m12m2_lol, dtype=float)[:,valid_m12m2_ids]
-            Wbar_m22m1_arr = np.array(Wbar_m22m1_lol, dtype=float)[:,valid_m22m1_ids]
-            # Reweighting at temperature T
-            mbar_m12m2 = MBAR(U_kn[:,valid_m12m2_ids], valid_m12m2_samples_per_T, 
-                              relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)
-            # Compute expectation with MBAR
-            res_m12m2 = mbar_m12m2.compute_expectations(Wbar_m12m2_arr, compute_uncertainty=True, state_dependent=True)
-            E_W_m12m2, sigma_W_m12m2 = res_m12m2['mu'], res_m12m2['sigma']
-            #W_mbar_m12m2 = mbar_m12m2.weights()
-            mbar_m22m1 = MBAR(U_kn[:,valid_m22m1_ids], valid_m22m1_samples_per_T, 
-                              relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)  
-            # Compute expectation with MBAR                                                                   
-            res_m22m1 = mbar_m22m1.compute_expectations(Wbar_m22m1_arr, compute_uncertainty=True, state_dependent=True)
-            E_W_m22m1, sigma_W_m22m1 = res_m22m1['mu'], res_m22m1['sigma']
+                temperatures = sorted(dmu_estimates.keys())
+                wls_dmu_estimates = {T: {} for T in temperatures}
+                for T, dd in dmu_estimates.items():
+                    metal_corrected = compute_wls_for_species_list(self.target_metal_species, dd)
+                    nonmetal_corrected = {}
+                    if self.target_nonmetal_species is not None:
+                        nonmetal_corrected = compute_wls_for_species_list(self.target_nonmetal_species, dd)
+                    merged = {}
+                    merged.update(metal_corrected)
+                    merged.update(nonmetal_corrected)
+                    wls_dmu_estimates[T] = merged
 
-            for k, T in enumerate(target_temperatures):
-                beta_target = 1/(units.kB * T)
-                E_W_m12m2_T, Var_W_m12m2_T = E_W_m12m2[k], sigma_W_m12m2[k]**2
-                E_W_m22m1_T, Var_W_m22m1_T = E_W_m22m1[k], sigma_W_m22m1[k]**2
-                # Delta method
-                Var_dmu_m12m2_T = Var_W_m12m2_T / (beta_target * E_W_m12m2_T)**2
-                Var_dmu_m22m1_T = Var_W_m22m1_T / (beta_target * E_W_m22m1_T)**2
-                dmu_m12m2_T = -(1/beta_target) * np.log(E_W_m12m2_T)
-                dmu_m22m1_T = -(1/beta_target) * np.log(E_W_m22m1_T)
-                w_m12m2_T = 1 / Var_dmu_m12m2_T
-                w_m22m1_T = 1 / Var_dmu_m22m1_T
-                dmu_estimates[T][f'{m1}2{m2}']['weight'] = w_m12m2_T
-                dmu_estimates[T][f'{m1}2{m2}']['estimate'] = dmu_m12m2_T
-                dmu_estimates[T][f'{m2}2{m1}']['weight'] = w_m22m1_T
-                dmu_estimates[T][f'{m2}2{m1}']['estimate'] = dmu_m22m1_T
+                dmu_estimates = wls_dmu_estimates
 
-        if wls_correction:
-            def compute_wls_for_species_list(species_list, mu_dict):
-                if (species_list is None) or (len(species_list) == 0):
-                    return {}
-                M_local = len(species_list)
-                # build Laplacian and RHS from directed estimates in mu_dict
-                L = np.zeros((M_local, M_local))
-                b = np.zeros(M_local)
-                for key, mu_info in mu_dict.items():
-                    # parse species from key like 'Co2Ni'
-                    s1, s2 = key.split('2')
-                    if (s1 not in species_list) or (s2 not in species_list):
-                        continue
-                    i = species_list.index(s1)
-                    j = species_list.index(s2)
-                    w = mu_info.get('weight')
-                    dmu_raw = mu_info.get('estimate')
-                    if (dmu_raw is None) or (w is None):
-                        continue
-                    L[i, i] += w
-                    L[j, j] += w
-                    L[i, j] -= w
-                    L[j, i] -= w
-                    b[i] -= w * dmu_raw
-                    b[j] += w * dmu_raw
-                # apply reference constraint: set first species in list to zero
-                ref_idx = 0
-                keep_mask = np.arange(M_local) != ref_idx
-                L_red = L[keep_mask, :][:, keep_mask]
-                b_red = b[keep_mask] - L[keep_mask, ref_idx] * 0.
-                try:
-                    mu_red = np.linalg.solve(L_red, b_red)
-                except np.linalg.LinAlgError:
-                    mu_red = np.linalg.lstsq(L_red, b_red, rcond=None)[0]
-                mu = np.zeros(M_local)
-                mu[ref_idx] = 0.
-                mu[keep_mask] = mu_red
-                # produce corrected differences for unordered pairs from this species set
-                out = {}
-                for s1, s2 in combinations(species_list, 2):
-                    i = species_list.index(s1)
-                    j = species_list.index(s2)
-                    out[f'{s1}2{s2}'] = mu[j] - mu[i]
-                return out
+            if group_value is None:
+                with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_estimates.pkl', 'wb') as handle:
+                    pickle.dump(dmu_estimates, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                all_group_results = dmu_estimates
+            else:
+                gv_str = str(group_value)
+                with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_estimates_{gv_str}.pkl', 'wb') as handle:
+                    pickle.dump(dmu_estimates, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                all_group_results[group_value] = dmu_estimates
 
-            temperatures = sorted(dmu_estimates.keys())
-            wls_dmu_estimates = {T: {} for T in temperatures}
-            for T, dd in dmu_estimates.items():
-                # metals
-                metal_corrected = compute_wls_for_species_list(self.target_metal_species, dd)
-                # non-metals (if any)
-                nonmetal_corrected = {}
-                if self.target_nonmetal_species is not None:
-                    nonmetal_corrected = compute_wls_for_species_list(self.target_nonmetal_species, dd)
-                # merge
-                merged = {}
-                merged.update(metal_corrected)
-                merged.update(nonmetal_corrected)
-                wls_dmu_estimates[T] = merged
-
-            dmu_estimates = wls_dmu_estimates
-                    
-        with open(f'{self.calculation_dir}/{self.name}_mbar_dmu_estimates.pkl', 'wb') as handle:
-            pickle.dump(dmu_estimates, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        return dmu_estimates
+        return all_group_results
 
     def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
                 temperature=None, cutoff=None, metal_only=True, use_energy_mask=False):
-        """
-        Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
-        alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
-
-        starting_step, ending_step, sample_stride: subsampling EMC steps 
-        temperature: if provided, analyze only that T, otherwise all Ts.
-        cutoff: neighbor cutoff for first shell, use natural_cutoffs by default.
-        use_energy_mask: if True, skip running neighbor_list for replicas whose
-            potential energy equals that at the previous step for acceleration.
-        """
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
-        # build target species lists (exclude vacancies 'X')
         metals = [m for m in (self.target_metal_species or []) if m != 'X']
         nonmetals = [n for n in (self.target_nonmetal_species or []) if n != 'X']
         if metal_only:
             elem_list = metals
         else:
             elem_list = metals + nonmetals
-        # unordered hetero pairs + homo pairs
         pairs = list(combinations(elem_list, 2)) + [(e, e) for e in elem_list]
-        sim_temps = sorted(self.data.keys())
-        if temperature is None:
-            temps = sim_temps
+        if self.interswap_within_key is None:
+            sim_groups = {None: self.data}
         else:
-            if temperature not in sim_temps:
-                raise KeyError(f'Temperature {temperature} not found in data.')
-            temps = [temperature]
-
-        # per-temperature SRO data collection
-        sro_data = {}
-        for T in temps:
-            rep_dict = self.data[T]
-            # step bounds aligned by replica lists length
-            max_steps = max((len(lst) for lst in rep_dict.values()), default=0)
-            s0 = 1 if starting_step is None else int(starting_step)
-            s1 = max_steps if ending_step is None else int(min(ending_step, max_steps))
-            if s1 < s0:
-                raise ValueError('Invalid step range or no steps in requested range.')
-            steps = list(range(s0, s1 + 1, int(sample_stride)))
-            # prepare output dict: for each pair, a list of composite alphas
-            pair_step_alpha = {pair: [] for pair in pairs}
-            last_neigh_info = {}
-            for step in steps:
-                reps_atoms = []
-                for rep, alist in rep_dict.items():
-                    if len(alist) >= step and alist[step - 1] is not None:
-                        reps_atoms.append((rep, alist[step - 1]))
-                R = len(reps_atoms)
-                if R == 0:
-                    # no data at this step
-                    for pair in pairs:
-                        pair_step_alpha[pair].append(np.nan)
-                    continue
-
-                # 1) build or reuse per-replica counts and neighbor histograms
-                rep_neigh_info = {}
-                for rep, atoms in reps_atoms:
-                    energy = None
-                    try:
-                        energy = atoms.info['key_value_pairs'].get('potential_energy', None)
-                    except Exception:
+            sim_groups = self.data
+        all_group_sro = {}
+        for group_value, group_dict in sim_groups.items():
+            sim_temps = sorted(group_dict.keys())
+            if temperature is None:
+                temps = sim_temps
+            else:
+                if temperature not in sim_temps:
+                    raise KeyError(f'Temperature {temperature} not found in data.')
+                temps = [temperature]
+            sro_data_group = {}
+            for T in temps:
+                rep_dict = group_dict[T]
+                max_steps = max((len(lst) for lst in rep_dict.values()), default=0)
+                s0 = 1 if starting_step is None else int(starting_step)
+                s1 = max_steps if ending_step is None else int(min(ending_step, max_steps))
+                if s1 < s0:
+                    raise ValueError('Invalid step range or no steps in requested range.')
+                steps = list(range(s0, s1 + 1, int(sample_stride)))
+                pair_step_alpha = {pair: [] for pair in pairs}
+                last_neigh_info = {}
+                for step in steps:
+                    reps_atoms = []
+                    for rep, alist in rep_dict.items():
+                        if len(alist) >= step and alist[step - 1] is not None:
+                            reps_atoms.append((rep, alist[step - 1]))
+                    R = len(reps_atoms)
+                    if R == 0:
+                        for pair in pairs:
+                            pair_step_alpha[pair].append(np.nan)
+                        continue
+                    rep_neigh_info = {}
+                    for rep, atoms in reps_atoms:
                         energy = None
-                    reuse = False
-                    if use_energy_mask and (rep in last_neigh_info):
-                        prev_energy = last_neigh_info[rep].get('energy', None)
-                        if (prev_energy is not None) and (energy is not None) and (energy == prev_energy):
-                            # reuse cached neighbor info and counts (skip neighbor_list)
-                            rep_neigh_info[rep] = last_neigh_info[rep]
-                            reuse = True
-                    if not reuse:
-                        # compute counts and per-reference neighbor histograms using neighbor_list
-                        syms = np.array(atoms.get_chemical_symbols())
-                        # counts for composite concentration: only targeted species and ignore 'X'
-                        filtered_syms = syms[(syms != 'X') & np.isin(syms, elem_list)]
-                        counts = Counter(filtered_syms.tolist())
-                        # neighbor_list gives directed pairs i->j within cutoff
-                        if cutoff is None:
-                            cutoff_local = natural_cutoffs(atoms)
-                        else:
-                            cutoff_local = cutoff
-                        i_idx, j_idx = neighbor_list('ij', atoms, cutoff_local)
-                        if i_idx.size == 0:
-                            # empty neighbor structure
-                            per_ref = {}
-                        else:
-                            si = syms[i_idx]
-                            sj = syms[j_idx]
-                            per_ref = {}
-                            # for each reference species m we collect neighbors around all m atoms
-                            for m in elem_list:
-                                mask_i = (si == m)
-                                if not np.any(mask_i):
-                                    # no reference atoms of this species in this replica
-                                    continue
-                                neigh_syms = sj[mask_i]
-                                # filter neighbors to targeted species only
-                                if neigh_syms.size == 0:
-                                    continue
-                                keep = np.isin(neigh_syms, elem_list)
-                                neigh_syms = neigh_syms[keep]
-                                total_neigh = neigh_syms.size
-                                if total_neigh == 0:
-                                    continue
-                                uniq, cnts = np.unique(neigh_syms, return_counts=True)
-                                neigh_map = dict(zip(uniq.tolist(), cnts.tolist()))
-                                per_ref[m] = (int(total_neigh), neigh_map)
+                        try:
+                            energy = atoms.info['key_value_pairs'].get('potential_energy', None)
+                        except Exception:
+                            energy = None
+                        reuse = False
+                        if use_energy_mask and (rep in last_neigh_info):
+                            prev_energy = last_neigh_info[rep].get('energy', None)
+                            if (prev_energy is not None) and (energy is not None) and (energy == prev_energy):
+                                rep_neigh_info[rep] = last_neigh_info[rep]
+                                reuse = True
+                        if not reuse:
+                            syms = np.array(atoms.get_chemical_symbols())
+                            filtered_syms = syms[(syms != 'X') & np.isin(syms, elem_list)]
+                            counts = Counter(filtered_syms.tolist())
+                            if cutoff is None:
+                                cutoff_local = natural_cutoffs(atoms)
+                            else:
+                                cutoff_local = cutoff
+                            i_idx, j_idx = neighbor_list('ij', atoms, cutoff_local)
+                            if i_idx.size == 0:
+                                per_ref = {}
+                            else:
+                                si = syms[i_idx]
+                                sj = syms[j_idx]
+                                per_ref = {}
+                                for m in elem_list:
+                                    mask_i = (si == m)
+                                    if not np.any(mask_i):
+                                        continue
+                                    neigh_syms = sj[mask_i]
+                                    if neigh_syms.size == 0:
+                                        continue
+                                    keep = np.isin(neigh_syms, elem_list)
+                                    neigh_syms = neigh_syms[keep]
+                                    total_neigh = neigh_syms.size
+                                    if total_neigh == 0:
+                                        continue
+                                    uniq, cnts = np.unique(neigh_syms, return_counts=True)
+                                    neigh_map = dict(zip(uniq.tolist(), cnts.tolist()))
+                                    per_ref[m] = (int(total_neigh), neigh_map)
+                            cache_info = {'energy': energy, 'counts': counts, 'per_ref': per_ref}
+                            rep_neigh_info[rep] = cache_info
+                            last_neigh_info[rep] = cache_info
 
-                        cache_info = {'energy': energy, 'counts': counts, 'per_ref': per_ref}
-                        rep_neigh_info[rep] = cache_info
-                        last_neigh_info[rep] = cache_info
-
-                # 2) compute composite concentrations c_n(R) using rep_neigh_info counts
-                total_counts = Counter()
-                for rep, info in rep_neigh_info.items():
-                    total_counts.update(info.get('counts', Counter()))
-                total_metal_count = sum(total_counts[e] for e in metals) if metals else 0
-                total_nonmetal_count = sum(total_counts[e] for e in nonmetals) if nonmetals else 0
-                cR = {}
-                for e in elem_list:
-                    if e in metals:
-                        if total_metal_count > 0:
-                            cR[e] = (total_counts.get(e, 0) / total_metal_count)
-                        else:
-                            cR[e] = np.nan
-                    else:
-                        if total_nonmetal_count > 0:
-                            cR[e] = (total_counts.get(e, 0) / total_nonmetal_count)
-                        else:
-                            cR[e] = np.nan
-
-                # 3) for every pair compute average SRO over composite replicas
-                for pair in pairs:
-                    m, n = pair
-                    alpha_sum = 0.
-                    valid_count = 0
+                    total_counts = Counter()
                     for rep, info in rep_neigh_info.items():
-                        per_ref = info.get('per_ref', {})
-                        if m not in per_ref:
-                            # no reference atoms of type m in this replica -> undefined
-                            continue
-                        total_neigh, neigh_map = per_ref[m]
-                        if total_neigh == 0:
-                            continue
-                        count_n = neigh_map.get(n, 0)
-                        P_mn_r = float(count_n) / float(total_neigh)
-                        c_n = cR.get(n, np.nan)
-                        delta = 1. if m == n else 0.
-                        denom = delta - c_n
-                        if denom == 0 or np.isnan(denom):
-                            continue
-                        alpha_r = (P_mn_r - c_n) / denom
-                        alpha_sum += alpha_r
-                        valid_count += 1
-                    if valid_count == 0:
-                        pair_step_alpha[pair].append(np.nan)
-                    else:
-                        pair_step_alpha[pair].append(float(alpha_sum / float(valid_count)))
-            sro_data[T] = pair_step_alpha
+                        total_counts.update(info.get('counts', Counter()))
+                    total_metal_count = sum(total_counts[e] for e in metals) if metals else 0
+                    total_nonmetal_count = sum(total_counts[e] for e in nonmetals) if nonmetals else 0
+                    cR = {}
+                    for e in elem_list:
+                        if e in metals:
+                            if total_metal_count > 0:
+                                cR[e] = (total_counts.get(e, 0) / total_metal_count)
+                            else:
+                                cR[e] = np.nan
+                        else:
+                            if total_nonmetal_count > 0:
+                                cR[e] = (total_counts.get(e, 0) / total_nonmetal_count)
+                            else:
+                                cR[e] = np.nan
 
-        # save pickle
-        fname = f'{self.calculation_dir}/{self.name}_sro_data.pkl' if temperature is None \
-                else f'{self.calculation_dir}/{self.name}_sro_data_{temperature}K.pkl'
-        with open(fname, 'wb') as handle:
-            pickle.dump(sro_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                    for pair in pairs:
+                        m, n = pair
+                        alpha_sum = 0.
+                        valid_count = 0
+                        for rep, info in rep_neigh_info.items():
+                            per_ref = info.get('per_ref', {})
+                            if m not in per_ref:
+                                continue
+                            total_neigh, neigh_map = per_ref[m]
+                            if total_neigh == 0:
+                                continue
+                            count_n = neigh_map.get(n, 0)
+                            P_mn_r = float(count_n) / float(total_neigh)
+                            c_n = cR.get(n, np.nan)
+                            delta = 1. if m == n else 0.
+                            denom = delta - c_n
+                            if denom == 0 or np.isnan(denom):
+                                continue
+                            alpha_r = (P_mn_r - c_n) / denom
+                            alpha_sum += alpha_r
+                            valid_count += 1
+                        if valid_count == 0:
+                            pair_step_alpha[pair].append(np.nan)
+                        else:
+                            pair_step_alpha[pair].append(float(alpha_sum / float(valid_count)))
+                sro_data_group[T] = pair_step_alpha
 
-        return sro_data
+            if self.interswap_within_key is None:
+                fname = f'{self.calculation_dir}/{self.name}_sro_data.pkl' if temperature is None \
+                        else f'{self.calculation_dir}/{self.name}_sro_data_{temperature}K.pkl'
+                with open(fname, 'wb') as handle:
+                    pickle.dump(sro_data_group, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            else:
+                gv_str = str(group_value)
+                fname = f'{self.calculation_dir}/{self.name}_sro_data_{gv_str}.pkl' if temperature is None \
+                        else f'{self.calculation_dir}/{self.name}_sro_data_{gv_str}_{temperature}K.pkl'
+                with open(fname, 'wb') as handle:
+                    pickle.dump(sro_data_group, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+            all_group_sro[group_value] = sro_data_group
+
+        return all_group_sro
 
 
 class GCEMCAnalysis(object):
