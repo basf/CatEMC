@@ -106,6 +106,11 @@ class GEEMC(EMC):
     acceptance_key: str, default 'accepted'
         Keyword for indicating being accepted or not in each configuration
 
+    interswap_within_key: str, default None
+        The key in atoms.info['key_value_pair'] that categorizes replicas into
+        different groups, so that interswap is only performed within each group.
+        Useful for e.g. simulating multiple bulk compositions in a single run.
+
     gpu_devices: list of ints, default None
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
@@ -140,6 +145,7 @@ class GEEMC(EMC):
             temperature_key='temperature',
             replica_key='replica',
             acceptance_key='accepted',
+            interswap_within_key=None,
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
@@ -173,6 +179,7 @@ class GEEMC(EMC):
         self.metal_interswap_rate = metal_interswap_rate
         self.nonmetal_interswap_rate = nonmetal_interswap_rate
         self.intraswap_rate = intraswap_rate
+        self.interswap_within_key = interswap_within_key
         
     def run(self, starting_step=1, total_steps=10000, restart_with_trim=False):
 
@@ -276,7 +283,8 @@ class GEEMC(EMC):
             n_crossover_pairs = round((self.pop_size * self.crossover_rate) / 2)
             n_interswap_pairs = round((self.pop_size * (self.metal_interswap_rate + self.nonmetal_interswap_rate)) / 2)
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs,
-                                                   interswap_within_temperature=True)
+                                                   interswap_within_temperature=True,
+                                                   interswap_within_key=self.interswap_within_key)
             for parents in all_parents:
                 if len(parents) == 2:
                     switch_to_interswap = False

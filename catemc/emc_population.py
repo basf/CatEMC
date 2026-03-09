@@ -596,12 +596,12 @@ class EMCPopulation(Population):
 
     def get_all_parents(self, n_crossover_pairs=1, n_interswap_pairs=0,
                         crossover_by_boltzmann_first=False,        
-                        interswap_within_temperature=False):
+                        interswap_within_temperature=False,
+                        interswap_within_neighbors=False,
+                        interswap_within_key=None):
         """Returns all paired candidates for pairing employing the
-        roulete wheel selection scheme described in
-        R.L. Johnston Dalton Transactions,
-        Vol. 22, No. 22. (2003), pp. 4193-4207
-        """
+        roulete wheel selection scheme described in R.L. Johnston 
+        Dalton Transactions, Vol. 22, No. 22. (2003), pp. 4193-4207"""
 
         if len(self.pop) < 2:
             self.update()
@@ -610,29 +610,77 @@ class EMCPopulation(Population):
             return None
 
         T = np.array([c.info['key_value_pairs'][self.tk] for c in self.pop])
+        # optional grouping key array
+        if interswap_within_key is not None:
+            K = np.array([c.info['key_value_pairs'][interswap_within_key] for c in self.pop])
+        else:
+            K = None
         indices = np.arange(len(self.pop))
         all_parents = []
-        for _  in range(n_interswap_pairs):
-            i = np.random.choice(np.arange(len(indices)))
-            c1 = self.pop[indices[i]]
-            tmp_indices = np.delete(indices, i)
-            if interswap_within_temperature:
-                T1 = c1.info['key_value_pairs'][self.tk]
-                options = [k for k, idx in enumerate(tmp_indices) if 
-                           self.pop[idx].info['key_value_pairs'][self.tk] == T1]
-                if not options:
+        if interswap_within_neighbors:
+            # neighboring pairs (0,1), (2,3), ... in the current replica order 
+            used = []
+            pairs_added = 0
+            for pos in range(0, len(indices) - 1, 2):
+                i_idx = indices[pos]
+                j_idx = indices[pos + 1]
+                if interswap_within_temperature and (T[i_idx] != T[j_idx]):
                     continue
-                indices = tmp_indices
-                j = np.random.choice(options)
-            else:
-                indices = tmp_indices
-                j = np.random.choice(np.arange(len(indices)))
-            c2 = self.pop[indices[j]]
-            indices = np.delete(indices, j)
-            c1.info['data']['for_operation'] = 'interswap'
-            c2.info['data']['for_operation'] = 'interswap'
-            all_parents.append((c1, c2))
-
+                if (interswap_within_key is not None) and (K[i_idx] != K[j_idx]):
+                    continue
+                c1 = self.pop[i_idx]
+                c2 = self.pop[j_idx]
+                c1.info['data']['for_operation'] = 'interswap'
+                c2.info['data']['for_operation'] = 'interswap'
+                all_parents.append((c1, c2))
+                used.extend([i_idx, j_idx])
+                pairs_added += 1
+                if pairs_added >= n_interswap_pairs:
+                    break
+            if used:
+                indices = np.setdiff1d(indices, np.array(used, dtype=int))
+        else:
+            # random-selection interswap
+            for _ in range(n_interswap_pairs):
+                if len(indices) < 2:
+                    break
+                i = np.random.choice(np.arange(len(indices)))
+                c1 = self.pop[indices[i]]
+                tmp_indices = np.delete(indices, i)
+                if interswap_within_temperature or (interswap_within_key is not None):
+                    if interswap_within_temperature:
+                        T1 = c1.info['key_value_pairs'][self.tk] 
+                    else:
+                        T1 = None
+                    if interswap_within_key is not None:
+                        K1 = c1.info['key_value_pairs'][interswap_within_key]
+                    else:
+                        K1 = None
+                    options = []
+                    for k, idx in enumerate(tmp_indices):
+                        ok = True
+                        if interswap_within_temperature:
+                            if self.pop[idx].info['key_value_pairs'][self.tk] != T1:
+                                ok = False
+                        if interswap_within_key is not None:
+                            if self.pop[idx].info['key_value_pairs'][interswap_within_key] != K1:
+                                ok = False
+                        if ok:
+                            options.append(k)
+                    if not options:
+                        indices = tmp_indices
+                        continue
+                    indices = tmp_indices
+                    j = np.random.choice(options)
+                else:
+                    indices = tmp_indices
+                    j = np.random.choice(np.arange(len(indices)))
+                c2 = self.pop[indices[j]]
+                indices = np.delete(indices, j)
+                c1.info['data']['for_operation'] = 'interswap'
+                c2.info['data']['for_operation'] = 'interswap'
+                all_parents.append((c1, c2))
+ 
         if crossover_by_boltzmann_first:
             weights = np.array(self.current_fitness)[indices] / (kB*T[indices]) 
             weights /= np.sum(weights)
