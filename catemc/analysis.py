@@ -14,7 +14,7 @@ import os
 
 class GEEMCAnalysis(object):
 
-     """Analysis class for bulk GE-EMC simulations."""
+    """Analysis class for bulk GE-EMC simulations."""
 
     def __init__(self, name,
             calculation_dir,
@@ -39,7 +39,7 @@ class GEEMCAnalysis(object):
         self.interswap_within_key = interswap_within_key
 
     def prepare_data(self, starting_step=None, ending_step=None, pressure=None,
-                     use_exist=True, raw_score_cutoff=-10000.):
+            use_exist=True, raw_score_cutoff=-10000.):
 
         """Prepare GE-EMC potential energy and Widom samples. Set the pressure
         for NpT GE-EMC simulations"""
@@ -104,10 +104,10 @@ class GEEMCAnalysis(object):
                         is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
                         if (row.key_value_pairs[self.acceptance_key] == 1) or is_widom:
                             atoms.info = {'key_value_pairs': {
-                                              self.temperature_key: T,
-                                              self.replica_key: row.key_value_pairs[self.replica_key],
-                                          'potential_energy': U},
-                                          'data': {}}
+                                self.temperature_key: T,
+                                self.replica_key: row.key_value_pairs[self.replica_key],
+                                'potential_energy': U},
+                                'data': {}}
                             rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
                             if pressure is not None:
                                 V = row.volume
@@ -145,21 +145,21 @@ class GEEMCAnalysis(object):
                             if needed > 0:
                                 key_list.extend([[] for _ in range(needed)])
                             key_list[row.emc_step-1].append(
-                                (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
-                            )
+                                    (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
+                                    )
                         else:
                             key_list = self.widom_data[group_value][T].setdefault(key, [])
                             needed = row.emc_step - len(key_list)
                             if needed > 0:
                                 key_list.extend([[] for _ in range(needed)])
                             key_list[row.emc_step-1].append(
-                                (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
-                            )
+                                    (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
+                                    )
 
-            if self.interswap_within_key is None:
-                for T, dd in self.data.items():
-                    for rep in list(dd.keys()):
-                        atoms_prev = None
+                            if self.interswap_within_key is None:
+                                for T, dd in self.data.items():
+                                    for rep in list(dd.keys()):
+                                        atoms_prev = None
                         newlist = []
                         for atoms in dd[rep]:
                             if atoms is not None:
@@ -215,8 +215,8 @@ class GEEMCAnalysis(object):
         write(f'{self.calculation_dir}/{self.name}_geemc_{replica}.traj', traj)
 
     def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1,
-                          target_temperatures=None, volume_correction=False, wls_correction=True,
-                          excess_only=False):
+            target_temperatures=None, volume_correction=False, wls_correction=True,
+            excess_only=False):
 
         """Get the MBAR-estimated chemical potential differences between all
         metal pairs with/without WLS correction. Turn on volume_correction
@@ -304,7 +304,7 @@ class GEEMCAnalysis(object):
             if volume_correction:
                 U_kn -= np.array(NlnV_kn)
             mbar = MBAR(U_kn, samples_per_T, relative_tolerance=1e-7,
-                        solver_protocol='robust', maximum_iterations=30000)
+                    solver_protocol='robust', maximum_iterations=30000)
             w_nk = mbar.weights()
 
             dmu_estimates = {T: {} for T in local_target_temperatures}
@@ -424,7 +424,7 @@ class GEEMCAnalysis(object):
 
                 if Wbar_m12m2_arr.shape[1] > 0:
                     mbar_m12m2 = MBAR(U_kn[:,valid_m12m2_ids], valid_m12m2_samples_per_T,
-                                      relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)
+                            relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)
                     res_m12m2 = mbar_m12m2.compute_expectations(Wbar_m12m2_arr, compute_uncertainty=True, state_dependent=True)
                     E_W_m12m2, sigma_W_m12m2 = res_m12m2['mu'], res_m12m2['sigma']
                 else:
@@ -432,7 +432,7 @@ class GEEMCAnalysis(object):
                     sigma_W_m12m2 = np.zeros(K)
                 if Wbar_m22m1_arr.shape[1] > 0:
                     mbar_m22m1 = MBAR(U_kn[:,valid_m22m1_ids], valid_m22m1_samples_per_T,
-                                      relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)
+                            relative_tolerance=1e-7, solver_protocol='robust', maximum_iterations=30000)
                     res_m22m1 = mbar_m22m1.compute_expectations(Wbar_m22m1_arr, compute_uncertainty=True, state_dependent=True)
                     E_W_m22m1, sigma_W_m22m1 = res_m22m1['mu'], res_m22m1['sigma']
                 else:
@@ -522,7 +522,7 @@ class GEEMCAnalysis(object):
         return all_group_results
 
     def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
-                temperature=None, cutoff=None, metal_only=True, use_energy_mask=False):
+            temperature=None, cutoff=None, metal_only=True, use_energy_mask=False):
         """
         Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
         alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
@@ -711,7 +711,7 @@ class GCEMCAnalysis(object):
         self.acceptance_key = acceptance_key
 
     def prepare_data(self, starting_step=None, ending_step=None, 
-                     use_exist=True, raw_score_cutoff=-10000.):
+            use_exist=True, raw_score_cutoff=-10000.):
 
         """Prepare GC-EMC potential energy samples."""
 
@@ -751,10 +751,10 @@ class GCEMCAnalysis(object):
                         if row.key_value_pairs[self.acceptance_key] == 1:
                             atoms = row.toatoms()
                             atoms.info = {'key_value_pairs': {
-                                              self.temperature_key: T, 
-                                              self.replica_key: row.key_value_pairs[self.replica_key],
-                                              'potential_energy': row.potential_energy}, 
-                                          'data': {}}
+                                self.temperature_key: T, 
+                                self.replica_key: row.key_value_pairs[self.replica_key],
+                                'potential_energy': row.potential_energy}, 
+                                'data': {}}
                             atoms.info['data']['mu'] = row.data.get('mu', None)
                             atoms.info['data']['mu_window'] = row.data.get('mu_window', None)
                             atoms.info['data']['fragments'] = row.data.get('fragments', None)
@@ -799,9 +799,9 @@ class GCEMCAnalysis(object):
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
     def get_structural_expectations(self, z_surf, reaction_conditions, element_column_map, 
-                                    element_eref_map, element_y2x_map, temperature_dmu_map=None, 
-                                    starting_step=None, ending_step=None, sample_stride=1, 
-                                    sample_condition_indices=None, vacancy_indices=None, tol=1e-3):
+            element_eref_map, element_y2x_map, temperature_dmu_map=None, 
+            starting_step=None, ending_step=None, sample_stride=1, 
+            sample_condition_indices=None, vacancy_indices=None, tol=1e-3):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (> z_surf) and reaction conditions. 
@@ -826,7 +826,7 @@ class GCEMCAnalysis(object):
             grid = reaction_conditions.copy()
         K = grid.shape[0]
         parprint(f'Number of states: {K}')
-        
+
         # Build MBAR inputs
         samples_per_state = np.zeros(K, dtype=int)
         # Fill energy matrix
@@ -843,7 +843,7 @@ class GCEMCAnalysis(object):
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
                             surf_num_dict = Counter(atoms[[a.index for a in atoms if
-                                    (a.position[2] > z_surf) and (a.symbol in self.target_metal_species)]].symbols)
+                                (a.position[2] > z_surf) and (a.symbol in self.target_metal_species)]].symbols)
                             n_surf_metals = sum(surf_num_dict.values())
                             for m in self.target_metal_species:
                                 atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
@@ -878,11 +878,11 @@ class GCEMCAnalysis(object):
                                 m1, m2 = pair
                                 atoms.info['data'][f'{m1}-{m2}'] = len([s for s in surf_atom_pairs if s == set(pair)])
                             images.append(atoms)
- 
+
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
- 
+
                         sample_cond = np.append(atoms.info['data']['mu'], T)
                         idx_match = np.where(np.all(np.abs(grid-sample_cond) < tol, axis=1))[0]
                         if idx_match.size == 0:
@@ -902,7 +902,7 @@ class GCEMCAnalysis(object):
             images = read(f'{self.calculation_dir}/{self.name}_mbar.traj', index=':')
         else:
             write(f'{self.calculation_dir}/{self.name}_mbar.traj', images)
- 
+
         phi_kn = np.hstack(phi_kn)  # Shape (K, N_total)
         # Build numpy array of which state produced each sample (global column index)
         sample_state = np.asarray(sample_state, dtype=int)  # shape (N_total,)
@@ -942,28 +942,28 @@ class GCEMCAnalysis(object):
                 continue
             kept_indices_list.append(subs_global)
             parprint(f' state {s}: n_k={n_k}, kept={subs_global.size}')
- 
+
         if len(kept_indices_list) == 0:
             uniq, counts = np.unique(sample_state, return_counts=True)
             raise RuntimeError(f'No subsampled indices found for any occupied state. ' + 
-                               f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
-        kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
+                    f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
+            kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
         kept_indices.sort()
         np.save(f'{self.calculation_dir}/{self.name}_sampled_indices.npy', kept_indices)
         parprint(f'Original total samples: {N_total}, subsampled total: {kept_indices.size}')
- 
+
         # make subsampled phi_kn and per-state counts for MBAR
         phi_kn_sub = phi_kn[:, kept_indices]
         samples_per_state_sub = np.array([np.sum(sample_state[kept_indices] == k) for k in range(K)], dtype=int)
         #parprint(f'New per-state sample counts (subsampled): {samples_per_state_sub}')
         images_sub = [images[i] for i in kept_indices]
- 
+
         # Compute expectation with MBAR
         mbar = MBAR(phi_kn_sub, samples_per_state_sub, relative_tolerance=1e-7,
-                    solver_protocol='robust', maximum_iterations=30000)
+                solver_protocol='robust', maximum_iterations=30000)
         w_nk = mbar.weights()
         w_nk /= w_nk.sum(axis=0)
- 
+
         expectations = {}
         for cv in images_sub[0].info['data'].keys():
             if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
@@ -974,17 +974,17 @@ class GCEMCAnalysis(object):
             else:
                 E_k = w_nk[:,sample_condition_indices].T @ A_n
             expectations[cv] = E_k
- 
+
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
             pickle.dump(expectations, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         return expectations
 
     def get_structural_fes(self, z_surf, reaction_conditions, element_column_map,
-                           element_eref_map, element_y2x_map, temperature_dmu_map=None,
-                           starting_step=None, ending_step=None, sample_stride=1,
-                           sample_condition_indices=None, vacancy_indices=None, 
-                           variable_keys=None, bin_width=0.05, tol=1e-3):
+            element_eref_map, element_y2x_map, temperature_dmu_map=None,
+            starting_step=None, ending_step=None, sample_stride=1,
+            sample_condition_indices=None, vacancy_indices=None, 
+            variable_keys=None, bin_width=0.05, tol=1e-3):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
         depending on a user-defined surface region (> z_surf), reaction conditions and
@@ -1025,7 +1025,7 @@ class GCEMCAnalysis(object):
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
                             surf_num_dict = Counter(atoms[[a.index for a in atoms if
-                                    (a.position[2] > z_surf) and (a.symbol in self.target_metal_species)]].symbols)
+                                (a.position[2] > z_surf) and (a.symbol in self.target_metal_species)]].symbols)
                             n_surf_metals = sum(surf_num_dict.values())
                             for m in self.target_metal_species:
                                 atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
@@ -1128,8 +1128,8 @@ class GCEMCAnalysis(object):
         if len(kept_indices_list) == 0:
             uniq, counts = np.unique(sample_state, return_counts=True)
             raise RuntimeError(f'No subsampled indices found for any occupied state. ' +
-                               f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
-        kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
+                    f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
+            kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
         kept_indices.sort()
         np.save(f'{self.calculation_dir}/{self.name}_sampled_indices.npy', kept_indices)
         parprint(f'Original total samples: {N_total}, subsampled total: {kept_indices.size}')
@@ -1141,7 +1141,7 @@ class GCEMCAnalysis(object):
         images_sub = [images[i] for i in kept_indices]
 
         fes = FES(phi_kn_sub, samples_per_state_sub,
-                  mbar_options={'relative_tolerance': 1e-7, 'solver_protocol': 'robust', 'maximum_iterations': 30000})
+                mbar_options={'relative_tolerance': 1e-7, 'solver_protocol': 'robust', 'maximum_iterations': 30000})
         fes_map = {}
         for cv in variable_keys:
             if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
