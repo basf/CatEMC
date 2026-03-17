@@ -156,10 +156,10 @@ class GEEMCAnalysis(object):
                                     (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
                                     )
 
-                            if self.interswap_within_key is None:
-                                for T, dd in self.data.items():
-                                    for rep in list(dd.keys()):
-                                        atoms_prev = None
+            if self.interswap_within_key is None:
+                for T, dd in self.data.items():
+                    for rep in list(dd.keys()):
+                        atoms_prev = None
                         newlist = []
                         for atoms in dd[rep]:
                             if atoms is not None:
