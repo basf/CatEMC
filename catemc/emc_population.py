@@ -537,9 +537,11 @@ class EMCPopulation(Population):
                         trial_grid_id = np.where(
                                 np.all(np.abs(reaction_conditions - trial_cond) < tol, axis=1))[0]
                         df = free_energy_differences[grid_id, trial_grid_id]
+                        if not np.isscalar(df):
+                            df = df[0]
                         exponent_c += df
                     # exponent_c is ln(w_j / w_current)
-                    exps.append(float(exponent_c))
+                    exps.append(exponent_c)
 
                 # numerically-stable selection: convert to probs ~ exp(exps)
                 exps = np.asarray(exps, dtype=float)
@@ -581,6 +583,8 @@ class EMCPopulation(Population):
                     trial_grid_id = np.where(
                             np.all(np.abs(reaction_conditions - trial_cond) < tol, axis=1))[0]
                     df = free_energy_differences[grid_id, trial_grid_id]
+                    if not np.isscalar(df):
+                        df = df[0]
                     exponent += df
                 p_acc = min([1, np.exp(exponent)])
                 accept = (p_acc > np.random.uniform())
