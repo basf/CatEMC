@@ -644,8 +644,8 @@ class GEEMCAnalysis(object):
 
                     for pair in pairs:
                         m, n = pair
-                        alpha_sum = 0.
-                        valid_count = 0
+                        total_neigh_sum = 0
+                        total_n_count = 0
                         for rep, info in rep_neigh_info.items():
                             per_ref = info.get('per_ref', {})
                             if m not in per_ref:
@@ -653,20 +653,20 @@ class GEEMCAnalysis(object):
                             total_neigh, neigh_map = per_ref[m]
                             if total_neigh == 0:
                                 continue
-                            count_n = neigh_map.get(n, 0)
-                            P_mn_r = float(count_n) / float(total_neigh)
-                            c_n = cR.get(n, np.nan)
-                            delta = 1. if m == n else 0.
-                            denom = delta - c_n
-                            if denom == 0 or np.isnan(denom):
-                                continue
-                            alpha_r = (P_mn_r - c_n) / denom
-                            alpha_sum += alpha_r
-                            valid_count += 1
-                        if valid_count == 0:
+                            total_neigh_sum += total_neigh
+                            total_n_count += neigh_map.get(n, 0)
+                        if total_neigh_sum == 0:
                             pair_step_alpha[pair].append(np.nan)
-                        else:
-                            pair_step_alpha[pair].append(float(alpha_sum / float(valid_count)))
+                            continue
+                        P_mn = float(total_n_count) / float(total_neigh_sum)
+                        c_n = cR.get(n, np.nan)
+                        delta = 1. if m == n else 0.
+                        denom = delta - c_n
+                        if denom == 0 or np.isnan(denom):
+                            pair_step_alpha[pair].append(np.nan)
+                            continue
+                        alpha = (P_mn - c_n) / denom
+                        pair_step_alpha[pair].append(float(alpha))
                 sro_data_group[T] = pair_step_alpha
 
             if self.interswap_within_key is None:
