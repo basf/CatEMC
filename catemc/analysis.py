@@ -522,7 +522,7 @@ class GEEMCAnalysis(object):
         return all_group_results
 
     def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
-            temperature=None, cutoff=None, metal_only=True, use_energy_mask=False):
+            temperature=None, cutoff=None, metal_only=True, use_energy_mask=True):
         """
         Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
         alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
@@ -530,6 +530,7 @@ class GEEMCAnalysis(object):
         starting_step, ending_step, sample_stride: subsampling EMC steps 
         temperature: if provided, analyze only that T, otherwise all Ts.
         cutoff: neighbor cutoff for first shell, use natural_cutoffs by default.
+        metal_only: only computing SRO between metal pairs instead of all pairs.
         use_energy_mask: if True, skip running neighbor_list for replicas whose
             potential energy equals that at the previous step for acceleration.
         """
