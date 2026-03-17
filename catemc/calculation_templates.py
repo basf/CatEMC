@@ -13,7 +13,6 @@ from ase.io.trajectory import Trajectory
 from ase.md.nvtberendsen import NVTBerendsen
 from ase.md.nptberendsen import NPTBerendsen
 from ase.md.langevin import Langevin
-from ase.md.langevinbaoab import LangevinBAOAB
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.parallel import parprint
 import importlib
@@ -166,6 +165,7 @@ def calculate_bulk_fitness(
                                            logfile=tag+f'_{rep}.log', trajectory=tag+f'_{rep}.traj', 
                                            append_trajectory=True)
                     elif md_type == 'langevin':
+                        from ase.md.langevinbaoab import LangevinBAOAB
                         dyn = LangevinBAOAB(tmp_atoms, timestep=md_timestep, temperature_K=T,
                                             T_tau=md_taut, hydrostatic=True, externalstress=pressure,
                                             P_tau=md_taup, logfile=tag+f'_{rep}.log', 
