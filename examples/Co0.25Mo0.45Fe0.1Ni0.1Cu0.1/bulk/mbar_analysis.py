@@ -15,6 +15,7 @@ ana = GEEMCAnalysis(
 
 ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 ana.get_trajectory(replica=10)
+ana.get_sro(starting_step=300, ending_step=1000, sample_stride=10, use_energy_mask=True)
 ana.get_dmu_estimates(starting_step=300, ending_step=1000, sample_stride=10, 
                       target_temperatures=[573, 650, 673, 723, 773, 800, 873, 950, 1023, 1100],
                       wls_correction=True)
