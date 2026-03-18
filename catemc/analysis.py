@@ -576,7 +576,7 @@ class GEEMCAnalysis(object):
                     R = len(reps_atoms)
                     if R == 0:
                         for pair in pairs:
-                            pair_step_alpha[pair].append(np.nan)
+                            pair_step_alpha[pair].append(np.array([], dtype=float))
                         continue
                     rep_neigh_info = {}
                     for rep, atoms in reps_atoms:
@@ -668,10 +668,7 @@ class GEEMCAnalysis(object):
                                 continue
                             alpha_r = (P_mn_r - c_n_rep) / denom
                             alpha_list.append(alpha_r)
-                        if len(alpha_list) == 0:
-                            pair_step_alpha[pair].append(np.nan)
-                        else:
-                            pair_step_alpha[pair].append(float(np.mean(alpha_list)))
+                        pair_step_alpha[pair].append(np.array(alpha_list, dtype=float))
                 sro_data_group[T] = pair_step_alpha
 
             if self.interswap_within_key is None:
