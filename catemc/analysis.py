@@ -645,7 +645,8 @@ class GEEMCAnalysis(object):
 
                     for pair in pairs:
                         m, n = pair
-                        alpha_list = []
+                        # create full-length per-replica array (index by replica id)
+                        arr = np.full(self.pop_size, np.nan, dtype=float)
                         for rep, info in rep_neigh_info.items():
                             per_ref = info.get('per_ref', {})
                             if m not in per_ref:
@@ -667,8 +668,9 @@ class GEEMCAnalysis(object):
                             if denom == 0 or np.isnan(denom):
                                 continue
                             alpha_r = (P_mn_r - c_n_rep) / denom
-                            alpha_list.append(alpha_r)
-                        pair_step_alpha[pair].append(np.array(alpha_list, dtype=float))
+                            # store at the replica index so missing replicas remain np.nan
+                            arr[int(rep)] = alpha_r
+                        pair_step_alpha[pair].append(arr)
                 sro_data_group[T] = pair_step_alpha
 
             if self.interswap_within_key is None:
