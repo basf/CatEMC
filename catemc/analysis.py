@@ -576,7 +576,7 @@ class GEEMCAnalysis(object):
                     R = len(reps_atoms)
                     if R == 0:
                         for pair in pairs:
-                            pair_step_alpha[pair].append(np.nan)
+                            pair_step_alpha[pair].append(np.array([], dtype=float))
                         continue
                     rep_neigh_info = {}
                     for rep, atoms in reps_atoms:
@@ -600,24 +600,27 @@ class GEEMCAnalysis(object):
                             else:
                                 cutoff_local = cutoff
                             i_idx, j_idx = neighbor_list('ij', atoms, cutoff_local)
-                            si = syms[i_idx]
-                            sj = syms[j_idx]
-                            per_ref = {}
-                            for m in elem_list:
-                                mask_i = (si == m)
-                                if not np.any(mask_i):
-                                    continue
-                                neigh_syms = sj[mask_i]
-                                if neigh_syms.size == 0:
-                                    continue
-                                keep = np.isin(neigh_syms, elem_list)
-                                neigh_syms = neigh_syms[keep]
-                                total_neigh = neigh_syms.size
-                                if total_neigh == 0:
-                                    continue
-                                uniq, cnts = np.unique(neigh_syms, return_counts=True)
-                                neigh_map = dict(zip(uniq.tolist(), cnts.tolist()))
-                                per_ref[m] = (int(total_neigh), neigh_map)
+                            if i_idx.size == 0:
+                                per_ref = {}
+                            else:
+                                si = syms[i_idx]
+                                sj = syms[j_idx]
+                                per_ref = {}
+                                for m in elem_list:
+                                    mask_i = (si == m)
+                                    if not np.any(mask_i):
+                                        continue
+                                    neigh_syms = sj[mask_i]
+                                    if neigh_syms.size == 0:
+                                        continue
+                                    keep = np.isin(neigh_syms, elem_list)
+                                    neigh_syms = neigh_syms[keep]
+                                    total_neigh = neigh_syms.size
+                                    if total_neigh == 0:
+                                        continue
+                                    uniq, cnts = np.unique(neigh_syms, return_counts=True)
+                                    neigh_map = dict(zip(uniq.tolist(), cnts.tolist()))
+                                    per_ref[m] = (int(total_neigh), neigh_map)
                             cache_info = {'energy': energy, 'counts': counts, 'per_ref': per_ref}
                             rep_neigh_info[rep] = cache_info
                             last_neigh_info[rep] = cache_info
@@ -642,7 +645,8 @@ class GEEMCAnalysis(object):
 
                     for pair in pairs:
                         m, n = pair
-                        alpha_list = []
+                        # create full-length per-replica array (index by replica id)
+                        arr = np.full(self.pop_size, np.nan, dtype=float)
                         for rep, info in rep_neigh_info.items():
                             per_ref = info.get('per_ref', {})
                             if m not in per_ref:
@@ -664,11 +668,9 @@ class GEEMCAnalysis(object):
                             if denom == 0 or np.isnan(denom):
                                 continue
                             alpha_r = (P_mn_r - c_n_rep) / denom
-                            alpha_list.append(alpha_r)
-                        if len(alpha_list) == 0:
-                            pair_step_alpha[pair].append(np.nan)
-                        else:
-                            pair_step_alpha[pair].append(float(np.mean(alpha_list)))
+                            # store at the replica index so missing replicas remain np.nan
+                            arr[int(rep)] = alpha_r
+                        pair_step_alpha[pair].append(arr)
                 sro_data_group[T] = pair_step_alpha
 
             if self.interswap_within_key is None:
