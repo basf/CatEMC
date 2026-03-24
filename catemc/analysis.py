@@ -951,7 +951,7 @@ class GCEMCAnalysis(object):
             uniq, counts = np.unique(sample_state, return_counts=True)
             raise RuntimeError(f'No subsampled indices found for any occupied state. ' + 
                     f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
-            kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
+        kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
         kept_indices.sort()
         np.save(f'{self.calculation_dir}/{self.name}_sampled_indices.npy', kept_indices)
         parprint(f'Original total samples: {N_total}, subsampled total: {kept_indices.size}')
@@ -1133,7 +1133,7 @@ class GCEMCAnalysis(object):
             uniq, counts = np.unique(sample_state, return_counts=True)
             raise RuntimeError(f'No subsampled indices found for any occupied state. ' +
                     f'Present states: {uniq}, counts: {counts}. phi_kn.shape={phi_kn.shape}')
-            kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
+        kept_indices = np.unique(np.concatenate(kept_indices_list)).astype(int)
         kept_indices.sort()
         np.save(f'{self.calculation_dir}/{self.name}_sampled_indices.npy', kept_indices)
         parprint(f'Original total samples: {N_total}, subsampled total: {kept_indices.size}')
