@@ -92,6 +92,10 @@ class EMC(object):
     acceptance_key: str, default 'accepted'
         Keyword for indicating being accepted or not in each configuration
 
+    category_key: str, default None
+        Keyword for a category that is specific for each replica and should be
+        kept along with the replica number throughout the simulation.
+
     gpu_devices: list of ints, default None
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
@@ -122,6 +126,7 @@ class EMC(object):
             temperature_key='temperature',
             replica_key='replica',
             acceptance_key='accepted',
+            category_key=None,
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
@@ -145,6 +150,7 @@ class EMC(object):
         self.temperature_key = temperature_key
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
+        self.category_key = category_key
         self.gpu_devices = gpu_devices
         self.procs_per_device = procs_per_device
         self.batching = batching
@@ -161,6 +167,7 @@ class EMC(object):
                 temperature_key=self.temperature_key, 
                 replica_key=self.replica_key,
                 acceptance_key=self.acceptance_key,
+                category_key=self.category_key,
                 verbose=self.verbose)
 
         return pop

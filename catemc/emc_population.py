@@ -28,14 +28,16 @@ class EMCPopulation(Population):
 
     def __init__(self, data_connection, population_size, logfile=None,
                  temperature_key='temperature', replica_key='replica',
-                 acceptance_key='accepted', use_extinct=False, 
-                 store_delta=True, verbose=True, rng=np.random):
+                 acceptance_key='accepted', category_key=None, 
+                 use_extinct=False, store_delta=True, verbose=True, 
+                 rng=np.random):
         # The current fitness is set at each update of the population
         self.current_fitness = None
         self.comparator = None
         self.tk = temperature_key
         self.rk = replica_key
         self.ak = acceptance_key
+        self.ck = category_key
         self.store_delta = store_delta
         self.verbose = verbose
 
@@ -133,16 +135,21 @@ class EMCPopulation(Population):
                     sorted_parents = parents
                     sorted_oids = [0, 1]
                     sorted_offsprings = offsprings
-            rep1 = sorted_parents[0].info['key_value_pairs'][self.rk]
-            rep2 = sorted_parents[1].info['key_value_pairs'][self.rk]
             df1 = get_raw_score(sorted_offsprings[0]) - get_raw_score(sorted_parents[0])
             df2 = get_raw_score(sorted_offsprings[1]) - get_raw_score(sorted_parents[1])
+            rep1 = sorted_parents[0].info['key_value_pairs'][self.rk]
+            rep2 = sorted_parents[1].info['key_value_pairs'][self.rk]
             T1 = sorted_parents[0].info['key_value_pairs'][self.tk]
             T2 = sorted_parents[1].info['key_value_pairs'][self.tk]
             offsprings[sorted_oids[0]].info['key_value_pairs'][self.rk] = rep1
             offsprings[sorted_oids[1]].info['key_value_pairs'][self.rk] = rep2
             offsprings[sorted_oids[0]].info['key_value_pairs'][self.tk] = T1
             offsprings[sorted_oids[1]].info['key_value_pairs'][self.tk] = T2
+            if self.ck is not None:
+                C1 = sorted_parents[0].info['key_value_pairs'][self.ck]
+                C2 = sorted_parents[1].info['key_value_pairs'][self.ck]
+                offsprings[sorted_oids[0]].info['key_value_pairs'][self.ck] = C1
+                offsprings[sorted_oids[1]].info['key_value_pairs'][self.ck] = C2
             if 'mu' in sorted_parents[0].info['data']:
                 offsprings[sorted_oids[0]].info['data']['mu'] = sorted_parents[0].info['data']['mu']
                 offsprings[sorted_oids[1]].info['data']['mu'] = sorted_parents[1].info['data']['mu']
@@ -209,11 +216,14 @@ class EMCPopulation(Population):
 
         elif len(parents) == 1:
             # Mutation
-            rep = parents[0].info['key_value_pairs'][self.rk]
             df = get_raw_score(offsprings[0]) - get_raw_score(parents[0])
-            T = parents[0].info['key_value_pairs'][self.tk]
+            rep = parents[0].info['key_value_pairs'][self.rk]
             offsprings[0].info['key_value_pairs'][self.rk] = rep
+            T = parents[0].info['key_value_pairs'][self.tk]
             offsprings[0].info['key_value_pairs'][self.tk] = T
+            if self.ck is not None:
+                C = parents[0].info['key_value_pairs'][self.ck]
+                offsprings[0].info['key_value_pairs'][self.ck] = C
             if any(o for o in offsprings if get_raw_score(o) <= raw_score_cutoff): 
                 prefactor = None
                 accept = False
@@ -492,6 +502,9 @@ class EMCPopulation(Population):
                         c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]
                 c1.info['key_value_pairs'][self.tk], c2.info['key_value_pairs'][self.tk] = \
                         c2.info['key_value_pairs'][self.tk], c1.info['key_value_pairs'][self.tk]
+                if self.ck is not None:
+                    c1.info['key_value_pairs'][self.ck], c2.info['key_value_pairs'][self.ck] = \
+                        c2.info['key_value_pairs'][self.ck], c1.info['key_value_pairs'][self.ck]
                 if 'mu' in c1.info['data']:
                     c1.info['data']['mu'], c2.info['data']['mu'] = \
                             c2.info['data']['mu'], c1.info['data']['mu']

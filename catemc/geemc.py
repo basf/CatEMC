@@ -168,6 +168,7 @@ class GEEMC(EMC):
                 temperature_key=temperature_key,
                 replica_key=replica_key,
                 acceptance_key=acceptance_key,
+                category_key=interswap_within_key,
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
                 batching=batching,
