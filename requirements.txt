@@ -1,4 +1,4 @@
 ase
-acat>=2.0.0
+acat>=2.0.2
 autoadsorbate
 pymbar
