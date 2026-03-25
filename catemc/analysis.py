@@ -21,6 +21,7 @@ class GEEMCAnalysis(object):
             pop_size,
             target_metal_species,
             target_nonmetal_species=None,
+            pressure=None,
             trim_generation=100,
             temperature_key='temperature',
             replica_key='replica',
@@ -32,14 +33,18 @@ class GEEMCAnalysis(object):
         self.pop_size = pop_size
         self.target_metal_species = target_metal_species
         self.target_nonmetal_species = target_nonmetal_species
+        self.pressure = pressure
         self.trim_generation = trim_generation
         self.temperature_key = temperature_key
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
         self.interswap_within_key = interswap_within_key
 
-    def prepare_data(self, starting_step=None, ending_step=None, pressure=None,
-            use_exist=True, raw_score_cutoff=-10000.):
+    def prepare_data(self, 
+            starting_step=None, 
+            ending_step=None, 
+            use_exist=True, 
+            raw_score_cutoff=-10000.):
 
         """Prepare GE-EMC potential energy and Widom samples. Set the pressure
         for NpT GE-EMC simulations"""
@@ -109,9 +114,9 @@ class GEEMCAnalysis(object):
                                 'potential_energy': U},
                                 'data': {}}
                             rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
-                            if pressure is not None:
+                            if self.pressure is not None:
                                 V = row.volume
-                                U += pressure * V
+                                U += self.pressure * V
                                 atoms.info['key_value_pairs']['enthalpy'] = U
                                 atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
                             rep = row.key_value_pairs[self.replica_key]
@@ -133,7 +138,7 @@ class GEEMCAnalysis(object):
                         N1 = len([a for a in atoms if a.symbol == m1]) + 1
                         N2plus1 = len([a for a in atoms if a.symbol == m2])
                         W_prefactor = N1 / N2plus1
-                        if pressure is None:
+                        if self.pressure is None:
                             V_prefactor = 1.
                         else:
                             V_prefactor = row.volume_ratio**len(atoms)
@@ -214,14 +219,17 @@ class GEEMCAnalysis(object):
                                 traj.append(atoms)
         write(f'{self.calculation_dir}/{self.name}_geemc_{replica}.traj', traj)
 
-    def get_dmu_estimates(self, starting_step=None, ending_step=None, sample_stride=1,
-            target_temperatures=None, volume_correction=False, wls_correction=True,
+    def get_dmu_estimates(self, 
+            starting_step=None, 
+            ending_step=None, 
+            sample_stride=1,
+            target_temperatures=None, 
+            wls_correction=True,
             excess_only=False):
 
-        """Get the MBAR-estimated chemical potential differences between all
-        metal pairs with/without WLS correction. Turn on volume_correction
-        for NpT GE-EMC simulations. Turn on excess_only for estimating
-        only the excess chemical potential differences (excluding ideal)."""
+        """Get the MBAR-estimated chemical potential differences between all metal
+        pairs with/without WLS correction. Turn on excess_only for estimating only 
+        the excess chemical potential differences (excluding ideal)."""
 
         from pymbar import MBAR
         if not hasattr(self, 'data'):
@@ -274,13 +282,13 @@ class GEEMCAnalysis(object):
                 volume_samples_T = []
                 for n_minus_1 in range(ending_step):
                     if n_minus_1 + 1 >= starting_step:
-                        if volume_correction:
+                        if self.pressure is not None:
                             H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in local_data[T].values())
                             NlnV = sum(lst[n_minus_1].info['key_value_pairs']['NlnV'] for lst in local_data[T].values())
                         else:
                             U = sum(lst[n_minus_1].info['key_value_pairs']['potential_energy'] for lst in local_data[T].values())
                         temp_step_idx_map[T][n_minus_1+1] = idx
-                        if volume_correction:
+                        if self.pressure is not None:
                             samples_T.append(H)
                             volume_samples_T.append(NlnV)
                         else:
@@ -288,17 +296,17 @@ class GEEMCAnalysis(object):
                         idx += 1
                 samples_per_T[local_target_temperatures.index(T)] = len(samples_T)
                 samples += samples_T
-                if volume_correction:
+                if self.pressure is not None:
                     volume_samples += volume_samples_T
             samples = np.array(samples)
             U_kn = []
             NlnV_kn = []
             for k, T in enumerate(local_target_temperatures):
                 U_kn.append(betas[k] * samples)
-                if volume_correction:
+                if self.pressure is not None:
                     NlnV_kn.append(volume_samples)
             U_kn = np.array(U_kn)
-            if volume_correction:
+            if self.pressure is not None:
                 U_kn -= np.array(NlnV_kn)
             mbar = MBAR(U_kn, samples_per_T, relative_tolerance=1e-7,
                     solver_protocol='robust', maximum_iterations=30000)
@@ -518,8 +526,14 @@ class GEEMCAnalysis(object):
 
         return all_group_results
 
-    def get_sro(self, starting_step=None, ending_step=None, sample_stride=1,
-            temperature=None, cutoff=None, metal_only=True, use_energy_mask=True):
+    def get_sro(self, 
+            starting_step=None, 
+            ending_step=None, 
+            sample_stride=1,
+            temperature=None, 
+            cutoff=None, 
+            metal_only=True, 
+            use_energy_mask=True):
         """
         Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
         alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
@@ -711,8 +725,11 @@ class GCEMCAnalysis(object):
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
 
-    def prepare_data(self, starting_step=None, ending_step=None, 
-            use_exist=True, raw_score_cutoff=-10000.):
+    def prepare_data(self, 
+            starting_step=None, 
+            ending_step=None, 
+            use_exist=True, 
+            raw_score_cutoff=-10000.):
 
         """Prepare GC-EMC potential energy samples."""
 
@@ -799,10 +816,19 @@ class GCEMCAnalysis(object):
 
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
-    def get_structural_expectations(self, z_surf, reaction_conditions, element_column_map, 
-            element_eref_map, element_y2x_map, temperature_dmu_map=None, 
-            starting_step=None, ending_step=None, sample_stride=1, 
-            sample_condition_indices=None, vacancy_indices=None, tol=1e-3):
+    def get_structural_expectations(self, 
+            z_surf, 
+            reaction_conditions, 
+            element_column_map, 
+            element_eref_map, 
+            element_y2x_map, 
+            temperature_dmu_map=None, 
+            starting_step=None, 
+            ending_step=None, 
+            sample_stride=1, 
+            sample_condition_indices=None, 
+            vacancy_indices=None, 
+            tol=1e-3):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (> z_surf) and reaction conditions. 
@@ -981,11 +1007,21 @@ class GCEMCAnalysis(object):
 
         return expectations
 
-    def get_structural_fes(self, z_surf, reaction_conditions, element_column_map,
-            element_eref_map, element_y2x_map, temperature_dmu_map=None,
-            starting_step=None, ending_step=None, sample_stride=1,
-            sample_condition_indices=None, vacancy_indices=None, 
-            variable_keys=None, bin_width=0.05, tol=1e-3):
+    def get_structural_fes(self, 
+            z_surf, 
+            reaction_conditions, 
+            element_column_map,
+            element_eref_map, 
+            element_y2x_map, 
+            temperature_dmu_map=None,
+            starting_step=None, 
+            ending_step=None, 
+            sample_stride=1,
+            sample_condition_indices=None, 
+            vacancy_indices=None, 
+            variable_keys=None, 
+            bin_width=0.05, 
+            tol=1e-3):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
         depending on a user-defined surface region (> z_surf), reaction conditions and

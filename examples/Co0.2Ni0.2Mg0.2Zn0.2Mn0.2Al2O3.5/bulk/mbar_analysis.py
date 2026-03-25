@@ -9,17 +9,19 @@ ana = GEEMCAnalysis(
         calculation_dir=dir_name,
         pop_size=48, 
         target_metal_species=['Co','Ni','Mg','Zn','Mn','Al'],
+        pressure=1.01325*units.bar, 
         trim_generation=100,
         temperature_key='temperature',
         replica_key='replica',
         acceptance_key='accepted')
 
-ana.prepare_data(use_exist=True, pressure=1.01325*units.bar, raw_score_cutoff=-10000.)
+ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 ana.get_trajectory(replica=10)
-ana.get_sro(starting_step=300, ending_step=1000, sample_stride=10, cutoff=3.5, use_energy_mask=True)
+ana.get_sro(starting_step=300, ending_step=1000, sample_stride=10, cutoff=3.5, 
+            metal_only=True, use_energy_mask=True)
 ana.get_dmu_estimates(starting_step=300, ending_step=1000, sample_stride=10, 
                       target_temperatures=[723, 800, 823, 873, 950, 1023, 1100, 1173],
-                      volume_correction=True, wls_correction=True)
+                      wls_correction=True)
 
 with open(f'{dir_name}/{system_name}_mbar_dmu_estimates.pkl', 'rb') as handle:
     mbar_dmu_estimates = pickle.load(handle)
