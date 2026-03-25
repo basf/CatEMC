@@ -274,14 +274,11 @@ class GEEMCAnalysis(object):
                 volume_samples_T = []
                 for n_minus_1 in range(ending_step):
                     if n_minus_1 + 1 >= starting_step:
-                        try:
-                            if volume_correction:
-                                H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in local_data[T].values())
-                                NlnV = sum(lst[n_minus_1].info['key_value_pairs']['NlnV'] for lst in local_data[T].values())
-                            else:
-                                U = sum(lst[n_minus_1].info['key_value_pairs']['potential_energy'] for lst in local_data[T].values())
-                        except:
-                            break
+                        if volume_correction:
+                            H = sum(lst[n_minus_1].info['key_value_pairs']['enthalpy'] for lst in local_data[T].values())
+                            NlnV = sum(lst[n_minus_1].info['key_value_pairs']['NlnV'] for lst in local_data[T].values())
+                        else:
+                            U = sum(lst[n_minus_1].info['key_value_pairs']['potential_energy'] for lst in local_data[T].values())
                         temp_step_idx_map[T][n_minus_1+1] = idx
                         if volume_correction:
                             samples_T.append(H)
