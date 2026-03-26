@@ -236,8 +236,9 @@ def generate_population(
             if max_adsorbate_species is None:
                 ads_species = adsorbate_species
             else:
-                ads_species = list(np.asarray(adsorbate_species)[np.random.choice(
-                        len(adsorbate_species), size=max_adsorbate_species, replace=False)])
+                ads_species = [sp for i, sp in enumerate(adsorbate_species) if i in
+                               np.random.choice(len(adsorbate_species),
+                               size=max_adsorbate_species, replace=False)]
             if adsorbate_coverage is None:
                 dmin = random.uniform(adsorbate_adsorbate_dmin, 5.) 
                 pattern = mindcp(atoms, ads_species,
