@@ -223,7 +223,8 @@ class GEEMCAnalysis(object):
             starting_step=None, 
             ending_step=None, 
             sample_stride=1,
-            target_temperatures=None, 
+            simulation_temperatures=None,
+            target_temperatures=None,
             wls_correction=True,
             excess_only=False):
 
@@ -243,7 +244,10 @@ class GEEMCAnalysis(object):
         all_group_results = {}
         for group_value, local_data in groups.items():
             local_widom = self.widom_data[group_value] if self.interswap_within_key is not None else self.widom_data
-            sim_temperatures = sorted(list(local_data.keys()))
+            if simulation_temperatures is None:
+                sim_temperatures = sorted(list(local_data.keys()))
+            else:
+                sim_temperatures = simulation_temperatures
             if target_temperatures is None:
                 local_target_temperatures = sim_temperatures.copy()
             else:
@@ -881,17 +885,18 @@ class GCEMCAnalysis(object):
                                     [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
                             fragments = atoms.info['data']['fragments']
                             lattice_nonmetal_symbols = []
-                            for nm in element_column_map.keys():
-                                lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
-                            adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
-                            ads_num_dict = Counter(adsorbates)
-                            atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
-                            atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
-                            for ads in self.adsorbate_species:
-                                if ads in ads_num_dict:
-                                    atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
-                                else:
-                                    atoms.info['data'][f'ads_coverage_{ads}'] = 0.
+                            if element_column_map is not None:
+                                for nm in element_column_map.keys():
+                                    lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
+                                adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
+                                ads_num_dict = Counter(adsorbates)
+                                atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
+                                atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
+                                for ads in self.adsorbate_species:
+                                    if ads in ads_num_dict:
+                                        atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
+                                    else:
+                                        atoms.info['data'][f'ads_coverage_{ads}'] = 0.
                             if vacancy_indices:
                                 x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.position[2] < z_surf)]) / len(vacancy_indices)
                                 atoms.info['data'][f'x_lattice_vac'] = x_vac
@@ -912,8 +917,10 @@ class GCEMCAnalysis(object):
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
-
-                        sample_cond = np.append(atoms.info['data']['mu'], T)
+                        if 'mu' in atoms.info['data']:
+                            sample_cond = np.append(atoms.info['data']['mu'], T)
+                        else:
+                            sample_cond = np.array([T])
                         idx_match = np.where(np.all(np.abs(grid-sample_cond) < tol, axis=1))[0]
                         if idx_match.size == 0:
                             parprint('No matching state found for sample:', sample_cond)
@@ -1073,17 +1080,18 @@ class GCEMCAnalysis(object):
                                     [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
                             fragments = atoms.info['data']['fragments']
                             lattice_nonmetal_symbols = []
-                            for nm in element_column_map.keys():
-                                lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
-                            adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
-                            ads_num_dict = Counter(adsorbates)
-                            atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
-                            atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
-                            for ads in self.adsorbate_species:
-                                if ads in ads_num_dict:
-                                    atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
-                                else:
-                                    atoms.info['data'][f'ads_coverage_{ads}'] = 0.
+                            if element_column_map is not None:
+                                for nm in element_column_map.keys():
+                                    lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
+                                adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
+                                ads_num_dict = Counter(adsorbates)
+                                atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
+                                atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
+                                for ads in self.adsorbate_species:
+                                    if ads in ads_num_dict:
+                                        atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
+                                    else:
+                                        atoms.info['data'][f'ads_coverage_{ads}'] = 0.
                             if vacancy_indices:
                                 x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.position[2] < z_surf)]) / len(vacancy_indices)
                                 atoms.info['data'][f'x_lattice_vac'] = x_vac
@@ -1104,8 +1112,10 @@ class GCEMCAnalysis(object):
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
-
-                        sample_cond = np.append(atoms.info['data']['mu'], T)
+                        if 'mu' in atoms.info['data']:
+                            sample_cond = np.append(atoms.info['data']['mu'], T)
+                        else:
+                            sample_cond = np.array([T])
                         idx_match = np.where(np.all(np.abs(grid-sample_cond) < tol, axis=1))[0]
                         if idx_match.size == 0:
                             parprint('No matching state found for sample:', sample_cond)
