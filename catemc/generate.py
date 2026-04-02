@@ -236,8 +236,8 @@ def generate_population(
             if max_adsorbate_species is None:
                 ads_species = adsorbate_species
             else:
-                ads_species = [sp for i, sp in enumerate(adsorbate_species) if i in
-                               np.random.choice(len(adsorbate_species),
+                ads_species = [adsorbate_species[i] for i in
+                               np.random.choice(list(range(len(adsorbate_species))),
                                size=max_adsorbate_species, replace=False)]
             if adsorbate_coverage is None:
                 dmin = random.uniform(adsorbate_adsorbate_dmin, 5.) 
