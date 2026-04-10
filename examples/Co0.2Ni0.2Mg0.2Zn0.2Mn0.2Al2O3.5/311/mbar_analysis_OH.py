@@ -34,35 +34,34 @@ reaction_conditions = np.vstack([grid, target_cond])
 with open(f'/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl', 'rb') as f:
     tdmu_map = pickle.load(f)
 template = read(f'{dir_name}/template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_311_slab_mace_opt.traj')
-z_surf = 24.
-vac_indices = [a.index for a in template if a.symbol in ['O','X'] and (a.position[2] < z_surf)]
+z_surf = None
 
 ana.get_structural_expectations(
-        z_surf=z_surf,
         reaction_conditions=reaction_conditions,
         temperature_dmu_map=tdmu_map,
         element_column_map={'O': 0, 'H': 1},
         element_eref_map={'O': E_O2/2, 'H': E_H2/2},
         element_y2x_map={'O': 3.5/3, 'H': 0.},
+        z_surf=z_surf,
         starting_step=500, 
         ending_step=4000, 
         sample_stride=50,
-        vacancy_indices=vac_indices)
+        vacancy_species=['O'])
 
 sim_dmu_O = np.arange(-5., -2.999, 0.1)
 sim_dmu_H = np.arange(-1., 0.001, 0.05)
 sim_grid = np.array(np.meshgrid(sim_dmu_O, sim_dmu_H, sim_temperatures)).T.reshape(-1, 3)
 sim_reaction_conditions = np.vstack([sim_grid, target_cond])
 ana.get_structural_fes(
-        z_surf=z_surf,
         reaction_conditions=sim_reaction_conditions,
         temperature_dmu_map=tdmu_map,
         element_column_map={'O': 0, 'H': 1},
         element_eref_map={'O': E_O2/2, 'H': E_H2/2},
         element_y2x_map={'O': 3.5/3, 'H': 0.},
+        z_surf=z_surf,
         starting_step=500, 
         ending_step=4000, 
         sample_stride=50,
         sample_condition_indices=[-1],
-        vacancy_indices=vac_indices,
+        vacancy_species=['O'],
         bin_width=0.05)
