@@ -824,21 +824,25 @@ class GCEMCAnalysis(object):
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
     def get_structural_expectations(self, 
-            z_surf, 
             reaction_conditions, 
             element_column_map, 
             element_eref_map, 
             element_y2x_map, 
+            z_surf=None, 
             temperature_dmu_map=None, 
             starting_step=None, 
             ending_step=None, 
             sample_stride=1, 
             sample_condition_indices=None, 
-            vacancy_indices=None, 
+            vacancy_indices=None,
+            precision=0.25,
+            touch_sphere_size=3.,
             tol=1e-3):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (> z_surf) and reaction conditions. 
+        The default z_surf=None will use AutoAdsorbate to identify the surface atoms
+        with AutoAdsorbate-specific parameters -- precision and touch_sphere_size.
         The reaction conditions is supposed to emcompass all the reaction condition
         grid considered in the EMC simulation, including last column as temperature.
         You can also add more rows to reaction_conditions to consider states that are
@@ -876,8 +880,15 @@ class GCEMCAnalysis(object):
                         if atoms is None:
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
+                            if z_surf is None:
+                                from autoadsorbate.autoadsorbate import Surface
+                                surf = Surface(atoms, precision=precision, 
+                                               touch_sphere_size=touch_sphere_size)
+                                surf_ids = sorted(set([x for lst in surf.site_df['topology'].values for x in lst]))
+                            else:
+                                surf_ids = [a.index for a in atoms if a.position[2] < z_surf]
                             surf_num_dict = Counter(atoms[[a.index for a in atoms if
-                                (a.position[2] > z_surf) and (a.symbol in self.target_metal_species)]].symbols)
+                                (a.index in surf_ids) and (a.symbol in self.target_metal_species)]].symbols)
                             n_surf_metals = sum(surf_num_dict.values())
                             for m in self.target_metal_species:
                                 atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
@@ -898,9 +909,9 @@ class GCEMCAnalysis(object):
                                     else:
                                         atoms.info['data'][f'ads_coverage_{ads}'] = 0.
                             if vacancy_indices:
-                                x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.position[2] < z_surf)]) / len(vacancy_indices)
+                                x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.index not in surf_ids)]) / len(vacancy_indices)
                                 atoms.info['data'][f'x_lattice_vac'] = x_vac
-                            surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.position[2] > z_surf)]]
+                            surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.index in surf_ids)]]
                             surf_atoms.pbc = [1,1,0]
                             surf_num_dict = Counter(surf_atoms.symbols)
                             cutoffs = natural_cutoffs(surf_atoms, mult=1.1)
@@ -1018,11 +1029,11 @@ class GCEMCAnalysis(object):
         return expectations
 
     def get_structural_fes(self, 
-            z_surf, 
             reaction_conditions, 
             element_column_map,
             element_eref_map, 
             element_y2x_map, 
+            z_surf=None, 
             temperature_dmu_map=None,
             starting_step=None, 
             ending_step=None, 
@@ -1030,14 +1041,18 @@ class GCEMCAnalysis(object):
             sample_condition_indices=None, 
             vacancy_indices=None, 
             variable_keys=None, 
-            bin_width=0.05, 
+            bin_width=0.05,
+            precision=0.25,
+            touch_sphere_size=3.,
             tol=1e-3):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
         depending on a user-defined surface region (> z_surf), reaction conditions and
-        a bin width. The reaction conditions is supposed to emcompass all the reaction 
-        condition grid considered in the EMC simulation, including last column as 
-        temperature. You can also add more rows to reaction_conditions to consider 
+        a bin width. The default z_surf=None will use AutoAdsorbate to identify the 
+        surface atoms with AutoAdsorbate-specific parameters -- precision and 
+        touch_sphere_size. The reaction conditions is supposed to emcompass all the 
+        reaction condition grid considered in the EMC simulation, including last column 
+        as temperature. You can also add more rows to reaction_conditions to consider 
         states that are not included in the simulation."""
 
         if not hasattr(self, 'data'):
@@ -1071,8 +1086,15 @@ class GCEMCAnalysis(object):
                         if atoms is None:
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
+                            if z_surf is None:
+                                from autoadsorbate.autoadsorbate import Surface
+                                surf = Surface(atoms, precision=precision, 
+                                               touch_sphere_size=touch_sphere_size)
+                                surf_ids = sorted(set([x for lst in surf.site_df['topology'].values for x in lst]))
+                            else:
+                                surf_ids = [a.index for a in atoms if a.position[2] > z_surf]
                             surf_num_dict = Counter(atoms[[a.index for a in atoms if
-                                (a.position[2] > z_surf) and (a.symbol in self.target_metal_species)]].symbols)
+                                (a.index in surf_ids) and (a.symbol in self.target_metal_species)]].symbols)
                             n_surf_metals = sum(surf_num_dict.values())
                             for m in self.target_metal_species:
                                 atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
@@ -1093,9 +1115,9 @@ class GCEMCAnalysis(object):
                                     else:
                                         atoms.info['data'][f'ads_coverage_{ads}'] = 0.
                             if vacancy_indices:
-                                x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.position[2] < z_surf)]) / len(vacancy_indices)
+                                x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.index not in surf_ids)]) / len(vacancy_indices)
                                 atoms.info['data'][f'x_lattice_vac'] = x_vac
-                            surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.position[2] > z_surf)]]
+                            surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.index in surf_ids)]]
                             surf_atoms.pbc = [1,1,0]
                             surf_num_dict = Counter(surf_atoms.symbols)
                             cutoffs = natural_cutoffs(surf_atoms, mult=1.1)
