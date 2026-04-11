@@ -1024,7 +1024,6 @@ class GCEMCAnalysis(object):
                         vacancy_species,
                         precision,
                         touch_sphere_size,
-                        'lower',
                         all_atom_pairs,
                     )
                     for img in images
@@ -1223,7 +1222,6 @@ class GCEMCAnalysis(object):
                         vacancy_species,
                         precision,
                         touch_sphere_size,
-                        'upper',
                         all_atom_pairs,
                     )
                     for img in images
