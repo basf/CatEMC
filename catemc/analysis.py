@@ -7,6 +7,7 @@ from ase.db import connect
 from ase import units
 from collections import defaultdict, Counter
 from itertools import combinations
+from multiprocessing import Pool
 import numpy as np
 import pickle
 import os
