@@ -827,6 +827,7 @@ class GCEMCAnalysis(object):
     def get_structural_properties(self,
             atoms,
             z_surf=None,
+            surf_indices=None,
             element_column_map=None,
             vacancy_indices=None,
             vacancy_species=None,
@@ -843,16 +844,19 @@ class GCEMCAnalysis(object):
 
         atoms.info.setdefault('data', {})
 
-        if z_surf is None:
-            from autoadsorbate.Surf import shrinkwrap_surface
-            surf_ids = shrinkwrap_surface(
-                atoms,
-                precision=precision,
-                touch_sphere_size=touch_sphere_size,
-            )
-            surf_ids = sorted(surf_ids.tolist())
+        if surface_indices is None:
+            if z_surf is None:
+                from autoadsorbate.Surf import shrinkwrap_surface
+                surf_ids = shrinkwrap_surface(
+                    atoms,
+                    precision=precision,
+                    touch_sphere_size=touch_sphere_size,
+                )
+                surf_ids = sorted(surf_ids.tolist())
+            else:
+                surf_ids = [a.index for a in atoms if a.position[2] >= z_surf]
         else:
-            surf_ids = [a.index for a in atoms if a.position[2] >= z_surf]
+            surf_ids = surface_indices
 
         if vacancy_species is not None:
             if len(vacancy_indices) > 0:
@@ -911,7 +915,8 @@ class GCEMCAnalysis(object):
             element_column_map, 
             element_eref_map, 
             element_y2x_map, 
-            z_surf=None, 
+            z_surf=None,
+            surf_indices=None,
             temperature_dmu_map=None, 
             starting_step=None, 
             ending_step=None, 
@@ -929,13 +934,15 @@ class GCEMCAnalysis(object):
         The default z_surf=None will use AutoAdsorbate to identify the surface atoms
         with AutoAdsorbate-specific parameters -- precision and touch_sphere_size.
         For vacancy-related analysis, either provide a list of atom indices or a list of 
-        species that can form lattice vacancies. If only vacancy_species is provided then
-        the vacancy_indices will be the indices having the vacancy_species or 'X' but
-        excluding the identified surface indices. If both are provided then only select 
-        the intersecting indices as vacancy indices. The reaction conditions is supposed 
-        to emcompass all the reaction condition grid considered in the EMC simulation, 
-        including last column as temperature. You can also add more rows to 
-        reaction_conditions to consider states that are not included in the simulation."""
+        species that can form lattice vacancies. If surf_indices is provided then we 
+        ignore z_surf and always treat those atom indices as surface atoms. If only 
+        vacancy_species is provided then the vacancy_indices will be the indices having 
+        the vacancy_species or 'X' but excluding the identified surface indices. If both 
+        are provided then only select the intersecting indices as vacancy indices. The 
+        reaction conditions is supposed to emcompass all the reaction condition grid 
+        considered in the EMC simulation, including last column as temperature. You can 
+        also add more rows to reaction_conditions to consider states that are not 
+        included in the simulation."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
@@ -1005,6 +1012,7 @@ class GCEMCAnalysis(object):
                     (
                         img,
                         z_surf,
+                        surf_indices,
                         element_column_map,
                         vacancy_indices,
                         vacancy_species,
@@ -1021,6 +1029,7 @@ class GCEMCAnalysis(object):
                     self.get_structural_properties(
                         img,
                         z_surf=z_surf,
+                        surf_indices=surf_indices,
                         element_column_map=element_column_map,
                         vacancy_indices=vacancy_indices,
                         vacancy_species=vacancy_species,
@@ -1104,7 +1113,8 @@ class GCEMCAnalysis(object):
             element_column_map,
             element_eref_map, 
             element_y2x_map, 
-            z_surf=None, 
+            z_surf=None,
+            surf_indices=None,
             temperature_dmu_map=None,
             starting_step=None, 
             ending_step=None, 
@@ -1123,15 +1133,16 @@ class GCEMCAnalysis(object):
         depending on a user-defined surface region (>= z_surf), reaction conditions and
         a bin width. The default z_surf=None will use AutoAdsorbate to identify the 
         surface atoms with AutoAdsorbate-specific parameters -- precision and 
-        touch_sphere_size. For vacancy-related analysis, either provide a list of atom 
-        indices or a list of species that can form lattice vacancies. If only 
-        vacancy_species is provided, the vacancy_indices will be the indices having the 
-        vacancy_species or 'X' but excluding the identified surface indices. If both 
-        are provided then only select the intersecting indices as vacancy indices. The 
-        reaction conditions is supposed to emcompass all the reaction condition grid 
-        considered in the EMC simulation, including last column as temperature. You can 
-        also add more rows to reaction_conditions to consider states that are not 
-        included in the simulation."""
+        touch_sphere_size. If surf_indices is provided then we ignore z_surf and always 
+        treat those atom indices as surface atoms. For vacancy-related analysis, either 
+        provide a list of atom indices or a list of species that can form lattice 
+        vacancies. If only vacancy_species is provided, the vacancy_indices will be the 
+        indices having the vacancy_species or 'X' but excluding the identified surface 
+        indices. If both are provided then only select the intersecting indices as 
+        vacancy indices. The reaction conditions is supposed to emcompass all the 
+        reaction condition grid considered in the EMC simulation, including last column 
+        as temperature. You can also add more rows to reaction_conditions to consider 
+        states that are not included in the simulation."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
@@ -1203,6 +1214,7 @@ class GCEMCAnalysis(object):
                     (
                         img,
                         z_surf,
+                        surf_indices,
                         element_column_map,
                         vacancy_indices,
                         vacancy_species,
@@ -1219,6 +1231,7 @@ class GCEMCAnalysis(object):
                     self.get_structural_properties(
                         img,
                         z_surf=z_surf,
+                        surf_indices=surf_indices,
                         element_column_map=element_column_map,
                         vacancy_indices=vacancy_indices,
                         vacancy_species=vacancy_species,
