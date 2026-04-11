@@ -833,7 +833,8 @@ class GCEMCAnalysis(object):
             vacancy_species=None,
             precision=0.25,
             touch_sphere_size=3.,
-            all_atom_pairs=None):
+            all_atom_pairs=None,
+            force_detect_surface=False):
 
         """Extract and store structural properties for a single ase.Atoms object."""
 
@@ -844,7 +845,7 @@ class GCEMCAnalysis(object):
 
         atoms.info.setdefault('data', {})
 
-        if surf_indices is None:
+        if surf_indices is None or force_detect_surface:
             if z_surf is None:
                 from autoadsorbate.Surf import shrinkwrap_surface
                 surf_ids = shrinkwrap_surface(
@@ -856,7 +857,8 @@ class GCEMCAnalysis(object):
             else:
                 surf_ids = [a.index for a in atoms if a.position[2] >= z_surf]
         else:
-            surf_ids = surf_indices
+            surf_ids = list(surf_indices)
+        atoms.info['data']['surf_indices'] = np.array(surf_ids, dtype=int)
 
         if vacancy_species is not None:
             if len(vacancy_indices) > 0:
@@ -924,6 +926,7 @@ class GCEMCAnalysis(object):
             sample_condition_indices=None, 
             vacancy_indices=None, 
             vacancy_species=None,
+            surf_detect_stride=1,
             precision=0.25,
             touch_sphere_size=3.,
             tol=1e-3,
@@ -933,16 +936,17 @@ class GCEMCAnalysis(object):
         depending on a user-defined surface region (>= z_surf) and reaction conditions. 
         The default z_surf=None will use AutoAdsorbate to identify the surface atoms
         with AutoAdsorbate-specific parameters -- precision and touch_sphere_size.
-        For vacancy-related analysis, either provide a list of atom indices or a list of 
-        species that can form lattice vacancies. If surf_indices is provided then we 
-        ignore z_surf and always treat those atom indices as surface atoms. If only 
-        vacancy_species is provided then the vacancy_indices will be the indices having 
-        the vacancy_species or 'X' but excluding the identified surface indices. If both 
-        are provided then only select the intersecting indices as vacancy indices. The 
-        reaction conditions is supposed to emcompass all the reaction condition grid 
-        considered in the EMC simulation, including last column as temperature. You can 
-        also add more rows to reaction_conditions to consider states that are not 
-        included in the simulation."""
+        Since the surface atom indices will not change very often, one can set a larger
+        surf_detect_stride to run fewer AutoAdsorbate surface detections. If surf_indices 
+        is provided then we ignore z_surf and always treat those atom indices as surface 
+        atoms. For vacancy-related analysis, either provide a list of atom indices or a 
+        list of species that can form lattice vacancies. If only vacancy_species is 
+        provided then the vacancy_indices will be the indices having the vacancy_species 
+        or 'X' but excluding the identified surface indices. If both are provided then 
+        only select the intersecting indices as vacancy indices. The reaction conditions 
+        is supposed to emcompass all the reaction condition grid considered in the EMC 
+        simulation, including last column as temperature. You can also add more rows to 
+        reaction_conditions to consider states that are not included in the simulation."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
@@ -968,6 +972,9 @@ class GCEMCAnalysis(object):
         sample_steps = []
         traj_file = f'{self.calculation_dir}/{self.name}_mbar.traj'
         traj_exists = os.path.isfile(traj_file)
+        surf_cache = {}
+        images = []
+        image_meta = []
 
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
@@ -980,6 +987,7 @@ class GCEMCAnalysis(object):
 
                         if not traj_exists:
                             images.append(atoms)
+                            image_meta.append((T, rep, n_minus_1))
 
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
@@ -1007,38 +1015,61 @@ class GCEMCAnalysis(object):
         else:
             if len(images) == 0:
                 raise RuntimeError('No images were collected for structural analysis.')
-            if procs is not None and procs > 1:
-                args = [
-                    (
+
+            processed_images = []
+            current_cache = {}
+
+            # process in chronological order, but only force fresh surface detection
+            # every surf_detect_stride steps per replica
+            jobs = []
+            for img, (T, rep, step0) in zip(images, image_meta):
+                cache_key = (T, rep)
+                last = current_cache.get(cache_key, None)
+
+                if (last is None) or ((step0 + 1 - last[0]) >= surf_detect_stride):
+                    jobs.append((
                         img,
                         z_surf,
-                        surf_indices,
+                        None,
                         element_column_map,
                         vacancy_indices,
                         vacancy_species,
                         precision,
                         touch_sphere_size,
                         all_atom_pairs,
-                    )
-                    for img in images
-                ]
-                with Pool(processes=procs) as pool:
-                    images = pool.starmap(self.get_structural_properties, args)
-            else:
-                images = [
-                    self.get_structural_properties(
+                        True,   # force_detect_surface
+                    ))
+                else:
+                    jobs.append((
                         img,
-                        z_surf=z_surf,
-                        surf_indices=surf_indices,
-                        element_column_map=element_column_map,
-                        vacancy_indices=vacancy_indices,
-                        vacancy_species=vacancy_species,
-                        precision=precision,
-                        touch_sphere_size=touch_sphere_size,
-                        all_atom_pairs=all_atom_pairs,
-                    )
-                    for img in images
+                        z_surf,
+                        last[1],
+                        element_column_map,
+                        vacancy_indices,
+                        vacancy_species,
+                        precision,
+                        touch_sphere_size,
+                        all_atom_pairs,
+                        False,  # force_detect_surface
+                    ))
+
+            if procs is not None and procs > 1:
+                with Pool(processes=procs) as pool:
+                    processed_images = pool.starmap(self.get_structural_properties, jobs)
+            else:
+                processed_images = [
+                    self.get_structural_properties(*job)
+                    for job in jobs
                 ]
+
+            images = processed_images
+
+            # update cache from the processed images
+            for img, (T, rep, step0) in zip(images, image_meta):
+                cache_key = (T, rep)
+                if 'surf_indices' in img.info['data']:
+                    current_cache[cache_key] = (step0 + 1, img.info['data']['surf_indices'])
+
             write(traj_file, images)
 
         phi_kn = np.hstack(phi_kn)
@@ -1124,6 +1155,7 @@ class GCEMCAnalysis(object):
             vacancy_species=None,
             variable_keys=None, 
             bin_width=0.05,
+            surf_detect_stride=1,
             precision=0.25,
             touch_sphere_size=3.,
             tol=1e-3,
@@ -1133,8 +1165,10 @@ class GCEMCAnalysis(object):
         depending on a user-defined surface region (>= z_surf), reaction conditions and
         a bin width. The default z_surf=None will use AutoAdsorbate to identify the 
         surface atoms with AutoAdsorbate-specific parameters -- precision and 
-        touch_sphere_size. If surf_indices is provided then we ignore z_surf and always 
-        treat those atom indices as surface atoms. For vacancy-related analysis, either 
+        touch_sphere_size. Since the surface atom indices will not change very often, 
+        one can set a larger surf_detect_stride to run fewer AutoAdsorbate surface 
+        detections. If surf_indices is provided then we ignore z_surf and always treat 
+        those atom indices as surface atoms. For vacancy-related analysis, either 
         provide a list of atom indices or a list of species that can form lattice 
         vacancies. If only vacancy_species is provided, the vacancy_indices will be the 
         indices having the vacancy_species or 'X' but excluding the identified surface 
@@ -1170,6 +1204,9 @@ class GCEMCAnalysis(object):
         sample_steps = []
         traj_file = f'{self.calculation_dir}/{self.name}_mbar.traj'
         traj_exists = os.path.isfile(traj_file)
+        surf_cache = {}
+        images = []
+        image_meta = []
 
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
@@ -1182,6 +1219,7 @@ class GCEMCAnalysis(object):
 
                         if not traj_exists:
                             images.append(atoms)
+                            image_meta.append((T, rep, n_minus_1))
 
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
@@ -1209,38 +1247,61 @@ class GCEMCAnalysis(object):
         else:
             if len(images) == 0:
                 raise RuntimeError('No images were collected for structural analysis.')
-            if procs is not None and procs > 1:
-                args = [
-                    (
+
+            processed_images = []
+            current_cache = {}
+
+            # process in chronological order, but only force fresh surface detection
+            # every surf_detect_stride steps per replica
+            jobs = []
+            for img, (T, rep, step0) in zip(images, image_meta):
+                cache_key = (T, rep)
+                last = current_cache.get(cache_key, None)
+
+                if (last is None) or ((step0 + 1 - last[0]) >= surf_detect_stride):
+                    jobs.append((
                         img,
                         z_surf,
-                        surf_indices,
+                        None,
                         element_column_map,
                         vacancy_indices,
                         vacancy_species,
                         precision,
                         touch_sphere_size,
                         all_atom_pairs,
-                    )
-                    for img in images
-                ]
-                with Pool(processes=procs) as pool:
-                    images = pool.starmap(self.get_structural_properties, args)
-            else:
-                images = [
-                    self.get_structural_properties(
+                        True,   # force_detect_surface
+                    ))
+                else:
+                    jobs.append((
                         img,
-                        z_surf=z_surf,
-                        surf_indices=surf_indices,
-                        element_column_map=element_column_map,
-                        vacancy_indices=vacancy_indices,
-                        vacancy_species=vacancy_species,
-                        precision=precision,
-                        touch_sphere_size=touch_sphere_size,
-                        all_atom_pairs=all_atom_pairs,
-                    )
-                    for img in images
+                        z_surf,
+                        last[1],
+                        element_column_map,
+                        vacancy_indices,
+                        vacancy_species,
+                        precision,
+                        touch_sphere_size,
+                        all_atom_pairs,
+                        False,  # force_detect_surface
+                    ))
+
+            if procs is not None and procs > 1:
+                with Pool(processes=procs) as pool:
+                    processed_images = pool.starmap(self.get_structural_properties, jobs)
+            else:
+                processed_images = [
+                    self.get_structural_properties(*job)
+                    for job in jobs
                 ]
+
+            images = processed_images
+
+            # update cache from the processed images
+            for img, (T, rep, step0) in zip(images, image_meta):
+                cache_key = (T, rep)
+                if 'surf_indices' in img.info['data']:
+                    current_cache[cache_key] = (step0 + 1, img.info['data']['surf_indices'])
+
             write(traj_file, images)
 
         phi_kn = np.hstack(phi_kn)
