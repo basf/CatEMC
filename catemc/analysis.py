@@ -708,21 +708,6 @@ class GEEMCAnalysis(object):
         return all_group_sro
 
 
-from .gc_utils import compute_phi
-from ase.geometry.analysis import Analysis
-from ase.neighborlist import neighbor_list, natural_cutoffs
-from ase.parallel import parprint
-from ase.io import read, write
-from ase.db import connect
-from ase import units
-from collections import defaultdict, Counter
-from itertools import combinations
-from multiprocessing import Pool
-import numpy as np
-import pickle
-import os
-
-
 class GCEMCAnalysis(object):
 
     def __init__(self, name,
