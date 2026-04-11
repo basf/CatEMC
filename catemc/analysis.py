@@ -708,6 +708,21 @@ class GEEMCAnalysis(object):
         return all_group_sro
 
 
+from .gc_utils import compute_phi
+from ase.geometry.analysis import Analysis
+from ase.neighborlist import neighbor_list, natural_cutoffs
+from ase.parallel import parprint
+from ase.io import read, write
+from ase.db import connect
+from ase import units
+from collections import defaultdict, Counter
+from itertools import combinations
+from multiprocessing import Pool
+import numpy as np
+import pickle
+import os
+
+
 class GCEMCAnalysis(object):
 
     def __init__(self, name,
@@ -788,7 +803,7 @@ class GCEMCAnalysis(object):
                             rep_list = self.data[T].setdefault(rep, [])
                             needed = row.emc_step - len(rep_list)
                             if needed > 0:
-                                rep_list.extend([None] * needed)  # None is immutable, multiplication is safe
+                                rep_list.extend([None] * needed)
                             rep_list[row.emc_step-1] = atoms
 
             # Assign the previous energy if energy is None at a step (forward-fill per replica)
@@ -823,6 +838,99 @@ class GCEMCAnalysis(object):
 
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
+    def get_structural_properties(self,
+            atoms,
+            z_surf=None,
+            element_column_map=None,
+            vacancy_indices=None,
+            vacancy_species=None,
+            precision=0.25,
+            touch_sphere_size=3.,
+            surface_region='lower',
+            all_atom_pairs=None):
+
+        """Extract and store structural properties for a single ase.Atoms object.
+
+        surface_region : str
+            'lower' uses atoms with z < z_surf when z_surf is provided.
+            'upper' uses atoms with z >= z_surf when z_surf is provided.
+        """
+
+        if vacancy_indices is None:
+            vacancy_indices = []
+        else:
+            vacancy_indices = list(vacancy_indices)
+
+        atoms.info.setdefault('data', {})
+
+        if z_surf is None:
+            from autoadsorbate.Surf import shrinkwrap_surface
+            surf_ids = shrinkwrap_surface(
+                atoms,
+                precision=precision,
+                touch_sphere_size=touch_sphere_size,
+            )
+            surf_ids = sorted(surf_ids.tolist())
+        else:
+            if surface_region == 'lower':
+                surf_ids = [a.index for a in atoms if a.position[2] < z_surf]
+            elif surface_region == 'upper':
+                surf_ids = [a.index for a in atoms if a.position[2] >= z_surf]
+            else:
+                raise ValueError("surface_region must be either 'lower' or 'upper'.")
+
+        if vacancy_species is not None:
+            if len(vacancy_indices) > 0:
+                vacancy_indices = [i for i in vacancy_indices if (atoms[i].symbol in vacancy_species + ['X'])]
+            else:
+                vacancy_indices = [a.index for a in atoms if (a.symbol in vacancy_species + ['X']) and (a.index not in surf_ids)]
+
+        surf_num_dict = Counter(atoms[[a.index for a in atoms if
+            (a.index in surf_ids) and (a.symbol in self.target_metal_species)]].symbols)
+        n_surf_metals = sum(surf_num_dict.values())
+
+        for m in self.target_metal_species:
+            atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
+        atoms.info['data']['x_surf_metals'] = np.array(
+                [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
+
+        fragments = atoms.info['data'].get('fragments', None)
+        lattice_nonmetal_symbols = []
+        if element_column_map is not None and fragments is not None:
+            for nm in element_column_map.keys():
+                lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
+            adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
+            ads_num_dict = Counter(adsorbates)
+            atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
+            atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
+            for ads in self.adsorbate_species:
+                if ads in ads_num_dict:
+                    atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
+                else:
+                    atoms.info['data'][f'ads_coverage_{ads}'] = 0.
+
+        if vacancy_indices:
+            x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.index not in surf_ids)]) / len(vacancy_indices)
+            atoms.info['data'][f'x_lattice_vac'] = x_vac
+
+        surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.index in surf_ids)]]
+        surf_atoms.pbc = [1, 1, 0]
+        surf_num_dict = Counter(surf_atoms.symbols)
+        cutoffs = natural_cutoffs(surf_atoms, mult=1.1)
+        ana = Analysis(surf_atoms, cutoffs=cutoffs)
+
+        surf_atom_pairs = []
+        for i, nblst in enumerate(ana.unique_bonds[0]):
+            for j in nblst:
+                surf_atom_pairs.append(set([surf_atoms[i].symbol, surf_atoms[j].symbol]))
+
+        if all_atom_pairs is not None:
+            for pair in all_atom_pairs:
+                m1, m2 = pair
+                atoms.info['data'][f'{m1}-{m2}'] = len([s for s in surf_atom_pairs if s == set(pair)])
+
+        return atoms
+
     def get_structural_expectations(self, 
             reaction_conditions, 
             element_column_map, 
@@ -834,19 +942,20 @@ class GCEMCAnalysis(object):
             ending_step=None, 
             sample_stride=1, 
             sample_condition_indices=None, 
-            vacancy_indices=None,
+            vacancy_indices=None, 
             vacancy_species=None,
             precision=0.25,
             touch_sphere_size=3.,
-            tol=1e-3):
+            tol=1e-3,
+            procs=1):
 
         """Get the MBAR-estimated expectations of surface structural properties 
-        depending on a user-defined surface region (> z_surf) and reaction conditions. 
+        depending on a user-defined surface region (>= z_surf) and reaction conditions. 
         The default z_surf=None will use AutoAdsorbate to identify the surface atoms
         with AutoAdsorbate-specific parameters -- precision and touch_sphere_size.
         For vacancy-related analysis, either provide a list of atom indices or a list of 
-        species that can form lattice vacancies. If only vacancy_species is provided,
-        the vancancy_indices will be the indices having the vacancy_species or 'X' but
+        species that can form lattice vacancies. If only vacancy_species is provided then
+        the vacancy_indices will be the indices having the vacancy_species or 'X' but
         excluding the identified surface indices. If both are provided then only select 
         the intersecting indices as vacancy indices. The reaction conditions is supposed 
         to emcompass all the reaction condition grid considered in the EMC simulation, 
@@ -872,10 +981,12 @@ class GCEMCAnalysis(object):
 
         # Build MBAR inputs
         samples_per_state = np.zeros(K, dtype=int)
-        # Fill energy matrix
         phi_kn, images = [], []
-        sample_state = []  # length = total number of appended samples, gives state index for each column in phi_kn
-        sample_steps = []   # record the original simulation step (n_minus_1) for each appended sample
+        sample_state = []
+        sample_steps = []
+        traj_file = f'{self.calculation_dir}/{self.name}_mbar.traj'
+        traj_exists = os.path.isfile(traj_file)
+
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
                 for n_minus_1, atoms in enumerate(lol):
@@ -884,68 +995,18 @@ class GCEMCAnalysis(object):
                             continue
                         if atoms is None:
                             continue
-                        if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
-                            if z_surf is None:
-                                from autoadsorbate.Surf import shrinkwrap_surface
-                                surf_ids = shrinkwrap_surface(
-                                    atoms,
-                                    precision=precision,
-                                    touch_sphere_size=touch_sphere_size,
-                                )
-                                surf_ids = sorted(surf_ids.tolist())
-                            else:
-                                surf_ids = [a.index for a in atoms if a.position[2] < z_surf]
-                            if vacancy_species is not None:
-                                if vacancy_indices:
-                                    vacancy_indices = [i for i in vacancy_indices if (atoms[i].symbol in vacancy_species+['X'])]
-                                else:
-                                    vacancy_indices = [a.index for a in atoms if (a.symbol in vacancy_species+['X']) and (a.index not in surf_ids)]
-                            surf_num_dict = Counter(atoms[[a.index for a in atoms if
-                                (a.index in surf_ids) and (a.symbol in self.target_metal_species)]].symbols)
-                            n_surf_metals = sum(surf_num_dict.values())
-                            for m in self.target_metal_species:
-                                atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
-                            atoms.info['data']['x_surf_metals'] = np.array(
-                                    [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
-                            fragments = atoms.info['data']['fragments']
-                            lattice_nonmetal_symbols = []
-                            if element_column_map is not None:
-                                for nm in element_column_map.keys():
-                                    lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
-                                adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
-                                ads_num_dict = Counter(adsorbates)
-                                atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
-                                atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
-                                for ads in self.adsorbate_species:
-                                    if ads in ads_num_dict:
-                                        atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
-                                    else:
-                                        atoms.info['data'][f'ads_coverage_{ads}'] = 0.
-                            if vacancy_indices:
-                                x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.index not in surf_ids)]) / len(vacancy_indices)
-                                atoms.info['data'][f'x_lattice_vac'] = x_vac
-                            surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.index in surf_ids)]]
-                            surf_atoms.pbc = [1,1,0]
-                            surf_num_dict = Counter(surf_atoms.symbols)
-                            cutoffs = natural_cutoffs(surf_atoms, mult=1.1)
-                            ana = Analysis(surf_atoms, cutoffs=cutoffs)
-                            surf_atom_pairs = []
-                            for i, nblst in enumerate(ana.unique_bonds[0]):
-                                for j in nblst:
-                                    surf_atom_pairs.append(set([surf_atoms[i].symbol, surf_atoms[j].symbol]))
-                            for pair in all_atom_pairs:
-                                m1, m2 = pair
-                                atoms.info['data'][f'{m1}-{m2}'] = len([s for s in surf_atom_pairs if s == set(pair)])
+
+                        if not traj_exists:
                             images.append(atoms)
 
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
-                        num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
+                        num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
                         if 'mu' in atoms.info['data']:
                             sample_cond = np.append(atoms.info['data']['mu'], T)
                         else:
                             sample_cond = np.array([T])
-                        idx_match = np.where(np.all(np.abs(grid-sample_cond) < tol, axis=1))[0]
+                        idx_match = np.where(np.all(np.abs(grid - sample_cond) < tol, axis=1))[0]
                         if idx_match.size == 0:
                             parprint('No matching state found for sample:', sample_cond)
                             continue
@@ -959,41 +1020,68 @@ class GCEMCAnalysis(object):
                                 element_y2x_map, num_metal, epot, dimensionless=True)
                         phi_kn.append(phi.reshape(-1,1))
 
-        if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
-            images = read(f'{self.calculation_dir}/{self.name}_mbar.traj', index=':')
+        if traj_exists:
+            images = read(traj_file, index=':')
         else:
-            write(f'{self.calculation_dir}/{self.name}_mbar.traj', images)
+            if len(images) == 0:
+                raise RuntimeError('No images were collected for structural analysis.')
+            if procs is not None and procs > 1:
+                args = [
+                    (
+                        img,
+                        z_surf,
+                        element_column_map,
+                        vacancy_indices,
+                        vacancy_species,
+                        precision,
+                        touch_sphere_size,
+                        'lower',
+                        all_atom_pairs,
+                    )
+                    for img in images
+                ]
+                with Pool(processes=procs) as pool:
+                    images = pool.starmap(self.get_structural_properties, args)
+            else:
+                images = [
+                    self.get_structural_properties(
+                        img,
+                        z_surf=z_surf,
+                        element_column_map=element_column_map,
+                        vacancy_indices=vacancy_indices,
+                        vacancy_species=vacancy_species,
+                        precision=precision,
+                        touch_sphere_size=touch_sphere_size,
+                        surface_region='lower',
+                        all_atom_pairs=all_atom_pairs,
+                    )
+                    for img in images
+                ]
+            write(traj_file, images)
 
-        phi_kn = np.hstack(phi_kn)  # Shape (K, N_total)
-        # Build numpy array of which state produced each sample (global column index)
-        sample_state = np.asarray(sample_state, dtype=int)  # shape (N_total,)
-        sample_steps = np.asarray(sample_steps, dtype=int)  # shape (N_total,)
+        phi_kn = np.hstack(phi_kn)
+        sample_state = np.asarray(sample_state, dtype=int)
+        sample_steps = np.asarray(sample_steps, dtype=int)
         N_total = sample_state.size
         kept_indices_list = []
         present_states, present_counts = np.unique(sample_state, return_counts=True)
         parprint(f"Found {present_states.size} occupied states (out of {K}). Subsampling each occupied state's series...")
 
         for s, n_k in zip(present_states, present_counts):
-            idx_k = np.where(sample_state == s)[0]     # global indices of samples from state s (chronological)
+            idx_k = np.where(sample_state == s)[0]
             if n_k == 0:
                 continue
             if sample_stride is not None:
-                # Interpret stride as simulation-step bin width: use original simulation steps (sample_steps)
                 stride_int = int(sample_stride)
-                steps_k = sample_steps[idx_k]           # original n_minus_1 values for samples of this state
+                steps_k = sample_steps[idx_k]
                 bins = steps_k // stride_int
-                # pick the first sample that appears in each bin (preserves chronology)
-                #unique_bins, first_pos = np.unique(bins, return_index=True)
-                #subs_global = idx_k[first_pos]           # convert to global indices
-                # take last occurrence per bin instead of first
                 unique_bins, last_pos_rev = np.unique(bins[::-1], return_index=True)
                 last_pos = bins.size - 1 - last_pos_rev
                 subs_global = idx_k[last_pos]
             else:
-                # Let pymbar compute statistical inefficiency and return per-state local indices
                 series = phi_kn[int(s), idx_k].ravel()
                 try:
-                    local_idx = np.array(timeseries.subsample_correlated_data(series))  # indices into series
+                    local_idx = np.array(timeseries.subsample_correlated_data(series))
                     subs_global = idx_k[local_idx]
                 except Exception as e:
                     parprint(f'  warning: subsample_correlated_data failed for state {s}: {e}; keeping all samples for this state')
@@ -1013,13 +1101,10 @@ class GCEMCAnalysis(object):
         np.save(f'{self.calculation_dir}/{self.name}_sampled_indices.npy', kept_indices)
         parprint(f'Original total samples: {N_total}, subsampled total: {kept_indices.size}')
 
-        # make subsampled phi_kn and per-state counts for MBAR
         phi_kn_sub = phi_kn[:, kept_indices]
         samples_per_state_sub = np.array([np.sum(sample_state[kept_indices] == k) for k in range(K)], dtype=int)
-        #parprint(f'New per-state sample counts (subsampled): {samples_per_state_sub}')
         images_sub = [images[i] for i in kept_indices]
 
-        # Compute expectation with MBAR
         mbar = MBAR(phi_kn_sub, samples_per_state_sub, relative_tolerance=1e-7,
                 solver_protocol='robust', maximum_iterations=30000)
         w_nk = mbar.weights()
@@ -1033,7 +1118,7 @@ class GCEMCAnalysis(object):
             if sample_condition_indices is None:
                 E_k = w_nk.T @ A_n
             else:
-                E_k = w_nk[:,sample_condition_indices].T @ A_n
+                E_k = w_nk[:, sample_condition_indices].T @ A_n
             expectations[cv] = E_k
 
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
@@ -1058,17 +1143,18 @@ class GCEMCAnalysis(object):
             bin_width=0.05,
             precision=0.25,
             touch_sphere_size=3.,
-            tol=1e-3):
+            tol=1e-3,
+            procs=1):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
-        depending on a user-defined surface region (> z_surf), reaction conditions and
+        depending on a user-defined surface region (>= z_surf), reaction conditions and
         a bin width. The default z_surf=None will use AutoAdsorbate to identify the 
         surface atoms with AutoAdsorbate-specific parameters -- precision and 
         touch_sphere_size. For vacancy-related analysis, either provide a list of atom 
         indices or a list of species that can form lattice vacancies. If only 
-        vacancy_species is provided, the vancancy_indices will be the indices having the 
-        vacancy_species or 'X' but excluding the identified surface indices. If both are 
-        provided then only select the intersecting indices as vacancy indices. The 
+        vacancy_species is provided, the vacancy_indices will be the indices having the 
+        vacancy_species or 'X' but excluding the identified surface indices. If both 
+        are provided then only select the intersecting indices as vacancy indices. The 
         reaction conditions is supposed to emcompass all the reaction condition grid 
         considered in the EMC simulation, including last column as temperature. You can 
         also add more rows to reaction_conditions to consider states that are not 
@@ -1095,10 +1181,12 @@ class GCEMCAnalysis(object):
 
         # Build MBAR inputs
         samples_per_state = np.zeros(K, dtype=int)
-        # Fill energy matrix
         phi_kn, images = [], []
-        sample_state = []  # length = total number of appended samples, gives state index for each column in phi_kn
-        sample_steps = []   # record the original simulation step (n_minus_1) for each appended sample
+        sample_state = []
+        sample_steps = []
+        traj_file = f'{self.calculation_dir}/{self.name}_mbar.traj'
+        traj_exists = os.path.isfile(traj_file)
+
         for k, T in enumerate(sim_temperatures):
             for rep, lol in self.data[T].items():
                 for n_minus_1, atoms in enumerate(lol):
@@ -1107,68 +1195,18 @@ class GCEMCAnalysis(object):
                             continue
                         if atoms is None:
                             continue
-                        if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
-                            if z_surf is None:
-                                from autoadsorbate.Surf import shrinkwrap_surface
-                                surf_ids = shrinkwrap_surface(
-                                    atoms,
-                                    precision=precision,
-                                    touch_sphere_size=touch_sphere_size,
-                                )
-                                surf_ids = sorted(surf_ids.tolist())
-                            else:
-                                surf_ids = [a.index for a in atoms if a.position[2] > z_surf]
-                            if vacancy_species is not None:
-                                if vacancy_indices:
-                                    vacancy_indices = [i for i in vacancy_indices if (atoms[i].symbol in vacancy_species+['X'])]
-                                else:
-                                    vacancy_indices = [a.index for a in atoms if (a.symbol in vacancy_species+['X']) and (a.index not in surf_ids)]
-                            surf_num_dict = Counter(atoms[[a.index for a in atoms if
-                                (a.index in surf_ids) and (a.symbol in self.target_metal_species)]].symbols)
-                            n_surf_metals = sum(surf_num_dict.values())
-                            for m in self.target_metal_species:
-                                atoms.info['data'][f'x_surf_{m}'] = surf_num_dict[m] / n_surf_metals
-                            atoms.info['data']['x_surf_metals'] = np.array(
-                                    [surf_num_dict[m] / n_surf_metals for m in self.target_metal_species])
-                            fragments = atoms.info['data']['fragments']
-                            lattice_nonmetal_symbols = []
-                            if element_column_map is not None:
-                                for nm in element_column_map.keys():
-                                    lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
-                                adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
-                                ads_num_dict = Counter(adsorbates)
-                                atoms.info['data']['ads_coverages'] = np.array([ads_num_dict[ads] / n_surf_metals for ads in self.adsorbate_species])
-                                atoms.info['data']['ads_coverage'] = len(adsorbates) / n_surf_metals
-                                for ads in self.adsorbate_species:
-                                    if ads in ads_num_dict:
-                                        atoms.info['data'][f'ads_coverage_{ads}'] = ads_num_dict[ads] / n_surf_metals
-                                    else:
-                                        atoms.info['data'][f'ads_coverage_{ads}'] = 0.
-                            if vacancy_indices:
-                                x_vac = len([a for a in atoms if (a.symbol == 'X') and (a.index not in surf_ids)]) / len(vacancy_indices)
-                                atoms.info['data'][f'x_lattice_vac'] = x_vac
-                            surf_atoms = atoms[[a.index for a in atoms if (a.symbol != 'X') and (a.index in surf_ids)]]
-                            surf_atoms.pbc = [1,1,0]
-                            surf_num_dict = Counter(surf_atoms.symbols)
-                            cutoffs = natural_cutoffs(surf_atoms, mult=1.1)
-                            ana = Analysis(surf_atoms, cutoffs=cutoffs)
-                            surf_atom_pairs = []
-                            for i, nblst in enumerate(ana.unique_bonds[0]):
-                                for j in nblst:
-                                    surf_atom_pairs.append(set([surf_atoms[i].symbol, surf_atoms[j].symbol]))
-                            for pair in all_atom_pairs:
-                                m1, m2 = pair
-                                atoms.info['data'][f'{m1}-{m2}'] = len([s for s in surf_atom_pairs if s == set(pair)])
+
+                        if not traj_exists:
                             images.append(atoms)
 
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
-                        num_dict = dict((m, len([a for a in atoms if a.symbol==m])) for m in all_species)
+                        num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
                         if 'mu' in atoms.info['data']:
                             sample_cond = np.append(atoms.info['data']['mu'], T)
                         else:
                             sample_cond = np.array([T])
-                        idx_match = np.where(np.all(np.abs(grid-sample_cond) < tol, axis=1))[0]
+                        idx_match = np.where(np.all(np.abs(grid - sample_cond) < tol, axis=1))[0]
                         if idx_match.size == 0:
                             parprint('No matching state found for sample:', sample_cond)
                             continue
@@ -1182,41 +1220,68 @@ class GCEMCAnalysis(object):
                                 element_y2x_map, num_metal, epot, dimensionless=True)
                         phi_kn.append(phi.reshape(-1,1))
 
-        if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
-            images = read(f'{self.calculation_dir}/{self.name}_mbar.traj', index=':')
+        if traj_exists:
+            images = read(traj_file, index=':')
         else:
-            write(f'{self.calculation_dir}/{self.name}_mbar.traj', images)
+            if len(images) == 0:
+                raise RuntimeError('No images were collected for structural analysis.')
+            if procs is not None and procs > 1:
+                args = [
+                    (
+                        img,
+                        z_surf,
+                        element_column_map,
+                        vacancy_indices,
+                        vacancy_species,
+                        precision,
+                        touch_sphere_size,
+                        'upper',
+                        all_atom_pairs,
+                    )
+                    for img in images
+                ]
+                with Pool(processes=procs) as pool:
+                    images = pool.starmap(self.get_structural_properties, args)
+            else:
+                images = [
+                    self.get_structural_properties(
+                        img,
+                        z_surf=z_surf,
+                        element_column_map=element_column_map,
+                        vacancy_indices=vacancy_indices,
+                        vacancy_species=vacancy_species,
+                        precision=precision,
+                        touch_sphere_size=touch_sphere_size,
+                        surface_region='upper',
+                        all_atom_pairs=all_atom_pairs,
+                    )
+                    for img in images
+                ]
+            write(traj_file, images)
 
-        phi_kn = np.hstack(phi_kn)  # Shape (K, N_total)
-        # Build numpy array of which state produced each sample (global column index)
-        sample_state = np.asarray(sample_state, dtype=int)  # shape (N_total,)
-        sample_steps = np.asarray(sample_steps, dtype=int)  # shape (N_total,)
+        phi_kn = np.hstack(phi_kn)
+        sample_state = np.asarray(sample_state, dtype=int)
+        sample_steps = np.asarray(sample_steps, dtype=int)
         N_total = sample_state.size
         kept_indices_list = []
         present_states, present_counts = np.unique(sample_state, return_counts=True)
         parprint(f"Found {present_states.size} occupied states (out of {K}). Subsampling each occupied state's series...")
 
         for s, n_k in zip(present_states, present_counts):
-            idx_k = np.where(sample_state == s)[0]     # global indices of samples from state s (chronological)
+            idx_k = np.where(sample_state == s)[0]
             if n_k == 0:
                 continue
             if sample_stride is not None:
-                # Interpret stride as simulation-step bin width: use original simulation steps (sample_steps)
                 stride_int = int(sample_stride)
-                steps_k = sample_steps[idx_k]           # original n_minus_1 values for samples of this state
+                steps_k = sample_steps[idx_k]
                 bins = steps_k // stride_int
-                # pick the first sample that appears in each bin (preserves chronology)
-                #unique_bins, first_pos = np.unique(bins, return_index=True)
-                #subs_global = idx_k[first_pos]           # convert to global indices
-                # take last occurrence per bin instead of first
                 unique_bins, last_pos_rev = np.unique(bins[::-1], return_index=True)
                 last_pos = bins.size - 1 - last_pos_rev
                 subs_global = idx_k[last_pos]
             else:
-                # Let pymbar compute statistical inefficiency and return per-state local indices
                 series = phi_kn[int(s), idx_k].ravel()
                 try:
-                    local_idx = np.array(timeseries.subsample_correlated_data(series))  # indices into series
+                    local_idx = np.array(timeseries.subsample_correlated_data(series))
                     subs_global = idx_k[local_idx]
                 except Exception as e:
                     parprint(f'  warning: subsample_correlated_data failed for state {s}: {e}; keeping all samples for this state')
@@ -1236,10 +1301,8 @@ class GCEMCAnalysis(object):
         np.save(f'{self.calculation_dir}/{self.name}_sampled_indices.npy', kept_indices)
         parprint(f'Original total samples: {N_total}, subsampled total: {kept_indices.size}')
 
-        # make subsampled phi_kn and per-state counts for MBAR
         phi_kn_sub = phi_kn[:, kept_indices]
         samples_per_state_sub = np.array([np.sum(sample_state[kept_indices] == k) for k in range(K)], dtype=int)
-        #parprint(f'New per-state sample counts (subsampled): {samples_per_state_sub}')
         images_sub = [images[i] for i in kept_indices]
 
         fes = FES(phi_kn_sub, samples_per_state_sub,
@@ -1260,15 +1323,16 @@ class GCEMCAnalysis(object):
                 all_condition_indices = list(range(K))
             else:
                 all_condition_indices = sample_condition_indices
-            for k in sample_condition_indices:
-                fes.generate_fes(phi_kn_sub[k,:], x_n, fes_type='histogram', histogram_parameters={'bin_edges': bins})
+
+            for k in all_condition_indices:
+                fes.generate_fes(phi_kn_sub[k, :], x_n, fes_type='histogram', histogram_parameters={'bin_edges': bins})
                 results = fes.get_fes(x_n)
                 f_n = results['f_i']
                 dd = defaultdict(list)
                 for i, f in enumerate(f_n):
                     dd[f].append(i)
                 for f, indices in dd.items():
-                    free_energies[kept_indices[indices],k] = f
+                    free_energies[kept_indices[indices], k] = f
             fes_map[cv] = free_energies
 
         with open(f'{self.calculation_dir}/{self.name}_mbar_fes.pkl', 'wb') as handle:
