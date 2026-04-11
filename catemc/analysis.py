@@ -886,10 +886,13 @@ class GCEMCAnalysis(object):
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
                             if z_surf is None:
-                                from autoadsorbate.autoadsorbate import Surface
-                                surf = Surface(atoms, precision=precision, 
-                                               touch_sphere_size=touch_sphere_size)
-                                surf_ids = sorted(set([x for lst in surf.site_df['topology'].values for x in lst]))
+                                from autoadsorbate.Surf import shrinkwrap_surface
+                                surf_ids = shrinkwrap_surface(
+                                    atoms,
+                                    precision=precision,
+                                    touch_sphere_size=touch_sphere_size,
+                                )
+                                surf_ids = sorted(surf_ids.tolist())
                             else:
                                 surf_ids = [a.index for a in atoms if a.position[2] < z_surf]
                             if vacancy_species is not None:
@@ -1106,10 +1109,13 @@ class GCEMCAnalysis(object):
                             continue
                         if not os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar.traj'):
                             if z_surf is None:
-                                from autoadsorbate.autoadsorbate import Surface
-                                surf = Surface(atoms, precision=precision, 
-                                               touch_sphere_size=touch_sphere_size)
-                                surf_ids = sorted(set([x for lst in surf.site_df['topology'].values for x in lst]))
+                                from autoadsorbate.Surf import shrinkwrap_surface
+                                surf_ids = shrinkwrap_surface(
+                                    atoms,
+                                    precision=precision,
+                                    touch_sphere_size=touch_sphere_size,
+                                )
+                                surf_ids = sorted(surf_ids.tolist())
                             else:
                                 surf_ids = [a.index for a in atoms if a.position[2] > z_surf]
                             if vacancy_species is not None:

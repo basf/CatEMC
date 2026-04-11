@@ -644,6 +644,7 @@ class GCEMC(EMC):
                     else:
                         allowed_indices = [self.mutable_metal_indices, self.mutable_nonmetal_indices]
                         element_pools = [self.metal_element_pool, self.nonmetal_element_pool]
+                    print(f'allowed_indices: {allowed_indices}')
                     operators = [EMCIntraSwap(allowed_indices=allowed_indices, 
                                               element_pools=element_pools), 
                                  EMCMutation(allowed_indices=allowed_indices, 
