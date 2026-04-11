@@ -846,15 +846,9 @@ class GCEMCAnalysis(object):
             vacancy_species=None,
             precision=0.25,
             touch_sphere_size=3.,
-            surface_region='lower',
             all_atom_pairs=None):
 
-        """Extract and store structural properties for a single ase.Atoms object.
-
-        surface_region : str
-            'lower' uses atoms with z < z_surf when z_surf is provided.
-            'upper' uses atoms with z >= z_surf when z_surf is provided.
-        """
+        """Extract and store structural properties for a single ase.Atoms object."""
 
         if vacancy_indices is None:
             vacancy_indices = []
@@ -872,12 +866,7 @@ class GCEMCAnalysis(object):
             )
             surf_ids = sorted(surf_ids.tolist())
         else:
-            if surface_region == 'lower':
-                surf_ids = [a.index for a in atoms if a.position[2] < z_surf]
-            elif surface_region == 'upper':
-                surf_ids = [a.index for a in atoms if a.position[2] >= z_surf]
-            else:
-                raise ValueError("surface_region must be either 'lower' or 'upper'.")
+            surf_ids = [a.index for a in atoms if a.position[2] >= z_surf]
 
         if vacancy_species is not None:
             if len(vacancy_indices) > 0:
@@ -1052,7 +1041,6 @@ class GCEMCAnalysis(object):
                         vacancy_species=vacancy_species,
                         precision=precision,
                         touch_sphere_size=touch_sphere_size,
-                        surface_region='lower',
                         all_atom_pairs=all_atom_pairs,
                     )
                     for img in images
@@ -1252,7 +1240,6 @@ class GCEMCAnalysis(object):
                         vacancy_species=vacancy_species,
                         precision=precision,
                         touch_sphere_size=touch_sphere_size,
-                        surface_region='upper',
                         all_atom_pairs=all_atom_pairs,
                     )
                     for img in images
