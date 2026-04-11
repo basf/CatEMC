@@ -844,7 +844,7 @@ class GCEMCAnalysis(object):
 
         atoms.info.setdefault('data', {})
 
-        if surface_indices is None:
+        if surf_indices is None:
             if z_surf is None:
                 from autoadsorbate.Surf import shrinkwrap_surface
                 surf_ids = shrinkwrap_surface(
@@ -856,7 +856,7 @@ class GCEMCAnalysis(object):
             else:
                 surf_ids = [a.index for a in atoms if a.position[2] >= z_surf]
         else:
-            surf_ids = surface_indices
+            surf_ids = surf_indices
 
         if vacancy_species is not None:
             if len(vacancy_indices) > 0:
