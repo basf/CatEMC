@@ -1125,7 +1125,7 @@ class GCEMCAnalysis(object):
 
         expectations = {}
         for cv in images_sub[0].info['data'].keys():
-            if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
+            if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window', 'surf_indices']:
                 continue
             A_n = np.array([a.info['data'][cv] for a in images_sub])
             if sample_condition_indices is None:
@@ -1354,7 +1354,7 @@ class GCEMCAnalysis(object):
                 mbar_options={'relative_tolerance': 1e-7, 'solver_protocol': 'robust', 'maximum_iterations': 30000})
         fes_map = {}
         for cv in variable_keys:
-            if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window']:
+            if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window', 'surf_indices']:
                 continue
             if cv == 'all':
                 x_n = np.array([np.concatenate([a.info['data']['x_surf_metals'], a.info['data']['ads_coverages']]) for a in images_sub])
