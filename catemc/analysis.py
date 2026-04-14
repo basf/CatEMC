@@ -259,61 +259,63 @@ class GEEMCAnalysis(object):
         if not hasattr(self, 'mc_data'):
             self.prepare_data(starting_step=starting_step, ending_step=ending_step)
 
-        def summarize_temperature(temp_dict):
-            series = []
-            n_attempts = 0
-            n_accepted = 0
-            n_samples = 0
+        def summarize_mcdata(mc_dict):
+            def summarize_temperature(temp_dict):
+                series = []
+                n_attempts = 0
+                n_accepted = 0
+                n_samples = 0
 
-            for rep, stepmap in temp_dict.items():
-                if replica is not None and rep != replica:
-                    continue
-
-                steps = np.array(sorted(stepmap.keys()), dtype=int)
-                if steps.size == 0:
-                    continue
-
-                n_attempts += len(steps)
-                n_accepted += sum(int(stepmap[s]['accepted']) for s in steps)
-
-                # Split if there are gaps; otherwise just use the full segment.
-                breaks = np.where(np.diff(steps) > 1)[0] + 1
-                for seg in np.split(steps, breaks):
-                    if seg.size < 3:
+                for rep, stepmap in temp_dict.items():
+                    if replica is not None and rep != replica:
                         continue
-                    x = np.array([stepmap[int(s)]['energy'] for s in seg], dtype=float)
-                    x = x[np.isfinite(x)]
-                    if x.size < 3:
+
+                    steps = np.array(sorted(
+                        s for s in stepmap.keys()
+                        if (s >= starting_step) and (ending_step is None or s <= ending_step)
+                    ), dtype=int)
+                    if steps.size == 0:
                         continue
-                    series.append(x)
-                    n_samples += x.size
+                    n_attempts += len(steps)
+                    n_accepted += sum(int(stepmap[s]['accepted']) for s in steps)
+                    breaks = np.where(np.diff(steps) > 1)[0] + 1
+                    for seg in np.split(steps, breaks):
+                        if seg.size < 3:
+                            continue
+                        x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                        x = x[np.isfinite(x)]
+                        if x.size >= 3:
+                            series.append(x)
+                            n_samples += x.size
 
-            if len(series) == 0:
-                g = np.nan
-                tau_int = np.nan
-                neff = 0.0
-            elif len(series) == 1:
-                g = float(timeseries.statistical_inefficiency(series[0], fast=False))
-                tau_int = 0.5 * (g - 1.0)
-                neff = n_samples / g if g > 0 else np.nan
-            else:
-                g = float(timeseries.statistical_inefficiency_multiple(series, fast=False))
-                tau_int = 0.5 * (g - 1.0)
-                neff = n_samples / g if g > 0 else np.nan
+                if len(series) == 0:
+                    g = np.nan
+                    tau_int = np.nan
+                    neff = 0.0
+                    n_segments = 0
+                elif len(series) == 1:
+                    g = float(timeseries.statistical_inefficiency(series[0], fast=False))
+                    tau_int = 0.5 * (g - 1.0)
+                    neff = n_samples / g if g > 0 else np.nan
+                    n_segments = 1
+                else:
+                    g = float(timeseries.statistical_inefficiency_multiple(series, fast=False))
+                    tau_int = 0.5 * (g - 1.0)
+                    neff = n_samples / g if g > 0 else np.nan
+                    n_segments = len(series)
 
-            return {
-                'n_samples': int(n_samples),
-                'n_segments': int(len(series)),
-                'g': g,
-                'tau_int': tau_int,
-                'neff': neff,
-                'attempts': int(n_attempts),
-                'accepted': int(n_accepted),
-                'acceptance_ratio': (n_accepted / n_attempts) if n_attempts > 0 else np.nan,
-            }
+                return {
+                    'n_samples': int(n_samples),
+                    'n_segments': int(n_segments),
+                    'g': g,
+                    'tau_int': tau_int,
+                    'neff': neff,
+                    'attempts': int(n_attempts),
+                    'accepted': int(n_accepted),
+                    'acceptance_ratio': (n_accepted / n_attempts) if n_attempts > 0 else np.nan,
+                }
 
-        def summarize_group(group_value):
-            out = {
+            results = {
                 'window': {
                     'starting_step': int(starting_step),
                     'ending_step': None if ending_step is None else int(ending_step),
@@ -331,33 +333,29 @@ class GEEMCAnalysis(object):
                 }
             }
 
-            if group_value not in self.mc_data:
-                return out
-
             all_series = []
-            for T in sorted(self.mc_data[group_value].keys()):
-                temp_stats = summarize_temperature(self.mc_data[group_value][T])
-                out['by_temperature'][T] = temp_stats
-                out['overall']['attempts'] += temp_stats['attempts']
-                out['overall']['accepted'] += temp_stats['accepted']
-                out['overall']['n_samples'] += temp_stats['n_samples']
-                out['overall']['n_segments'] += temp_stats['n_segments']
+            for T in sorted(mc_dict.keys()):
+                temp_stats = summarize_temperature(mc_dict[T])
+                results['by_temperature'][T] = temp_stats
+                results['overall']['attempts'] += temp_stats['attempts']
+                results['overall']['accepted'] += temp_stats['accepted']
+                results['overall']['n_samples'] += temp_stats['n_samples']
+                results['overall']['n_segments'] += temp_stats['n_segments']
 
-                # For an overall diagnostic, pool the temperature-specific series
-                # only within the same temperature family. Do not concatenate
-                # different thermodynamic states into one autocorrelation estimate.
-                if temp_stats['n_samples'] > 0:
-                    for rep, stepmap in self.mc_data[group_value][T].items():
-                        if replica is not None and rep != replica:
-                            continue
-                        steps = np.array(sorted(stepmap.keys()), dtype=int)
-                        breaks = np.where(np.diff(steps) > 1)[0] + 1
-                        for seg in np.split(steps, breaks):
-                            if seg.size >= 3:
-                                x = np.array([stepmap[int(s)]['energy'] for s in seg], dtype=float)
-                                x = x[np.isfinite(x)]
-                                if x.size >= 3:
-                                    all_series.append(x)
+                for rep, stepmap in mc_dict[T].items():
+                    if replica is not None and rep != replica:
+                        continue
+                    steps = np.array(sorted(
+                        s for s in stepmap.keys()
+                        if (s >= starting_step) and (ending_step is None or s <= ending_step)
+                    ), dtype=int)
+                    breaks = np.where(np.diff(steps) > 1)[0] + 1
+                    for seg in np.split(steps, breaks):
+                        if seg.size >= 3:
+                            x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                            x = x[np.isfinite(x)]
+                            if x.size >= 3:
+                                all_series.append(x)
 
             if len(all_series) == 1:
                 g = float(timeseries.statistical_inefficiency(all_series[0], fast=False))
@@ -366,28 +364,31 @@ class GEEMCAnalysis(object):
             else:
                 g = np.nan
 
-            out['overall']['g'] = g
-            out['overall']['tau_int'] = 0.5 * (g - 1.0) if np.isfinite(g) else np.nan
-            out['overall']['neff'] = (out['overall']['n_samples'] / g) if np.isfinite(g) and g > 0 else 0.0
-
-            if out['overall']['attempts'] > 0:
-                out['overall']['acceptance_ratio'] = out['overall']['accepted'] / out['overall']['attempts']
+            results['overall']['g'] = g
+            results['overall']['tau_int'] = 0.5 * (g - 1.0) if np.isfinite(g) else np.nan
+            results['overall']['neff'] = (
+                results['overall']['n_samples'] / g if np.isfinite(g) and g > 0 else 0.0
+            )
+            if results['overall']['attempts'] > 0:
+                results['overall']['acceptance_ratio'] = (
+                    results['overall']['accepted'] / results['overall']['attempts']
+                )
             else:
-                out['overall']['acceptance_ratio'] = np.nan
+                results['overall']['acceptance_ratio'] = np.nan
 
-            return out
+            return results
 
         if self.interswap_within_key is None:
-            results = summarize_group(None)
+            results = summarize_mcdata(self.mc_data)
             with open(f'{self.calculation_dir}/{self.name}_mbar_diagnostics.pkl', 'wb') as handle:
-                    pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
         else:
             results = {}
             for group_value in self.mc_data.keys():
-                results[group_value] = summarize_group(group_value)
+                results[group_value] = summarize_mcdata(self.mc_data[group_value])
                 gv_str = str(group_value)
                 with open(f'{self.calculation_dir}/{self.name}_mbar_diagnostics_{gv_str}.pkl', 'wb') as handle:
-                    pickle.dump(self.mc_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
+                    pickle.dump(results[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         return results
 
@@ -955,14 +956,12 @@ class GCEMCAnalysis(object):
         if collect_data:
             self.data = {}
             self.mc_data = {}
-
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
                 n += 1
             for i in range(n):
                 if ((i + 1) * self.trim_generation) <= starting_step:
                     continue
-
                 db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
                 for row in db.select('relaxed=1'):
                     step = int(row.emc_step)
@@ -981,7 +980,6 @@ class GCEMCAnalysis(object):
                     else:
                         mu_key = tuple(np.asarray(mu, dtype=float).ravel().round(12).tolist())
                     state_key = (T, mu_key)
-
                     if T not in self.data:
                         self.data[T] = {}
                     if state_key not in self.mc_data:
@@ -991,7 +989,6 @@ class GCEMCAnalysis(object):
 
                     accepted = bool(row.key_value_pairs[self.acceptance_key])
                     energy = float(row.potential_energy)
-                    # Full step history for diagnostics.
                     self.mc_data[state_key][rep][step] = {
                         'energy': energy,
                         'accepted': accepted,
@@ -999,7 +996,7 @@ class GCEMCAnalysis(object):
                         'mu_window': row.data.get('mu_window', None),
                         'fragments': row.data.get('fragments', None),
                     }
-                    # Accepted configurations for trajectory / structural analysis.
+
                     if accepted:
                         atoms = row.toatoms()
                         atoms.info = {'key_value_pairs': {
@@ -1017,7 +1014,6 @@ class GCEMCAnalysis(object):
                             rep_list.extend([None] * needed)
                         rep_list[step - 1] = atoms
 
-            # Forward-fill accepted trajectory lists for structural analysis.
             for T, dd in self.data.items():
                 for rep in list(dd.keys()):
                     atoms_prev = None
@@ -1042,7 +1038,8 @@ class GCEMCAnalysis(object):
 
         """Get GC-EMC diagnostics: acceptance ratio, statistical inefficiency,
         integrated autocorrelation time, and effective sample size. Diagnostics 
-        are computed state-wise in (T, mu) space"""
+        are computed state-wise in (T, mu) space. 
+        """
 
         if starting_step is None:
             starting_step = 1
@@ -1051,54 +1048,49 @@ class GCEMCAnalysis(object):
 
         from pymbar import timeseries
 
-        def summarize_state(state_key):
-            state_dict = self.mc_data[state_key]
-            total_attempts = 0
-            total_accepted = 0
-            all_segments = []
+        def summarize_state(state_dict):
+            series = []
+            attempts = 0
+            accepted = 0
+            n_samples = 0
 
             for rep, stepmap in state_dict.items():
                 if replica is not None and rep != replica:
                     continue
-
                 steps = np.array(sorted(
                     s for s in stepmap.keys()
                     if (s >= starting_step) and (ending_step is None or s <= ending_step)
                 ), dtype=int)
-
                 if steps.size == 0:
                     continue
-
-                total_attempts += steps.size
-                total_accepted += sum(int(stepmap[s]['accepted']) for s in steps)
+                attempts += len(steps)
+                accepted += sum(int(stepmap[s]['accepted']) for s in steps)
 
                 breaks = np.where(np.diff(steps) > 1)[0] + 1
                 for seg in np.split(steps, breaks):
                     if seg.size < 3:
                         continue
-                    series = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
-                    series = series[np.isfinite(series)]
-                    if series.size >= 3:
-                        all_segments.append(series)
+                    x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                    x = x[np.isfinite(x)]
+                    if x.size >= 3:
+                        series.append(x)
+                        n_samples += x.size
 
-            if len(all_segments) == 0:
+            if len(series) == 0:
                 g = np.nan
                 tau_int = np.nan
                 neff = 0.0
-                n_samples = 0
                 n_segments = 0
-            elif len(all_segments) == 1:
-                g = float(timeseries.statistical_inefficiency(all_segments[0], fast=False))
+            elif len(series) == 1:
+                g = float(timeseries.statistical_inefficiency(series[0], fast=False))
                 tau_int = 0.5 * (g - 1.0)
-                n_samples = int(len(all_segments[0]))
                 neff = n_samples / g if g > 0 else np.nan
                 n_segments = 1
             else:
-                g = float(timeseries.statistical_inefficiency_multiple(all_segments, fast=False))
+                g = float(timeseries.statistical_inefficiency_multiple(series, fast=False))
                 tau_int = 0.5 * (g - 1.0)
-                n_samples = int(sum(len(x) for x in all_segments))
                 neff = n_samples / g if g > 0 else np.nan
-                n_segments = len(all_segments)
+                n_segments = len(series)
 
             return {
                 'n_samples': int(n_samples),
@@ -1106,9 +1098,9 @@ class GCEMCAnalysis(object):
                 'g': g,
                 'tau_int': tau_int,
                 'neff': neff,
-                'attempts': int(total_attempts),
-                'accepted': int(total_accepted),
-                'acceptance_ratio': total_accepted / total_attempts if total_attempts > 0 else np.nan,
+                'attempts': int(attempts),
+                'accepted': int(accepted),
+                'acceptance_ratio': (accepted / attempts) if attempts > 0 else np.nan,
             }
 
         results = {
@@ -1117,6 +1109,7 @@ class GCEMCAnalysis(object):
                 'ending_step': None if ending_step is None else int(ending_step),
                 'replica': replica,
             },
+            'by_state': {},
             'overall': {
                 'attempts': 0,
                 'accepted': 0,
@@ -1124,8 +1117,10 @@ class GCEMCAnalysis(object):
                 'n_states': 0,
                 'n_samples': 0,
                 'n_segments': 0,
-            },
-            'by_state': {}
+                'g': np.nan,
+                'tau_int': np.nan,
+                'neff': 0.0,
+            }
         }
 
         def state_sort_key(state_key):
@@ -1133,19 +1128,46 @@ class GCEMCAnalysis(object):
             mu_str = '' if mu_key is None else str(mu_key)
             return (float(T), mu_str)
 
+        all_series = []
         for state_key in sorted(self.mc_data.keys(), key=state_sort_key):
-            state_stats = summarize_state(state_key)
+            state_stats = summarize_state(self.mc_data[state_key])
             results['by_state'][state_key] = state_stats
             results['overall']['attempts'] += state_stats['attempts']
             results['overall']['accepted'] += state_stats['accepted']
             results['overall']['n_samples'] += state_stats['n_samples']
             results['overall']['n_segments'] += state_stats['n_segments']
 
+            for rep, stepmap in self.mc_data[state_key].items():
+                if replica is not None and rep != replica:
+                    continue
+                steps = np.array(sorted(
+                    s for s in stepmap.keys()
+                    if (s >= starting_step) and (ending_step is None or s <= ending_step)
+                ), dtype=int)
+                breaks = np.where(np.diff(steps) > 1)[0] + 1
+                for seg in np.split(steps, breaks):
+                    if seg.size >= 3:
+                        x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                        x = x[np.isfinite(x)]
+                        if x.size >= 3:
+                            all_series.append(x)
+
+        if len(all_series) == 1:
+            g = float(timeseries.statistical_inefficiency(all_series[0], fast=False))
+        elif len(all_series) > 1:
+            g = float(timeseries.statistical_inefficiency_multiple(all_series, fast=False))
+        else:
+            g = np.nan
+
+        results['overall']['g'] = g
+        results['overall']['tau_int'] = 0.5 * (g - 1.0) if np.isfinite(g) else np.nan
+        results['overall']['neff'] = (
+            results['overall']['n_samples'] / g if np.isfinite(g) and g > 0 else 0.0
+        )
         if results['overall']['attempts'] > 0:
             results['overall']['acceptance_ratio'] = (
                 results['overall']['accepted'] / results['overall']['attempts']
             )
-        results['overall']['n_states'] = len(results['by_state'])
 
         with open(f'{self.calculation_dir}/{self.name}_mbar_diagnostics.pkl', 'wb') as handle:
             pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
