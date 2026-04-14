@@ -41,126 +41,162 @@ class GEEMCAnalysis(object):
         self.acceptance_key = acceptance_key
         self.interswap_within_key = interswap_within_key
 
-    def prepare_data(self, 
-            starting_step=None, 
-            ending_step=None, 
-            use_exist=True, 
+    def prepare_data(self,
+            starting_step=None,
+            ending_step=None,
+            use_exist=True,
             raw_score_cutoff=-10000.):
 
-        """Prepare GE-EMC potential energy and Widom samples. Set the pressure
-        for NpT GE-EMC simulations"""
+        """Prepare GE-EMC potential energy, trajectory, and Widom samples.
+
+        This also caches a full Monte Carlo trajectory table in self.mc_data
+        for diagnostics such as acceptance ratio, statistical inefficiency,
+        and effective sample size.
+        """
+
+        if starting_step is None:
+            starting_step = 1
 
         collect_data = True
+
         if use_exist and (self.interswap_within_key is None):
             widom_path = f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl'
             data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
-            if os.path.isfile(widom_path) and os.path.isfile(data_path):
+            mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl'
+            if os.path.isfile(widom_path) and os.path.isfile(data_path) and os.path.isfile(mc_path):
                 with open(widom_path, 'rb') as handle:
                     self.widom_data = pickle.load(handle)
                 with open(data_path, 'rb') as handle:
                     self.data = pickle.load(handle)
+                with open(mc_path, 'rb') as handle:
+                    self.mc_data = pickle.load(handle)
                 collect_data = False
             else:
-                parprint(f'Cannot find MBAR data file, collect data instead.')
+                parprint('Cannot find complete MBAR diagnostic cache, collect data instead.')
+        elif use_exist:
+            # group-resolved cache
+            mc_ok = True
+            if not hasattr(self, 'mc_data'):
+                mc_ok = False
+            if mc_ok:
+                pass
+            else:
+                collect_data = True
+
         if collect_data:
             self.widom_data = {}
             self.data = {}
-            if starting_step is None:
-                starting_step = 1
-            rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
+            self.mc_data = {}
+
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
                 n += 1
+
+            def init_group(group_value, T):
+                if self.interswap_within_key is None:
+                    self.widom_data.setdefault(T, {})
+                    self.data.setdefault(T, {})
+                    self.mc_data.setdefault(T, {})
+                else:
+                    self.widom_data.setdefault(group_value, {})
+                    self.data.setdefault(group_value, {})
+                    self.mc_data.setdefault(group_value, {})
+                    self.widom_data[group_value].setdefault(T, {})
+                    self.data[group_value].setdefault(T, {})
+                    self.mc_data[group_value].setdefault(T, {})
+
             for i in range(n):
-                if ((i+1) * self.trim_generation) <= starting_step:
+                if ((i + 1) * self.trim_generation) <= starting_step:
                     continue
+
                 db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
-                for j, row in enumerate(db.select('relaxed=1')):
-                    if row.emc_step >= starting_step:
-                        if row.raw_score <= raw_score_cutoff:
-                            continue
-                        if (ending_step is not None) and (row.emc_step > ending_step):
-                            continue
-                        T = row.key_value_pairs[self.temperature_key]
+                for row in db.select('relaxed=1'):
+                    if row.emc_step < starting_step:
+                        continue
+                    if row.raw_score <= raw_score_cutoff:
+                        continue
+                    if (ending_step is not None) and (row.emc_step > ending_step):
+                        continue
+
+                    T = row.key_value_pairs[self.temperature_key]
+                    rep = row.key_value_pairs[self.replica_key]
+                    group_value = None if self.interswap_within_key is None else row.key_value_pairs[self.interswap_within_key]
+                    init_group(group_value, T)
+
+                    dU = -row.delta
+                    if abs(dU) > 100.:
+                        continue
+                    if abs(dU) < 0.01:
+                        continue
+
+                    accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
+                    U = float(row.potential_energy)
+                    # Full trajectory cache for diagnostics:
+                    if self.interswap_within_key is None:
+                        self.mc_data[T].setdefault(rep, {})[row.emc_step] = {
+                            'energy': U,
+                            'accepted': accepted
+                        }
+                    else:
+                        self.mc_data[group_value][T].setdefault(rep, {})[row.emc_step] = {
+                            'energy': U,
+                            'accepted': accepted
+                        }
+                    atoms = row.toatoms()
+                    is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
+                    # Keep the old accepted-state cache used by MBAR/trajectory export.
+                    if accepted or is_widom:
+                        atoms.info = {'key_value_pairs': {
+                            self.temperature_key: T,
+                            self.replica_key: rep,
+                            'potential_energy': U},
+                            'data': {}}
+                        if self.pressure is not None:
+                            V = row.volume
+                            U += self.pressure * V
+                            atoms.info['key_value_pairs']['enthalpy'] = U
+                            atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
                         if self.interswap_within_key is None:
-                            group_value = None
-                        else:
-                            group_value = row.key_value_pairs[self.interswap_within_key]
-                        if self.interswap_within_key is None:
-                            if T not in self.widom_data:
-                                self.widom_data[T] = {}
-                            if T not in self.data:
-                                self.data[T] = {}
-                        else:
-                            if group_value not in self.widom_data:
-                                self.widom_data[group_value] = {}
-                            if group_value not in self.data:
-                                self.data[group_value] = {}
-                            if T not in self.widom_data[group_value]:
-                                self.widom_data[group_value][T] = {}
-                            if T not in self.data[group_value]:
-                                self.data[group_value][T] = {}
-                        dU = -row.delta
-                        if abs(dU) > 100.:
-                            continue
-                        if abs(dU) < 0.01:
-                            continue
-                        atoms = row.toatoms()
-                        U = row.potential_energy
-                        is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
-                        if (row.key_value_pairs[self.acceptance_key] == 1) or is_widom:
-                            atoms.info = {'key_value_pairs': {
-                                self.temperature_key: T,
-                                self.replica_key: row.key_value_pairs[self.replica_key],
-                                'potential_energy': U},
-                                'data': {}}
-                            rep_latest_step_map[row.key_value_pairs[self.replica_key]] = row.emc_step
-                            if self.pressure is not None:
-                                V = row.volume
-                                U += self.pressure * V
-                                atoms.info['key_value_pairs']['enthalpy'] = U
-                                atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
-                            rep = row.key_value_pairs[self.replica_key]
-                            if self.interswap_within_key is None:
-                                rep_list = self.data[T].setdefault(rep, [])
-                                needed = row.emc_step - len(rep_list)
-                                if needed > 0:
-                                    rep_list.extend([None] * needed)
-                                rep_list[row.emc_step-1] = atoms
-                            else:
-                                rep_list = self.data[group_value][T].setdefault(rep, [])
-                                needed = row.emc_step - len(rep_list)
-                                if needed > 0:
-                                    rep_list.extend([None] * needed)
-                                rep_list[row.emc_step-1] = atoms
-                        if not is_widom:
-                            continue
-                        m1, m2 = row.data.mutated_elements
-                        N1 = len([a for a in atoms if a.symbol == m1]) + 1
-                        N2plus1 = len([a for a in atoms if a.symbol == m2])
-                        W_prefactor = N1 / N2plus1
-                        if self.pressure is None:
-                            V_prefactor = 1.
-                        else:
-                            V_prefactor = row.volume_ratio**len(atoms)
-                        latest_acc_step = rep_latest_step_map[row.key_value_pairs[self.replica_key]]
-                        key = f'{m1}2{m2}'
-                        if self.interswap_within_key is None:
-                            key_list = self.widom_data[T].setdefault(key, [])
-                            needed = row.emc_step - len(key_list)
+                            rep_list = self.data[T].setdefault(rep, [])
+                            needed = row.emc_step - len(rep_list)
                             if needed > 0:
-                                key_list.extend([[] for _ in range(needed)])
-                            key_list[row.emc_step-1].append(
-                                    (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
-                                    )
+                                rep_list.extend([None] * needed)
+                            rep_list[row.emc_step - 1] = atoms
                         else:
-                            key_list = self.widom_data[group_value][T].setdefault(key, [])
-                            needed = row.emc_step - len(key_list)
+                            rep_list = self.data[group_value][T].setdefault(rep, [])
+                            needed = row.emc_step - len(rep_list)
                             if needed > 0:
-                                key_list.extend([[] for _ in range(needed)])
-                            key_list[row.emc_step-1].append(
-                                    (U, dU, W_prefactor, V_prefactor, row.key_value_pairs[self.replica_key], latest_acc_step)
-                                    )
+                                rep_list.extend([None] * needed)
+                            rep_list[row.emc_step - 1] = atoms
+
+                    if not is_widom:
+                        continue
+                    m1, m2 = row.data.mutated_elements
+                    N1 = len([a for a in atoms if a.symbol == m1]) + 1
+                    N2plus1 = len([a for a in atoms if a.symbol == m2])
+                    W_prefactor = N1 / N2plus1
+                    if self.pressure is None:
+                        V_prefactor = 1.
+                    else:
+                        V_prefactor = row.volume_ratio**len(atoms)
+
+                    key = f'{m1}2{m2}'
+                    if self.interswap_within_key is None:
+                        key_list = self.widom_data[T].setdefault(key, [])
+                        needed = row.emc_step - len(key_list)
+                        if needed > 0:
+                            key_list.extend([[] for _ in range(needed)])
+                        key_list[row.emc_step - 1].append(
+                            (U, dU, W_prefactor, V_prefactor, rep, row.emc_step)
+                        )
+                    else:
+                        key_list = self.widom_data[group_value][T].setdefault(key, [])
+                        needed = row.emc_step - len(key_list)
+                        if needed > 0:
+                            key_list.extend([[] for _ in range(needed)])
+                        key_list[row.emc_step - 1].append(
+                            (U, dU, W_prefactor, V_prefactor, rep, row.emc_step)
+                        )
 
             if self.interswap_within_key is None:
                 for T, dd in self.data.items():
@@ -174,10 +210,14 @@ class GEEMCAnalysis(object):
                             else:
                                 newlist.append(atoms_prev)
                         dd[rep] = newlist
+
                 with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl', 'wb') as handle:
                     pickle.dump(self.widom_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
                 with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
                     pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                with open(f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl', 'wb') as handle:
+                    pickle.dump(self.mc_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
             else:
                 for group_value, dgroup in self.data.items():
                     for T, dd in dgroup.items():
@@ -191,12 +231,165 @@ class GEEMCAnalysis(object):
                                 else:
                                     newlist.append(atoms_prev)
                             dd[rep] = newlist
+
                 for group_value in self.data.keys():
                     gv_str = str(group_value)
                     with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data_{gv_str}.pkl', 'wb') as handle:
                         pickle.dump(self.widom_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
                     with open(f'{self.calculation_dir}/{self.name}_mbar_data_{gv_str}.pkl', 'wb') as handle:
                         pickle.dump(self.data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
+                    with open(f'{self.calculation_dir}/{self.name}_mbar_mc_data_{gv_str}.pkl', 'wb') as handle:
+                        pickle.dump(self.mc_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def get_diagnostics(self, starting_step=None, ending_step=None, replica=None):
+        """
+        Return autocorrelation time, effective sample size, and acceptance ratio.
+
+        Conventions:
+        - diagnostics are computed per temperature
+        - if replica is None, all replicas at the same temperature are pooled
+        - if replica is an integer, only that replica is analyzed
+        - different temperatures are not concatenated into a single timeseries
+        """
+
+        from pymbar import timeseries
+
+        if starting_step is None:
+            starting_step = 1
+        if not hasattr(self, 'mc_data'):
+            self.prepare_data(starting_step=starting_step, ending_step=ending_step)
+
+        def summarize_temperature(temp_dict):
+            series = []
+            n_attempts = 0
+            n_accepted = 0
+            n_samples = 0
+
+            for rep, stepmap in temp_dict.items():
+                if replica is not None and rep != replica:
+                    continue
+
+                steps = np.array(sorted(stepmap.keys()), dtype=int)
+                if steps.size == 0:
+                    continue
+
+                n_attempts += len(steps)
+                n_accepted += sum(int(stepmap[s]['accepted']) for s in steps)
+
+                # Split if there are gaps; otherwise just use the full segment.
+                breaks = np.where(np.diff(steps) > 1)[0] + 1
+                for seg in np.split(steps, breaks):
+                    if seg.size < 3:
+                        continue
+                    x = np.array([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                    x = x[np.isfinite(x)]
+                    if x.size < 3:
+                        continue
+                    series.append(x)
+                    n_samples += x.size
+
+            if len(series) == 0:
+                g = np.nan
+                tau_int = np.nan
+                neff = 0.0
+            elif len(series) == 1:
+                g = float(timeseries.statistical_inefficiency(series[0], fast=False))
+                tau_int = 0.5 * (g - 1.0)
+                neff = n_samples / g if g > 0 else np.nan
+            else:
+                g = float(timeseries.statistical_inefficiency_multiple(series, fast=False))
+                tau_int = 0.5 * (g - 1.0)
+                neff = n_samples / g if g > 0 else np.nan
+
+            return {
+                'n_samples': int(n_samples),
+                'n_segments': int(len(series)),
+                'g': g,
+                'tau_int': tau_int,
+                'neff': neff,
+                'attempts': int(n_attempts),
+                'accepted': int(n_accepted),
+                'acceptance_ratio': (n_accepted / n_attempts) if n_attempts > 0 else np.nan,
+            }
+
+        def summarize_group(group_value):
+            out = {
+                'window': {
+                    'starting_step': int(starting_step),
+                    'ending_step': None if ending_step is None else int(ending_step),
+                    'replica': replica,
+                },
+                'by_temperature': {},
+                'overall': {
+                    'attempts': 0,
+                    'accepted': 0,
+                    'n_samples': 0,
+                    'n_segments': 0,
+                    'g': np.nan,
+                    'tau_int': np.nan,
+                    'neff': 0.0,
+                }
+            }
+
+            if group_value not in self.mc_data:
+                return out
+
+            all_series = []
+            for T in sorted(self.mc_data[group_value].keys()):
+                temp_stats = summarize_temperature(self.mc_data[group_value][T])
+                out['by_temperature'][T] = temp_stats
+                out['overall']['attempts'] += temp_stats['attempts']
+                out['overall']['accepted'] += temp_stats['accepted']
+                out['overall']['n_samples'] += temp_stats['n_samples']
+                out['overall']['n_segments'] += temp_stats['n_segments']
+
+                # For an overall diagnostic, pool the temperature-specific series
+                # only within the same temperature family. Do not concatenate
+                # different thermodynamic states into one autocorrelation estimate.
+                if temp_stats['n_samples'] > 0:
+                    for rep, stepmap in self.mc_data[group_value][T].items():
+                        if replica is not None and rep != replica:
+                            continue
+                        steps = np.array(sorted(stepmap.keys()), dtype=int)
+                        breaks = np.where(np.diff(steps) > 1)[0] + 1
+                        for seg in np.split(steps, breaks):
+                            if seg.size >= 3:
+                                x = np.array([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                                x = x[np.isfinite(x)]
+                                if x.size >= 3:
+                                    all_series.append(x)
+
+            if len(all_series) == 1:
+                g = float(timeseries.statistical_inefficiency(all_series[0], fast=False))
+            elif len(all_series) > 1:
+                g = float(timeseries.statistical_inefficiency_multiple(all_series, fast=False))
+            else:
+                g = np.nan
+
+            out['overall']['g'] = g
+            out['overall']['tau_int'] = 0.5 * (g - 1.0) if np.isfinite(g) else np.nan
+            out['overall']['neff'] = (out['overall']['n_samples'] / g) if np.isfinite(g) and g > 0 else 0.0
+
+            if out['overall']['attempts'] > 0:
+                out['overall']['acceptance_ratio'] = out['overall']['accepted'] / out['overall']['attempts']
+            else:
+                out['overall']['acceptance_ratio'] = np.nan
+
+            return out
+
+        if self.interswap_within_key is None:
+            results = summarize_group(None)
+            with open(f'{self.calculation_dir}/{self.name}_mbar_diagnostics.pkl', 'wb') as handle:
+                    pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            results = {}
+            for group_value in self.mc_data.keys():
+                results[group_value] = summarize_group(group_value)
+                gv_str = str(group_value)
+                with open(f'{self.calculation_dir}/{self.name}_mbar_diagnostics_{gv_str}.pkl', 'wb') as handle:
+                    pickle.dump(self.mc_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        return results
 
     def get_trajectory(self, replica):
 
@@ -219,6 +412,8 @@ class GEEMCAnalysis(object):
                             if atoms is not None:
                                 traj.append(atoms)
         write(f'{self.calculation_dir}/{self.name}_geemc_{replica}.traj', traj)
+
+        return traj
 
     def get_dmu_estimates(self, 
             starting_step=None, 
@@ -733,66 +928,96 @@ class GCEMCAnalysis(object):
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
 
-    def prepare_data(self, 
-            starting_step=None, 
-            ending_step=None, 
-            use_exist=True, 
+    def prepare_data(self,
+            starting_step=None,
+            ending_step=None,
+            use_exist=True,
             raw_score_cutoff=-10000.):
 
-        """Prepare GC-EMC potential energy samples."""
+        """Prepare GC-EMC potential energy samples and MC diagnostics data."""
 
         collect_data = True
+        if starting_step is None:
+            starting_step = 1
+
         if use_exist:
-            if os.path.isfile(f'{self.calculation_dir}/{self.name}_mbar_data.pkl'):
-                with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'rb') as handle:
+            data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
+            mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl'
+            if os.path.isfile(data_path) and os.path.isfile(mc_path):
+                with open(data_path, 'rb') as handle:
                     self.data = pickle.load(handle)
+                with open(mc_path, 'rb') as handle:
+                    self.mc_data = pickle.load(handle)
                 collect_data = False
             else:
-                parprint(f'Cannot find MBAR data file, collect data instead.')
+                parprint(f'Cannot find complete MBAR cache, collect data instead.')
+
         if collect_data:
-            # initialize containers
-            self.data = {} 
-            if starting_step is None:
-                starting_step = 1
-            rep_latest_step_map = {rep: 1 for rep in range(self.pop_size)}
+            self.data = {}
+            self.mc_data = {}
+
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
                 n += 1
             for i in range(n):
-                # skip entire backup if its block is before starting_step
-                if ((i+1) * self.trim_generation) <= starting_step:
+                if ((i + 1) * self.trim_generation) <= starting_step:
                     continue
+
                 db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
-                for j, row in enumerate(db.select('relaxed=1')):
-                    if row.emc_step >= starting_step:
-                        if row.raw_score <= raw_score_cutoff:
-                            continue
-                        if (ending_step is not None) and (row.emc_step > ending_step):
-                            continue
-                        # obtain temperature from the row and ensure containers exist for it
-                        T = row.key_value_pairs[self.temperature_key]
-                        if T not in self.data:
-                            self.data[T] = {}
+                for row in db.select('relaxed=1'):
+                    step = int(row.emc_step)
+                    if step < starting_step:
+                        continue
+                    if row.raw_score <= raw_score_cutoff:
+                        continue
+                    if (ending_step is not None) and (step > ending_step):
+                        continue
 
-                        if row.key_value_pairs[self.acceptance_key] == 1:
-                            atoms = row.toatoms()
-                            atoms.info = {'key_value_pairs': {
-                                self.temperature_key: T, 
-                                self.replica_key: row.key_value_pairs[self.replica_key],
-                                'potential_energy': row.potential_energy}, 
-                                'data': {}}
-                            atoms.info['data']['mu'] = row.data.get('mu', None)
-                            atoms.info['data']['mu_window'] = row.data.get('mu_window', None)
-                            atoms.info['data']['fragments'] = row.data.get('fragments', None)
-                            # ensure replica list exists and is long enough, then set energy
-                            rep = row.key_value_pairs[self.replica_key]
-                            rep_list = self.data[T].setdefault(rep, [])
-                            needed = row.emc_step - len(rep_list)
-                            if needed > 0:
-                                rep_list.extend([None] * needed)
-                            rep_list[row.emc_step-1] = atoms
+                    T = row.key_value_pairs[self.temperature_key]
+                    rep = int(row.key_value_pairs[self.replica_key])
+                    mu = row.data.get('mu', None)
+                    if mu is None:
+                        mu_key = None
+                    else:
+                        mu_key = tuple(np.asarray(mu, dtype=float).ravel().round(12).tolist())
+                    state_key = (T, mu_key)
 
-            # Assign the previous energy if energy is None at a step (forward-fill per replica)
+                    if T not in self.data:
+                        self.data[T] = {}
+                    if state_key not in self.mc_data:
+                        self.mc_data[state_key] = {}
+                    if rep not in self.mc_data[state_key]:
+                        self.mc_data[state_key][rep] = {}
+
+                    accepted = bool(row.key_value_pairs[self.acceptance_key])
+                    energy = float(row.potential_energy)
+                    # Full step history for diagnostics.
+                    self.mc_data[state_key][rep][step] = {
+                        'energy': energy,
+                        'accepted': accepted,
+                        'mu': mu,
+                        'mu_window': row.data.get('mu_window', None),
+                        'fragments': row.data.get('fragments', None),
+                    }
+                    # Accepted configurations for trajectory / structural analysis.
+                    if accepted:
+                        atoms = row.toatoms()
+                        atoms.info = {'key_value_pairs': {
+                            self.temperature_key: T,
+                            self.replica_key: rep,
+                            'potential_energy': energy},
+                            'data': {}}
+                        atoms.info['data']['mu'] = mu
+                        atoms.info['data']['mu_window'] = row.data.get('mu_window', None)
+                        atoms.info['data']['fragments'] = row.data.get('fragments', None)
+
+                        rep_list = self.data[T].setdefault(rep, [])
+                        needed = step - len(rep_list)
+                        if needed > 0:
+                            rep_list.extend([None] * needed)
+                        rep_list[step - 1] = atoms
+
+            # Forward-fill accepted trajectory lists for structural analysis.
             for T, dd in self.data.items():
                 for rep in list(dd.keys()):
                     atoms_prev = None
@@ -805,9 +1030,127 @@ class GCEMCAnalysis(object):
                             newlist.append(atoms_prev)
                     dd[rep] = newlist
 
-            # save pickle
             with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
                 pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl', 'wb') as handle:
+                pickle.dump(self.mc_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def get_diagnostics(self,
+            starting_step=None,
+            ending_step=None,
+            replica=None):
+
+        """Get GC-EMC diagnostics: acceptance ratio, statistical inefficiency,
+        integrated autocorrelation time, and effective sample size. Diagnostics 
+        are computed state-wise in (T, mu) space"""
+
+        if starting_step is None:
+            starting_step = 1
+        if not hasattr(self, 'mc_data'):
+            self.prepare_data(starting_step=starting_step, ending_step=ending_step)
+
+        from pymbar import timeseries
+
+        def summarize_state(state_key):
+            state_dict = self.mc_data[state_key]
+            total_attempts = 0
+            total_accepted = 0
+            all_segments = []
+
+            for rep, stepmap in state_dict.items():
+                if replica is not None and rep != replica:
+                    continue
+
+                steps = np.array(sorted(
+                    s for s in stepmap.keys()
+                    if (s >= starting_step) and (ending_step is None or s <= ending_step)
+                ), dtype=int)
+
+                if steps.size == 0:
+                    continue
+
+                total_attempts += steps.size
+                total_accepted += sum(int(stepmap[s]['accepted']) for s in steps)
+
+                breaks = np.where(np.diff(steps) > 1)[0] + 1
+                for seg in np.split(steps, breaks):
+                    if seg.size < 3:
+                        continue
+                    series = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                    series = series[np.isfinite(series)]
+                    if series.size >= 3:
+                        all_segments.append(series)
+
+            if len(all_segments) == 0:
+                g = np.nan
+                tau_int = np.nan
+                neff = 0.0
+                n_samples = 0
+                n_segments = 0
+            elif len(all_segments) == 1:
+                g = float(timeseries.statistical_inefficiency(all_segments[0], fast=False))
+                tau_int = 0.5 * (g - 1.0)
+                n_samples = int(len(all_segments[0]))
+                neff = n_samples / g if g > 0 else np.nan
+                n_segments = 1
+            else:
+                g = float(timeseries.statistical_inefficiency_multiple(all_segments, fast=False))
+                tau_int = 0.5 * (g - 1.0)
+                n_samples = int(sum(len(x) for x in all_segments))
+                neff = n_samples / g if g > 0 else np.nan
+                n_segments = len(all_segments)
+
+            return {
+                'n_samples': int(n_samples),
+                'n_segments': int(n_segments),
+                'g': g,
+                'tau_int': tau_int,
+                'neff': neff,
+                'attempts': int(total_attempts),
+                'accepted': int(total_accepted),
+                'acceptance_ratio': total_accepted / total_attempts if total_attempts > 0 else np.nan,
+            }
+
+        results = {
+            'window': {
+                'starting_step': int(starting_step),
+                'ending_step': None if ending_step is None else int(ending_step),
+                'replica': replica,
+            },
+            'overall': {
+                'attempts': 0,
+                'accepted': 0,
+                'acceptance_ratio': np.nan,
+                'n_states': 0,
+                'n_samples': 0,
+                'n_segments': 0,
+            },
+            'by_state': {}
+        }
+
+        def state_sort_key(state_key):
+            T, mu_key = state_key
+            mu_str = '' if mu_key is None else str(mu_key)
+            return (float(T), mu_str)
+
+        for state_key in sorted(self.mc_data.keys(), key=state_sort_key):
+            state_stats = summarize_state(state_key)
+            results['by_state'][state_key] = state_stats
+            results['overall']['attempts'] += state_stats['attempts']
+            results['overall']['accepted'] += state_stats['accepted']
+            results['overall']['n_samples'] += state_stats['n_samples']
+            results['overall']['n_segments'] += state_stats['n_segments']
+
+        if results['overall']['attempts'] > 0:
+            results['overall']['acceptance_ratio'] = (
+                results['overall']['accepted'] / results['overall']['attempts']
+            )
+        results['overall']['n_states'] = len(results['by_state'])
+
+        with open(f'{self.calculation_dir}/{self.name}_mbar_diagnostics.pkl', 'wb') as handle:
+            pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        return results
 
     def get_trajectory(self, replica):
 
@@ -823,6 +1166,8 @@ class GCEMCAnalysis(object):
                         traj.append(atoms)
 
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
+
+        return traj
 
     def get_structural_properties(self,
             atoms,
@@ -996,8 +1341,12 @@ class GCEMCAnalysis(object):
                             sample_cond = np.append(atoms.info['data']['mu'], T)
                         else:
                             sample_cond = np.array([T])
-                        idx_match = np.where(np.all(np.abs(grid - sample_cond) < tol, axis=1))[0]
+                        idx_match = np.where(np.all(np.abs(grid - sample_cond) < tol, axis=1))[0] 
+                        
                         if idx_match.size == 0:
+                            print(grid)
+                            print(sample_cond)
+                            assert False
                             parprint('No matching state found for sample:', sample_cond)
                             continue
                         state_idx = int(idx_match[0])

@@ -403,6 +403,7 @@ class GCEMC(EMC):
                             self.tdmu_map, grid, self.element_column_map, self.element_eref_map, 
                             self.element_y2x_map, num_metal, epot, dimensionless=True)
                     cond = np.append(atoms.info['data']['mu'], T)
+                    print(grid, cond)
                     grid_id = np.where(np.all(np.abs(grid - cond) < tol, axis=1))[0]
                     state_idx = int(grid_id[0])
                     samples_per_state[state_idx] += 1
