@@ -267,25 +267,27 @@ def generate_population(
 
 def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_decimals=3):
     """
-    Assign μ-windows to a list of ase.Atoms objects based on their non-metal counts.
-    Modify each Atoms.info['data'] to include:
-        - 'mu'        : numpy array (center mu for that replica)
-        - 'mu_window' : numpy array (rows assigned to that replica)
-    The μ-windows are divided evenly from the whole chemical potential space.
+    Assign mu-windows to a list of ase.Atoms objects using a balanced recursive
+    partition of the full mu-grid.
+
+    The algorithm:
+    1) ranks replicas by their nonmetal composition;
+    2) partitions reaction_conditions into disjoint windows with equal point counts;
+    3) uses recursive median splits along the widest mu-dimension so each window
+       is compact and as close to equal-volume as possible on a grid;
+    4) assigns low-mu windows to low-nonmetal replicas and high-mu windows to
+       high-nonmetal replicas.
 
     Parameters
     ----------
-    input_pop: list of ase.Atoms objects
-        list of ase.Atoms objects (replicas).
-
-    reaction_conditions: numpy.ndarray
-        2D numpy array, shape (n_conditions, n_elements). Each row is a μ-point.
-
-    element_column_map: dict of (str, int) pairs
-        Dict mapping non-metal element names to column indices in reaction_conditions,
-
-    round_decimals: int, default 3
-        Number of decimals to round the chosen center μ stored in atoms.info['data']['mu'].
+    input_pop : list of ase.Atoms
+        Replicas to assign.
+    reaction_conditions : np.ndarray
+        Shape (n_points, n_cols). Each row is a mu-point.
+    element_column_map : dict
+        Mapping from non-metal element name to its mu-column index.
+    round_decimals : int
+        Number of decimals used when storing the representative mu center.
 
     """
 
@@ -293,53 +295,89 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
     n_images = len(atoms_list)
     if n_images == 0:
         return atoms_list
-
-    reaction_conditions = np.asarray(reaction_conditions)
+    reaction_conditions = np.asarray(reaction_conditions, dtype=float)
     if reaction_conditions.ndim != 2:
         raise ValueError('reaction_conditions must be a 2D array (n_points, n_cols)')
     n_grid = reaction_conditions.shape[0]
+    if n_images > n_grid:
+        raise ValueError(
+            f'Cannot assign {n_images} replicas to only {n_grid} mu-points. '
+            'Need n_images <= n_grid.'
+        )
 
-    # 1) Count nonmetal atoms in each structure using element_column_map keys as species list
-    nonmetal_species = set(element_column_map.keys())
+    # Nonmetal species ordered by their mu-column index.
+    nonmetal_species = [k for k, _ in sorted(element_column_map.items(), key=lambda kv: kv[1])]
+    mu_cols = np.array([element_column_map[k] for k in nonmetal_species], dtype=int)
+
+    # Replica ordering: low nonmetal content -> low mu-window, high nonmetal content -> high mu-window.
     counts = []
     for i, atoms in enumerate(atoms_list):
-        cnt = sum(1 for a in atoms if a.symbol in nonmetal_species)
-        counts.append((i, cnt))
+        cnt_vec = np.array([sum(1 for a in atoms if a.symbol == sp) for sp in nonmetal_species], dtype=int)
+        counts.append((i, cnt_vec))
+    sorted_indices = [idx for idx, _ in sorted(counts, key=lambda x: tuple(x[1].tolist()))]
 
-    # 2) sort structures by increasing nonmetal counts (same behavior as your script)
-    counts_sorted = sorted(counts, key=lambda x: x[1])
-    sorted_indices = [idx for idx, _ in counts_sorted]
+    # Use all reaction-condition columns to define compact windows in the full mu-space.
+    mu_points = reaction_conditions[:, mu_cols]
 
-    # 3) equal-ish split of μ-points among structures
-    points_per_structure = n_grid // n_images
-    remainder = n_grid % n_images
+    # Normalize each mu dimension for balanced geometric splitting.
+    mu_min = mu_points.min(axis=0)
+    mu_max = mu_points.max(axis=0)
+    mu_span = np.where((mu_max - mu_min) > 0, (mu_max - mu_min), 1.0)
+    mu_norm = (mu_points - mu_min) / mu_span
 
-    # 4) Sort μ-grid by sum over the provided element columns
-    sort_cols = sorted(set(element_column_map.values()))
-    sort_key = np.sum(reaction_conditions[:, sort_cols], axis=1)
-    grid_sorted = reaction_conditions[np.argsort(sort_key)]
+    # Desired sizes
+    q, r = divmod(n_grid, n_images)
+    target_sizes = [q + 1] * r + [q] * (n_images - r)
 
-    # 5) Allocate contiguous windows (low -> high) to structures in the order of sorted_indices
-    start = 0
+    def _partition(indices, sizes):
+        """Recursively partition indices into disjoint groups with target sizes."""
+        if len(sizes) == 1:
+            return [np.asarray(indices, dtype=int)]
+
+        pts = mu_norm[indices]
+        spreads = pts.max(axis=0) - pts.min(axis=0)
+        axis = int(np.argmax(spreads))
+
+        # Lexsort with the chosen axis as primary key.
+        keys = tuple(pts[:, d] for d in range(pts.shape[1]) if d != axis) + (pts[:, axis],)
+        order = np.asarray(indices, dtype=int)[np.lexsort(keys)]
+
+        left_n = int(sum(sizes[:len(sizes) // 2]))
+        left_inds = order[:left_n]
+        right_inds = order[left_n:]
+
+        return _partition(left_inds, sizes[:len(sizes) // 2]) + _partition(right_inds, sizes[len(sizes) // 2:])
+
+    # Partition the mu-grid.
+    all_indices = np.arange(n_grid, dtype=int)
+    groups = _partition(all_indices, target_sizes)
+
+    # Sort groups by centroid in the same mu-order used for replica ordering.
+    def _group_key(inds):
+        c = mu_points[inds].mean(axis=0)
+        return tuple(np.round(c, round_decimals).tolist())
+
+    groups = sorted(groups, key=_group_key)
+
+    # Assign windows to replicas.
     for rank, img_idx in enumerate(sorted_indices):
-        size = points_per_structure + (1 if rank < remainder else 0)
-        if size <= 0:
-            mu_window = np.empty((0, reaction_conditions.shape[1]))
-            center_mu = np.full(reaction_conditions.shape[1], np.nan)
-        else:
-            mu_window = grid_sorted[start:start+size]
-            start += size
-            center_row = mu_window[len(mu_window)//2]
-            center_mu = np.round(center_row, round_decimals)
+        inds = groups[rank]
+        mu_window = reaction_conditions[inds]
 
-        # set atoms.info['data'] entries in-place
+        center_mu = np.round(mu_window.mean(axis=0), round_decimals)
+        #mu_lower = np.round(mu_window.min(axis=0), round_decimals)
+        #mu_upper = np.round(mu_window.max(axis=0), round_decimals)
+
         ai = atoms_list[img_idx]
         if not hasattr(ai, 'info') or ai.info is None:
             ai.info = {'key_value_pairs': {}, 'data': {}}
         if 'data' not in ai.info or ai.info['data'] is None:
             ai.info['data'] = {}
+
         ai.info['data']['mu'] = np.array(center_mu)
         ai.info['data']['mu_window'] = np.array(mu_window)
+        #ai.info['data']['mu_lower'] = np.array(mu_lower)
+        #ai.info['data']['mu_upper'] = np.array(mu_upper)
 
     return atoms_list
 
