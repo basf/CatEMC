@@ -47,47 +47,38 @@ class GEEMCAnalysis(object):
             use_exist=True,
             raw_score_cutoff=-10000.):
 
-        """Prepare GE-EMC potential energy, trajectory, and Widom samples.
-
-        This also caches a full Monte Carlo trajectory table in self.mc_data
-        for diagnostics such as acceptance ratio, statistical inefficiency,
-        and effective sample size.
-        """
+        """Prepare GE-EMC potential energy, trajectory, and Widom samples."""
 
         if starting_step is None:
             starting_step = 1
 
         collect_data = True
-
-        if use_exist and (self.interswap_within_key is None):
-            widom_path = f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl'
-            data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
-            mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl'
-            if os.path.isfile(widom_path) and os.path.isfile(data_path) and os.path.isfile(mc_path):
-                with open(widom_path, 'rb') as handle:
-                    self.widom_data = pickle.load(handle)
-                with open(data_path, 'rb') as handle:
-                    self.data = pickle.load(handle)
-                with open(mc_path, 'rb') as handle:
-                    self.mc_data = pickle.load(handle)
-                collect_data = False
+        if use_exist:
+            if self.interswap_within_key is None:
+                widom_path = f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl'
+                data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
+                mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl'
+                if os.path.isfile(widom_path) and os.path.isfile(data_path) and os.path.isfile(mc_path):
+                    with open(widom_path, 'rb') as handle:
+                        self.widom_data = pickle.load(handle)
+                    with open(data_path, 'rb') as handle:
+                        self.data = pickle.load(handle)
+                    with open(mc_path, 'rb') as handle:
+                        self.mc_data = pickle.load(handle)
+                    collect_data = False
+                else:
+                    parprint('Cannot find complete MBAR cache, collect data instead.')
             else:
-                parprint('Cannot find complete MBAR diagnostic cache, collect data instead.')
-        elif use_exist:
-            # group-resolved cache
-            mc_ok = True
-            if not hasattr(self, 'mc_data'):
-                mc_ok = False
-            if mc_ok:
-                pass
-            else:
-                collect_data = True
+                ok = True
+                for group_value in list(getattr(self, 'mc_data', {}).keys()) if hasattr(self, 'mc_data') else []:
+                    pass
+                if hasattr(self, 'widom_data') and hasattr(self, 'data') and hasattr(self, 'mc_data'):
+                    collect_data = False
 
         if collect_data:
             self.widom_data = {}
             self.data = {}
             self.mc_data = {}
-
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
                 n += 1
@@ -108,7 +99,6 @@ class GEEMCAnalysis(object):
             for i in range(n):
                 if ((i + 1) * self.trim_generation) <= starting_step:
                     continue
-
                 db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
                 for row in db.select('relaxed=1'):
                     if row.emc_step < starting_step:
@@ -119,10 +109,12 @@ class GEEMCAnalysis(object):
                         continue
 
                     T = row.key_value_pairs[self.temperature_key]
-                    rep = row.key_value_pairs[self.replica_key]
-                    group_value = None if self.interswap_within_key is None else row.key_value_pairs[self.interswap_within_key]
+                    rep = int(row.key_value_pairs[self.replica_key])
+                    if self.interswap_within_key is None:
+                        group_value = None
+                    else: 
+                        group_value = row.key_value_pairs[self.interswap_within_key]
                     init_group(group_value, T)
-
                     dU = -row.delta
                     if abs(dU) > 100.:
                         continue
@@ -131,7 +123,6 @@ class GEEMCAnalysis(object):
 
                     accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
                     U = float(row.potential_energy)
-                    # Full trajectory cache for diagnostics:
                     if self.interswap_within_key is None:
                         self.mc_data[T].setdefault(rep, {})[row.emc_step] = {
                             'energy': U,
@@ -142,9 +133,9 @@ class GEEMCAnalysis(object):
                             'energy': U,
                             'accepted': accepted
                         }
+
                     atoms = row.toatoms()
                     is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
-                    # Keep the old accepted-state cache used by MBAR/trajectory export.
                     if accepted or is_widom:
                         atoms.info = {'key_value_pairs': {
                             self.temperature_key: T,
@@ -156,18 +147,15 @@ class GEEMCAnalysis(object):
                             U += self.pressure * V
                             atoms.info['key_value_pairs']['enthalpy'] = U
                             atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
+
                         if self.interswap_within_key is None:
                             rep_list = self.data[T].setdefault(rep, [])
-                            needed = row.emc_step - len(rep_list)
-                            if needed > 0:
-                                rep_list.extend([None] * needed)
-                            rep_list[row.emc_step - 1] = atoms
                         else:
                             rep_list = self.data[group_value][T].setdefault(rep, [])
-                            needed = row.emc_step - len(rep_list)
-                            if needed > 0:
-                                rep_list.extend([None] * needed)
-                            rep_list[row.emc_step - 1] = atoms
+                        needed = row.emc_step - len(rep_list)
+                        if needed > 0:
+                            rep_list.extend([None] * needed)
+                        rep_list[row.emc_step - 1] = atoms
 
                     if not is_widom:
                         continue
@@ -183,20 +171,14 @@ class GEEMCAnalysis(object):
                     key = f'{m1}2{m2}'
                     if self.interswap_within_key is None:
                         key_list = self.widom_data[T].setdefault(key, [])
-                        needed = row.emc_step - len(key_list)
-                        if needed > 0:
-                            key_list.extend([[] for _ in range(needed)])
-                        key_list[row.emc_step - 1].append(
-                            (U, dU, W_prefactor, V_prefactor, rep, row.emc_step)
-                        )
                     else:
                         key_list = self.widom_data[group_value][T].setdefault(key, [])
-                        needed = row.emc_step - len(key_list)
-                        if needed > 0:
-                            key_list.extend([[] for _ in range(needed)])
-                        key_list[row.emc_step - 1].append(
-                            (U, dU, W_prefactor, V_prefactor, rep, row.emc_step)
-                        )
+                    needed = row.emc_step - len(key_list)
+                    if needed > 0:
+                        key_list.extend([[] for _ in range(needed)])
+                    key_list[row.emc_step - 1].append(
+                        (U, dU, W_prefactor, V_prefactor, rep, row.emc_step)
+                    )
 
             if self.interswap_within_key is None:
                 for T, dd in self.data.items():
@@ -242,15 +224,8 @@ class GEEMCAnalysis(object):
                         pickle.dump(self.mc_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def get_diagnostics(self, starting_step=None, ending_step=None, replica=None):
-        """
-        Return autocorrelation time, effective sample size, and acceptance ratio.
 
-        Conventions:
-        - diagnostics are computed per temperature
-        - if replica is None, all replicas at the same temperature are pooled
-        - if replica is an integer, only that replica is analyzed
-        - different temperatures are not concatenated into a single timeseries
-        """
+        """Return autocorrelation time, effective sample size and acceptance ratio."""
 
         from pymbar import timeseries
 
@@ -269,7 +244,6 @@ class GEEMCAnalysis(object):
                 for rep, stepmap in temp_dict.items():
                     if replica is not None and rep != replica:
                         continue
-
                     steps = np.array(sorted(
                         s for s in stepmap.keys()
                         if (s >= starting_step) and (ending_step is None or s <= ending_step)
@@ -278,11 +252,9 @@ class GEEMCAnalysis(object):
                         continue
                     n_attempts += len(steps)
                     n_accepted += sum(int(stepmap[s]['accepted']) for s in steps)
-                    breaks = np.where(np.diff(steps) > 1)[0] + 1
-                    for seg in np.split(steps, breaks):
-                        if seg.size < 3:
-                            continue
-                        x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                    accepted_steps = [s for s in steps if stepmap[s]['accepted']]
+                    if len(accepted_steps) >= 3:
+                        x = np.asarray([stepmap[s]['energy'] for s in accepted_steps], dtype=float)
                         x = x[np.isfinite(x)]
                         if x.size >= 3:
                             series.append(x)
@@ -349,13 +321,12 @@ class GEEMCAnalysis(object):
                         s for s in stepmap.keys()
                         if (s >= starting_step) and (ending_step is None or s <= ending_step)
                     ), dtype=int)
-                    breaks = np.where(np.diff(steps) > 1)[0] + 1
-                    for seg in np.split(steps, breaks):
-                        if seg.size >= 3:
-                            x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
-                            x = x[np.isfinite(x)]
-                            if x.size >= 3:
-                                all_series.append(x)
+                    accepted_steps = [s for s in steps if stepmap[s]['accepted']]
+                    if len(accepted_steps) >= 3:
+                        x = np.asarray([stepmap[s]['energy'] for s in accepted_steps], dtype=float)
+                        x = x[np.isfinite(x)]
+                        if x.size >= 3:
+                            all_series.append(x)
 
             if len(all_series) == 1:
                 g = float(timeseries.statistical_inefficiency(all_series[0], fast=False))
@@ -935,12 +906,12 @@ class GCEMCAnalysis(object):
             use_exist=True,
             raw_score_cutoff=-10000.):
 
-        """Prepare GC-EMC potential energy samples and MC diagnostics data."""
+        """Prepare GC-EMC potential energy samples."""
 
-        collect_data = True
         if starting_step is None:
             starting_step = 1
 
+        collect_data = True
         if use_exist:
             data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
             mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl'
@@ -959,6 +930,7 @@ class GCEMCAnalysis(object):
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
                 n += 1
+
             for i in range(n):
                 if ((i + 1) * self.trim_generation) <= starting_step:
                     continue
@@ -996,7 +968,6 @@ class GCEMCAnalysis(object):
                         'mu_window': row.data.get('mu_window', None),
                         'fragments': row.data.get('fragments', None),
                     }
-
                     if accepted:
                         atoms = row.toatoms()
                         atoms.info = {'key_value_pairs': {
@@ -1036,23 +1007,21 @@ class GCEMCAnalysis(object):
             ending_step=None,
             replica=None):
 
-        """Get GC-EMC diagnostics: acceptance ratio, statistical inefficiency,
-        integrated autocorrelation time, and effective sample size. Diagnostics 
-        are computed state-wise in (T, mu) space. 
-        """
+        """Get GC-EMC diagnostics from accepted samples only."""
+
+        from pymbar import timeseries
 
         if starting_step is None:
             starting_step = 1
         if not hasattr(self, 'mc_data'):
             self.prepare_data(starting_step=starting_step, ending_step=ending_step)
 
-        from pymbar import timeseries
-
         def summarize_state(state_dict):
             series = []
-            attempts = 0
-            accepted = 0
             n_samples = 0
+            n_segments = 0
+            n_attempts = 0
+            n_accepted = 0
 
             for rep, stepmap in state_dict.items():
                 if replica is not None and rep != replica:
@@ -1063,34 +1032,29 @@ class GCEMCAnalysis(object):
                 ), dtype=int)
                 if steps.size == 0:
                     continue
-                attempts += len(steps)
-                accepted += sum(int(stepmap[s]['accepted']) for s in steps)
-
-                breaks = np.where(np.diff(steps) > 1)[0] + 1
-                for seg in np.split(steps, breaks):
-                    if seg.size < 3:
-                        continue
-                    x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
+                n_attempts += len(steps)
+                n_accepted += sum(int(stepmap[s]['accepted']) for s in steps)
+                accepted_steps = [s for s in steps if stepmap[s]['accepted']]
+                if len(accepted_steps) >= 3:
+                    x = np.asarray([stepmap[s]['energy'] for s in accepted_steps], dtype=float)
                     x = x[np.isfinite(x)]
                     if x.size >= 3:
                         series.append(x)
                         n_samples += x.size
+                        n_segments += 1
 
             if len(series) == 0:
                 g = np.nan
                 tau_int = np.nan
                 neff = 0.0
-                n_segments = 0
             elif len(series) == 1:
                 g = float(timeseries.statistical_inefficiency(series[0], fast=False))
                 tau_int = 0.5 * (g - 1.0)
                 neff = n_samples / g if g > 0 else np.nan
-                n_segments = 1
             else:
                 g = float(timeseries.statistical_inefficiency_multiple(series, fast=False))
                 tau_int = 0.5 * (g - 1.0)
                 neff = n_samples / g if g > 0 else np.nan
-                n_segments = len(series)
 
             return {
                 'n_samples': int(n_samples),
@@ -1098,9 +1062,9 @@ class GCEMCAnalysis(object):
                 'g': g,
                 'tau_int': tau_int,
                 'neff': neff,
-                'attempts': int(attempts),
-                'accepted': int(accepted),
-                'acceptance_ratio': (accepted / attempts) if attempts > 0 else np.nan,
+                'attempts': int(n_attempts),
+                'accepted': int(n_accepted),
+                'acceptance_ratio': (n_accepted / n_attempts) if n_attempts > 0 else np.nan,
             }
 
         results = {
@@ -1130,8 +1094,8 @@ class GCEMCAnalysis(object):
 
         all_series = []
         for state_key in sorted(self.mc_data.keys(), key=state_sort_key):
-            state_stats = summarize_state(self.mc_data[state_key])
-            results['by_state'][state_key] = state_stats
+            results['by_state'][state_key] = summarize_state(self.mc_data[state_key])
+            state_stats = results['by_state'][state_key]
             results['overall']['attempts'] += state_stats['attempts']
             results['overall']['accepted'] += state_stats['accepted']
             results['overall']['n_samples'] += state_stats['n_samples']
@@ -1144,13 +1108,12 @@ class GCEMCAnalysis(object):
                     s for s in stepmap.keys()
                     if (s >= starting_step) and (ending_step is None or s <= ending_step)
                 ), dtype=int)
-                breaks = np.where(np.diff(steps) > 1)[0] + 1
-                for seg in np.split(steps, breaks):
-                    if seg.size >= 3:
-                        x = np.asarray([stepmap[int(s)]['energy'] for s in seg], dtype=float)
-                        x = x[np.isfinite(x)]
-                        if x.size >= 3:
-                            all_series.append(x)
+                accepted_steps = [s for s in steps if stepmap[s]['accepted']]
+                if len(accepted_steps) >= 3:
+                    x = np.asarray([stepmap[s]['energy'] for s in accepted_steps], dtype=float)
+                    x = x[np.isfinite(x)]
+                    if x.size >= 3:
+                        all_series.append(x)
 
         if len(all_series) == 1:
             g = float(timeseries.statistical_inefficiency(all_series[0], fast=False))
