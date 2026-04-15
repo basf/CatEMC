@@ -39,6 +39,7 @@ def calculate_bulk_fitness(
         md_taup=1000*units.fs,
         compressibility=5e-5/units.bar,
         fix_indices=None,
+        max_relax_steps=300,
         optimize_cell=False,
         update_md_positions=True,
         update_relaxed_positions=False,
@@ -93,6 +94,10 @@ def calculate_bulk_fitness(
         Whether to also relax the cell. Note that NPT MD always 
         changes the cell, this parameter only controls relaxation.
 
+    max_relax_steps: int, default 300
+        Maximum number of ionic steps to perform on relaxing the
+        structure until giving up and reject the structure.
+
     update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
         molecular dynamics. Recommended to set to True.
@@ -130,7 +135,7 @@ def calculate_bulk_fitness(
                 tmp_atoms.calc = calc
                 if fmax is not None:
                     opt = LBFGS(tmp_atoms, logfile=None)
-                    opt.run(fmax=fmax, steps=250)
+                    opt.run(fmax=fmax, steps=max_relax_steps)
                 E0 = tmp_atoms.get_potential_energy()
             except:
                 tmp_atoms = atoms[real_indices].copy()
@@ -182,7 +187,7 @@ def calculate_bulk_fitness(
                 else:
                     ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
                     opt = LBFGS(ucf, logfile=None)
-                converged = opt.run(fmax=fmax, steps=250)
+                converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
 
@@ -233,6 +238,7 @@ def calculate_surface_fitness(
         md_friction=None,
         fix_indices=None,
         temperature_dmu_map=None,
+        max_relax_steps=300,
         update_md_positions=True,
         update_relaxed_positions=False,
         adsorbate_surface_dmax=2.5,
@@ -280,9 +286,18 @@ def calculate_surface_fitness(
         MD parameters and type (only support 'berendsen' and 
         'langevin' so far).
 
-    pressure: float, default None
-        Target pressure for running NPT and cell relaxation. Running
-        NVT MD and fixed-cell relaxation if this is not set.
+    temperature_dmu_map: dict of (float, float) pairs, default None
+        A dictionary that maps each temperature to the estimated the chemical
+        potential difference between all metal pairs (e.g. obtained from bulk GE-EMC 
+        simulations). Note that the keys must be in the form of 'A2B' which represents
+        mu_B - mu_A, must consider all possible metal pairs, and the metal element 
+        order must follow the order in the metal_element_pool. Only needed if the free 
+        energy bias weight is applied. Default is None, which is only suitable for 
+        surface EMC simulations with fixed surface metal composition.
+
+    max_relax_steps: int, default 300
+        Maximum number of ionic steps to perform on relaxing the
+        structure until giving up and reject the structure.
 
     update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
@@ -325,7 +340,7 @@ def calculate_surface_fitness(
                 tmp_atoms.calc = calc
                 if fmax is not None:
                     opt = LBFGS(tmp_atoms, logfile=None)
-                    opt.run(fmax=fmax, steps=250)
+                    opt.run(fmax=fmax, steps=max_relax_steps)
                 E0 = tmp_atoms.get_potential_energy()                
             except:
                 tmp_atoms = atoms[real_indices].copy()
@@ -360,7 +375,7 @@ def calculate_surface_fitness(
             penalize = False
             if fmax is not None:
                 opt = LBFGS(tmp_atoms, logfile=None)
-                converged = opt.run(fmax=fmax, steps=250)
+                converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
     if not penalize:
@@ -406,7 +421,7 @@ def calculate_surface_fitness(
             tmp_atoms.calc = calc
             if fmax is not None:
                 opt = LBFGS(tmp_atoms, logfile=None)
-                converged = opt.run(fmax=fmax, steps=250)
+                converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
             sas.update(tmp_atoms)
@@ -665,8 +680,8 @@ def detect_and_get_model(calc):
 
 
 def _relax_worker(args):
-    (tmp_atoms, calc, fmax, is_last_calc, run_md_flag, md_timestep, md_taut, md_steps, 
-     md_write_interval, pressure, md_taup, temperature, optimize_cell, compressibility) = args
+    (tmp_atoms, calc, fmax, is_last_calc, run_md_flag, md_timestep, md_taut, md_steps, md_write_interval, 
+     pressure, md_taup, temperature, max_relax_steps, optimize_cell, compressibility) = args
     tmp_atoms.calc = calc
     if is_last_calc and run_md_flag:
         # run MD as in serial function
@@ -689,7 +704,7 @@ def _relax_worker(args):
         else:
             ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
             opt = LBFGS(ucf, logfile=None)
-        opt.run(fmax=fmax, steps=250)
+        opt.run(fmax=fmax, steps=max_relax_steps)
 
     return tmp_atoms
 
@@ -742,8 +757,8 @@ def _postprocess_bulk_worker(args):
 
 def _postprocess_surface_worker(args):
     (dir_name, atoms, tmp_atoms, md_atoms, sas, target_metal_species, target_metal_composition,
-     allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map,
-     slab_indices, neighbor_cutoff, run_md, update_md_positions, update_relaxed_positions,
+     allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map, slab_indices, 
+     neighbor_cutoff, run_md, max_relax_steps, update_md_positions, update_relaxed_positions,
      adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot) = args
 
     T = atoms.info['key_value_pairs'][temperature_key]
@@ -813,7 +828,7 @@ def _postprocess_surface_worker(args):
             if True:
                 try:
                     opt = LBFGS(tmp_atoms, logfile=None)
-                    opt.run(fmax=None, steps=250)
+                    opt.run(fmax=None, steps=max_relax_steps)
                 except Exception:
                     pass
             try:
@@ -886,6 +901,7 @@ def calculate_batch_bulk_fitness(
         compressibility=5e-5/units.bar,
         fix_indices=None,
         optimize_cell=False,
+        max_relax_steps=300,
         update_md_positions=True,
         update_relaxed_positions=False,
         neighbor_cutoff=2.5,
@@ -982,7 +998,7 @@ def calculate_batch_bulk_fitness(
             for tmp, temp in zip(tmp_atoms_list, temps):
                 work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, 
                                   md_taut, md_steps, md_write_interval, pressure, md_taup, 
-                                  temp, optimize_cell, compressibility))
+                                  temp, max_relax_steps, optimize_cell, compressibility))
             results = pool.map(_relax_worker, work_args)
             pool.close()
             pool.join()
@@ -1041,6 +1057,7 @@ def calculate_batch_surface_fitness(
         slab_indices,
         fix_indices=None,
         temperature_dmu_map=None,
+        max_relax_steps=300,
         update_md_positions=True,
         update_relaxed_positions=False,
         adsorbate_surface_dmax=2.5,
@@ -1114,7 +1131,7 @@ def calculate_batch_surface_fitness(
             for tmp, temp in zip(tmp_atoms_list, temps):
                 work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep,
                                   md_taut, md_steps, md_write_interval, None, None, temp,
-                                  False, 0.))
+                                  max_relax_steps, False, 0.))
             results = pool.map(_relax_worker, work_args)
             pool.close()
             pool.join()
@@ -1147,8 +1164,8 @@ def calculate_batch_surface_fitness(
                 epot = float(energies)
         md_atoms = (md_atoms_list[idx] if (md_atoms_list is not None) else None)
         post_args.append((dir_name, atoms, tmp_atoms, md_atoms, sas, target_metal_species, target_metal_composition,
-                          allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map,
-                          slab_indices, neighbor_cutoff, run_md, update_md_positions, update_relaxed_positions,
+                          allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map, slab_indices, 
+                          neighbor_cutoff, run_md, max_relax_steps, update_md_positions, update_relaxed_positions,
                           adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot))
     pool.map(_postprocess_surface_worker, post_args)
     pool.close()
