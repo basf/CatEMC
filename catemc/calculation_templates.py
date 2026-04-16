@@ -287,6 +287,7 @@ def calculate_surface_fitness(
 
     allowed_adsorbate_species: list of strs
         All possible adsorbate species allowed to exist in the EMC.
+        This only accepts ACAT regularized strings.
 
     run_md: bool
         Whether to run molecular dynamics or not.

@@ -142,13 +142,16 @@ class GCEMC(EMC):
     adsorbate_species: list of strs, default None
         The list of adsorbate fragment types used to perform adsorbate operations.
         The internal partition function values for such species must be provided 
-        in temperature_species_internal_map.
+        in temperature_species_internal_map. This accepts both ACAT regularized 
+        strings and AutoAdsorbate marked-SMILES strings.
 
     other_adsorbate_species: list of strs, default None
         The list of adsorbate fragment types that are not involved in adsorbate
         operations but is still allowed during the EMC simulation. The internal
         partition function parameters for such species must be provided in
-        temperature_species_internal_map.
+        temperature_species_internal_map. This only accepts ACAT regularized
+        strings. Default None will use the rest of temperature_species_internal_map 
+        keys that are not in adsorabte_species.
 
     mutable_metal_indices: list of ints, default None
         The list of metal atom (or 'X' which represents vacancy) indices that are 
@@ -631,11 +634,16 @@ class GCEMC(EMC):
                     species_probabilities = None
                     if self.adsorbate_species is not None:
                         adsorbate_species = self.adsorbate_species.copy()
+                        other_adsorbate_species = []
                         if self.other_adsorbate_species is not None:
+                            other_adsorbate_species = self.other_adsorbate_species.copy()
+                        elif self.tsi_map is not None:
+                            other_adsorbate_species = [k for k in self.tsi_map.keys() if k not in adsorbate_species]
+                        if other_adsorbate_species:
                             species_probabilities = {k: 1. for k in adsorbate_species}
-                            for k in self.other_adsorbate_species:
+                            for k in other_adsorbate_species:
                                 species_probabilities[k] = 0.
-                            adsorbate_species += self.other_adsorbate_species
+                            adsorbate_species += other_adsorbate_species
 
                     site_path = f'{self.calculation_dir}/tmp_{self.name}/sites_{rep}.pkl'
                     if (self.mutable_nonmetal_indices is None) or (self.nonmetal_element_pool is None):
