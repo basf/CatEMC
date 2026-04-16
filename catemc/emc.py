@@ -318,6 +318,8 @@ class EMC(object):
         relaxed_candidates = [read(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj', index=-1) for rep in replicas]
         for rep in replicas:
             os.remove(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj')
+            if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxation_{rep}.traj'):
+                os.remove(f'{self.calculation_dir}/tmp_{self.name}/relaxation_{rep}.traj')
 
         return relaxed_candidates
 

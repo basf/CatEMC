@@ -40,6 +40,7 @@ def calculate_bulk_fitness(
         compressibility=5e-5/units.bar,
         fix_indices=None,
         max_relax_steps=300,
+        write_relax_traj=False,
         optimize_cell=False,
         update_md_positions=True,
         update_relaxed_positions=False,
@@ -98,6 +99,10 @@ def calculate_bulk_fitness(
         Maximum number of ionic steps to perform on relaxing the
         structure until giving up and reject the structure.
 
+    write_relax_traj: bool, default False
+        Whether to write temporary relaxation trajectory for each
+        replica which will be removed by the end of each generation.
+
     update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
         molecular dynamics. Recommended to set to True.
@@ -127,6 +132,10 @@ def calculate_bulk_fitness(
     vac_indices = [a.index for a in atoms if a.symbol == 'X']
     real_indices = [a.index for a in atoms if a.symbol != 'X']    
     tmp_atoms = atoms[real_indices].copy()
+    if write_relax_traj:
+        relax_traj = f'{dir_name}/relaxation_{rep}.traj'
+    else:
+        relax_traj = None
 
     for i, calc in enumerate(calculator_list):
         fmax = fmax_list[i]
@@ -134,7 +143,7 @@ def calculate_bulk_fitness(
             try:
                 tmp_atoms.calc = calc
                 if fmax is not None:
-                    opt = LBFGS(tmp_atoms, logfile=None)
+                    opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                     opt.run(fmax=fmax, steps=max_relax_steps)
                 E0 = tmp_atoms.get_potential_energy()
             except:
@@ -183,10 +192,10 @@ def calculate_bulk_fitness(
             penalize = False
             if fmax is not None:
                 if (pressure is None) or not optimize_cell:
-                    opt = LBFGS(tmp_atoms, logfile=None)
+                    opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 else:
                     ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
-                    opt = LBFGS(ucf, logfile=None)
+                    opt = LBFGS(ucf, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
@@ -239,6 +248,7 @@ def calculate_surface_fitness(
         fix_indices=None,
         temperature_dmu_map=None,
         max_relax_steps=300,
+        write_relax_traj=False,
         update_md_positions=True,
         update_relaxed_positions=False,
         adsorbate_surface_dmax=2.5,
@@ -299,6 +309,10 @@ def calculate_surface_fitness(
         Maximum number of ionic steps to perform on relaxing the
         structure until giving up and reject the structure.
 
+    write_relax_traj: bool, default False
+        Whether to write temporary relaxation trajectory for each
+        replica which will be removed by the end of each generation.
+
     update_md_positions: bool, default True
         Whether to update the atom positions of the trajectory after
         molecular dynamics. Recommended to set to True.
@@ -332,6 +346,10 @@ def calculate_surface_fitness(
     tmp_atoms = atoms[real_indices].copy()
     tmp_slab_indices = [a.index for a in tmp_atoms if 
                         real_indices[a.index] in slab_indices]
+    if write_relax_traj:
+        relax_traj = f'{dir_name}/relaxation_{rep}.traj'
+    else:
+        relax_traj = None
 
     for i, calc in enumerate(calculator_list):
         fmax = fmax_list[i]
@@ -339,7 +357,7 @@ def calculate_surface_fitness(
             try:
                 tmp_atoms.calc = calc
                 if fmax is not None:
-                    opt = LBFGS(tmp_atoms, logfile=None)
+                    opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                     opt.run(fmax=fmax, steps=max_relax_steps)
                 E0 = tmp_atoms.get_potential_energy()                
             except:
@@ -374,7 +392,7 @@ def calculate_surface_fitness(
 
             penalize = False
             if fmax is not None:
-                opt = LBFGS(tmp_atoms, logfile=None)
+                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
@@ -420,7 +438,7 @@ def calculate_surface_fitness(
             tmp_atoms = new_atoms.copy()
             tmp_atoms.calc = calc
             if fmax is not None:
-                opt = LBFGS(tmp_atoms, logfile=None)
+                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
