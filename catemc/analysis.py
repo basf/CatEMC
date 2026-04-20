@@ -1294,7 +1294,7 @@ class GCEMCAnalysis(object):
         if vacancy_indices is None:
             vacancy_indices = []
         if reaction_conditions is None:
-            grid = np.array(sim_temperatures)
+            grid = np.array(sim_temperatures).reshape(-1,1)
         else:
             grid = reaction_conditions.copy()
         K = grid.shape[0]
@@ -1327,7 +1327,7 @@ class GCEMCAnalysis(object):
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
-                        if 'mu' in atoms.info['data']:
+                        if atoms.info['data'].get('mu') is not None:
                             sample_cond = np.append(atoms.info['data']['mu'], T)
                         else:
                             sample_cond = np.array([T])
@@ -1530,7 +1530,7 @@ class GCEMCAnalysis(object):
         if variable_keys is None:
             variable_keys = ['all']
         if reaction_conditions is None:
-            grid = np.array(sim_temperatures)
+            grid = np.array(sim_temperatures).reshape(-1,1)
         else:
             grid = reaction_conditions.copy()
         K = grid.shape[0]
@@ -1563,7 +1563,7 @@ class GCEMCAnalysis(object):
                         epot = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
-                        if 'mu' in atoms.info['data']:
+                        if atoms.info['data'].get('mu') is not None:
                             sample_cond = np.append(atoms.info['data']['mu'], T)
                         else:
                             sample_cond = np.array([T])
