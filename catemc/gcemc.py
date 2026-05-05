@@ -673,7 +673,6 @@ class GCEMC(EMC):
                                                  catalyst_indices=self.slab_indices, 
                                                  dmax=self.adsorbate_surface_dmax),
                                  MoveAdsorbate(adsorbate_species=adsorbate_species,
-                                               species_probabilities=species_probabilities, 
                                                adsorption_sites=site_path, 
                                                catalyst_indices=self.slab_indices, 
                                                min_adsorbate_distance=self.adsorbate_adsorbate_dmin, 
