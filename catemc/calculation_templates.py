@@ -77,8 +77,7 @@ def calculate_bulk_fitness(
     run_md: bool
         Whether to run molecular dynamics or not.
 
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup,
-    md_type, md_friction: 
+    md_timestep, md_taut, md_steps, md_write_interval, md_taup, md_type, md_friction: 
         MD parameters and type (only support 'berendsen' and 
         'langevin' so far).
 
@@ -109,7 +108,8 @@ def calculate_bulk_fitness(
 
     update_relaxed_positions: bool, default False
         Wheter to update the atom position of the trajectory after
-        geometry relaxation. Recommended to set to False.
+        geometry relaxation. Recommended to set to False. Useful to
+        set to True for e.g. generating relaxed structures.
 
     neighbor_cutoff: float, default 2.5
         Cutoff (Å) for identify neighboring metal atoms to track
@@ -292,19 +292,20 @@ def calculate_surface_fitness(
     run_md: bool
         Whether to run molecular dynamics or not.
 
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup, 
-    md_type, md_friction:
+    md_timestep, md_taut, md_steps, md_write_interval, md_taup, md_type, md_friction:
         MD parameters and type (only support 'berendsen' and 
         'langevin' so far).
 
     temperature_dmu_map: dict of (float, float) pairs, default None
-        A dictionary that maps each temperature to the estimated the chemical
-        potential difference between all metal pairs (e.g. obtained from bulk GE-EMC 
-        simulations). Note that the keys must be in the form of 'A2B' which represents
-        mu_B - mu_A, must consider all possible metal pairs, and the metal element 
-        order must follow the order in the metal_element_pool. Only needed if the free 
-        energy bias weight is applied. Default is None, which is only suitable for 
-        surface EMC simulations with fixed surface metal composition.
+        A dictionary that maps each temperature to the estimated the 
+        chemical potential difference between all metal pairs (e.g. 
+        obtained from bulk GE-EMC simulations). Note that the keys 
+        must be in the form of 'A2B' which represents mu_B - mu_A, 
+        must consider all possible metal pairs, and the metal element 
+        order must follow the order in the metal_element_pool. Only 
+        needed if the free energy bias weight is applied. Default is 
+        None, which is only suitable for surface EMC simulations with 
+        fixed surface metal composition.
 
     max_relax_steps: int, default 300
         Maximum number of ionic steps to perform on relaxing the
@@ -320,7 +321,8 @@ def calculate_surface_fitness(
 
     update_relaxed_positions: bool, default False
         Wheter to update the atom position of the trajectory after
-        geometry relaxation. Recommended to set to False.
+        geometry relaxation. Recommended to set to False. Useful to
+        set to True for e.g. generating relaxed structures.
 
     neighbor_cutoff: float, default 2.5
         Cutoff (Å) for identify neighboring metal atoms to track
