@@ -41,72 +41,72 @@ def generate_population(
 
     Parameters
     ----------
-        template: ase.Atoms object
-            Template structure for generating the initial randomized EMC population.
+    template: ase.Atoms object
+        Template structure for generating the initial randomized EMC population.
 
-        pop_size: int 
-            The number of random configurations to generate in the population.
+    pop_size: int 
+        The number of random configurations to generate in the population.
 
-        target_metal_species: list of strs, default None
-            A list of possible metal species to randomly present in the catalyst. 
-            Default None will not randomize metal atoms.
+    target_metal_species: list of strs, default None
+        A list of possible metal species to randomly present in the catalyst. 
+        Default None will not randomize metal atoms.
 
-        target_metal_composition: dict of (str, float) pairs, default None
-            A dictionary that maps each metal species to the corresponding concentrations.
-            Default None will not fix the composition when randomizing metal atoms.
+    target_metal_composition: dict of (str, float) pairs, default None
+        A dictionary that maps each metal species to the corresponding concentrations.
+        Default None will not fix the composition when randomizing metal atoms.
 
-        target_nonmetal_species: list or strs, default None 
-            A list of possible non-metal species to randomly present in the catalyst.
-            Default None will not randomize non-metal atoms.
+    target_nonmetal_species: list or strs, default None 
+        A list of possible non-metal species to randomly present in the catalyst.
+        Default None will not randomize non-metal atoms.
 
-        target_nonmetal_composition: dict of (str, float) pairs, default None
-            A dictionary that maps each non-metal species to the corresponding 
-            concentrations. Default None will not fix the composition when randomizing 
-            non-metal atoms.
+    target_nonmetal_composition: dict of (str, float) pairs, default None
+        A dictionary that maps each non-metal species to the corresponding 
+        concentrations. Default None will not fix the composition when randomizing 
+        non-metal atoms.
 
-        allowed_indices: list of ints, default None
-            A list of atom indices that are allowed to mutate in the randomizatino. 
-            Default None will allow all atom indices to mutate.
+    allowed_indices: list of ints, default None
+        A list of atom indices that are allowed to mutate in the randomizatino. 
+        Default None will allow all atom indices to mutate.
 
-        valences: dict of (str, int) pairs, default None
-            A dictionary that maps the each species to the corresponding charge state 
-            to ensure charge neutrality of the structures.
+    valences: dict of (str, int) pairs, default None
+        A dictionary that maps the each species to the corresponding charge state 
+        to ensure charge neutrality of the structures.
 
-        adsorbate_species: list or strs, default None 
-            A list of possible adsorbate species to randomly adsorb on the catalyst 
-            surface. Default None will not add any adsorbate species.
-            
-        adsorbate_coverage: float, default None
-            Fix to this surface coverage (in ML, divided by the number of surface metal 
-            atoms) when adding adsorbate species.
+    adsorbate_species: list or strs, default None 
+        A list of possible adsorbate species to randomly adsorb on the catalyst 
+        surface. Default None will not add any adsorbate species.
+        
+    adsorbate_coverage: float, default None
+        Fix to this surface coverage (in ML, divided by the number of surface metal 
+        atoms) when adding adsorbate species.
 
-        adsorbate_adsorbate_dmin: float, defeault None 
-            The radius of the sphere inside which no other adsorbates should be found.
+    adsorbate_adsorbate_dmin: float, defeault None 
+        The radius of the sphere inside which no other adsorbates should be found.
 
-        max_adsorbate_species: int, default None 
-            The maximum allowed types of adsorbate species (excluding vacancies) for a 
-            single structure. Allow all adsorbatae species if not specified.
+    max_adsorbate_species: int, default None 
+        The maximum allowed types of adsorbate species (excluding vacancies) for a 
+        single structure. Allow all adsorbatae species if not specified.
 
-        adsorption_sites: acat.adsorption_sites.SlabAdsorptionSites object or the corresponding pickle file path, default None
-            Provide the ACAT built-in adsorption sites class to accelerate the adlayer 
-             pattern generation.
+    adsorption_sites: acat.adsorption_sites.SlabAdsorptionSites object or the corresponding pickle file path, default None
+        Provide the ACAT built-in adsorption sites class to accelerate the adlayer 
+         pattern generation.
 
-        adsorption_dict: dict, default {}
-             ACAT SlabAdsorptionSites parameters for identifying adsorption sites.
+    adsorption_dict: dict, default {}
+         ACAT SlabAdsorptionSites parameters for identifying adsorption sites.
 
-        symmetry_constraint: bool, default False
-            Whether to apply symmetry constraint. Currently only support generating 
-            symmetric slabs.
+    symmetry_constraint: bool, default False
+        Whether to apply symmetry constraint. Currently only support generating 
+        symmetric slabs.
 
-        symmetry_dict: dict, default {}
-            ACAT SymmetricSlabOrderingGenerator paramters for generating symmetric slabs.
+    symmetry_dict: dict, default {}
+        ACAT SymmetricSlabOrderingGenerator paramters for generating symmetric slabs.
 
-        trajectory: str, default None 
-            Path for saving the structures in the inital population. Default None will
-            only return the list of structures but not writing them.
+    trajectory: str, default None 
+        Path for saving the structures in the inital population. Default None will
+        only return the list of structures but not writing them.
 
-        seed: int, default None 
-            Random seed for reproducibility.
+    seed: int, default None 
+        Random seed for reproducibility.
 
     """
 
