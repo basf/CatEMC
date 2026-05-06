@@ -18,7 +18,6 @@ import os
 def generate_population(
         template,
         pop_size,
-        input_type='slab',
         target_metal_species=None,
         target_metal_composition=None,
         target_nonmetal_species=None,
@@ -36,45 +35,81 @@ def generate_population(
         trajectory=None,
         append_trajectory=False,
         seed=None):
-    """
-    Generate a population of random bulk/slab configurations.
 
-    inputs:
-        structures (list): a list of structures (ase.Atoms or pymatgen.core.Structure) 
-                         as the initial GA population. Generate random structures if
-                         the structures are not provided (or complete the population 
-                         if only part of structures are provided).
-        pop_size (int): GA population size
-        target_metal_species (list or str): a list of possible metal species to present
-                         in the catalyst.
-        target_metal_composition (dict): a dictionary that maps each metal species to
-                         the corresponding concentration.
-        target_nonmetal_species (list or str): a list of possible non-metal species to 
-                         present in the catalyst.
-        target_nonmetal_composition (dict): a dictionary that maps each non-metal 
-                         species to the corresponding concentrations.
-        allowed_indices (list): a list of atom indices that are allowed to mutate.
-        valences (dict): a dictionary that maps the each species to the corresponding 
-                         charge state to ensure charge neutrality of the structures.
-        adsorbate_species (list or str): a list of possible adsorbate species to adsorb
-                         on the catalyst surface.
-        adsorbate_coverage (float): fix to this adsorbate coverage.
-        adsorbate_adsorbate_dmin (float): the radius of the sphere inside which no other 
-                         adsorbates should be found. 
-        max_adsorbate_species (int): the maximum allowed types of adsorbate species 
-                         (excluding vacancies) for a single structure. Allow all 
-                         adsorbatae species if not specified.
-        adsorption_sites (acat.adsorption_sites.Cluster/SlabAdsorptionSites object or 
-                         the corresponding pickle file path, default None): provide the 
-                         ACAT built-in adsorption sites class to accelerate the adlayer 
-                         pattern generation.
-        adsorption_dict (dict): parameters for identifying adsorption sites.
-        symmetry_constraint (bool): whether to apply symmetry constraint. Currently only
-                         support generating symmetric clusters.
-        symmetry_dict (bool): paramters for generating symmetric clusters.
-        trajectory (str): path for saving the structures in the inital population.
-        seed (int): random seed for reproducibility. 
     """
+    Generate an EMC population of random bulk/slab configurations.
+
+    Parameters
+    ----------
+        template: ase.Atoms object
+            Template structure for generating the initial randomized EMC population.
+
+        pop_size: int 
+            The number of random configurations to generate in the population.
+
+        target_metal_species: list of strs, default None
+            A list of possible metal species to randomly present in the catalyst. 
+            Default None will not randomize metal atoms.
+
+        target_metal_composition: dict of (str, float) pairs, default None
+            A dictionary that maps each metal species to the corresponding concentrations.
+            Default None will not fix the composition when randomizing metal atoms.
+
+        target_nonmetal_species: list or strs, default None 
+            A list of possible non-metal species to randomly present in the catalyst.
+            Default None will not randomize non-metal atoms.
+
+        target_nonmetal_composition: dict of (str, float) pairs, default None
+            A dictionary that maps each non-metal species to the corresponding 
+            concentrations. Default None will not fix the composition when randomizing 
+            non-metal atoms.
+
+        allowed_indices: list of ints, default None
+            A list of atom indices that are allowed to mutate in the randomizatino. 
+            Default None will allow all atom indices to mutate.
+
+        valences: dict of (str, int) pairs, default None
+            A dictionary that maps the each species to the corresponding charge state 
+            to ensure charge neutrality of the structures.
+
+        adsorbate_species: list or strs, default None 
+            A list of possible adsorbate species to randomly adsorb on the catalyst 
+            surface. Default None will not add any adsorbate species.
+            
+        adsorbate_coverage: float, default None
+            Fix to this surface coverage (in ML, divided by the number of surface metal 
+            atoms) when adding adsorbate species.
+
+        adsorbate_adsorbate_dmin: float, defeault None 
+            The radius of the sphere inside which no other adsorbates should be found.
+
+        max_adsorbate_species: int, default None 
+            The maximum allowed types of adsorbate species (excluding vacancies) for a 
+            single structure. Allow all adsorbatae species if not specified.
+
+        adsorption_sites: acat.adsorption_sites.SlabAdsorptionSites object or the corresponding pickle file path, default None
+            Provide the ACAT built-in adsorption sites class to accelerate the adlayer 
+             pattern generation.
+
+        adsorption_dict: dict, default {}
+             ACAT SlabAdsorptionSites parameters for identifying adsorption sites.
+
+        symmetry_constraint: bool, default False
+            Whether to apply symmetry constraint. Currently only support generating 
+            symmetric slabs.
+
+        symmetry_dict: dict, default {}
+            ACAT SymmetricSlabOrderingGenerator paramters for generating symmetric slabs.
+
+        trajectory: str, default None 
+            Path for saving the structures in the inital population. Default None will
+            only return the list of structures but not writing them.
+
+        seed: int, default None 
+            Random seed for reproducibility.
+
+    """
+
     if seed is None:
         seed = random.randrange(sys.maxsize)
     random.seed(seed)
@@ -117,26 +152,20 @@ def generate_population(
                       trajectory='metal_orderings.traj')
             gen.run(num_gen=ngen)
         else:
-            if input_type in ['cluster']:
+            """
+            if input_type == 'cluster':
                 from acat.build.ordering import SymmetricClusterOrderingGenerator as SCOG
-                symmetry_dict['atoms'] = metal_atoms
-                symmetry_dict['elements'] = target_metal_species
-                symmetry_dict['composition'] = target_metal_composition
-                symmetry_dict['trajectory'] = 'metal_orderings.traj'
-                symmetry_dict['save_groups'] = True
-                gen = SCOG(**symmetry_dict)
-                gen.run(max_gen=ngen)
-            elif input_type in ['slab', 'slab+ads', 'surface']:
+            elif input_type == 'slab':
                 from acat.build.ordering import SymmetricSlabOrderingGenerator as SSOG
-                symmetry_dict['atoms'] = metal_atoms
-                symmetry_dict['elements'] = target_metal_species
-                symmetry_dict['composition'] = target_metal_composition
-                symmetry_dict['trajectory'] = 'metal_orderings.traj'
-                symmetry_dict['save_groups'] = True
-                gen = SSOG(**symmetry_dict)
-                gen.run(max_gen=ngen)
-            else:
-                raise NotImplementedError
+            """
+            from acat.build.ordering import SymmetricSlabOrderingGenerator as SSOG
+            symmetry_dict['atoms'] = metal_atoms
+            symmetry_dict['elements'] = target_metal_species
+            symmetry_dict['composition'] = target_metal_composition
+            symmetry_dict['trajectory'] = 'metal_orderings.traj'
+            symmetry_dict['save_groups'] = True
+            gen = SSOG(**symmetry_dict)
+            gen.run(max_gen=ngen)
         gen_images = read('metal_orderings.traj', index=':')
         if nonmetal_ids:
             gen_images = [(a + nonmetal_atoms)[sorted_ids] for a in gen_images]
@@ -280,12 +309,15 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
 
     Parameters
     ----------
-    input_pop : list of ase.Atoms
+    input_pop : list of ase.Atoms objects
         Replicas to assign.
+
     reaction_conditions : np.ndarray
         Shape (n_points, n_cols). Each row is a mu-point.
-    element_column_map : dict
+
+    element_column_map : dict of (str, int) pairs
         Mapping from non-metal element name to its mu-column index.
+
     round_decimals : int
         Number of decimals used when storing the representative mu center.
 
