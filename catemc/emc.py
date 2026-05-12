@@ -466,7 +466,12 @@ class EMC(object):
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
                     if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
                         continue
+                    do_metal = False
                     if self.nonmetal_element_pool is None:
+                        do_metal = True
+                    elif len([s for s in set(parents[0].symbols) if s in self.nonmetal_element_pool]) < 2:
+                        do_metal = True
+                    if do_metal:
                         allowed_indices = self.mutable_metal_indices
                         element_pools = self.metal_element_pool
                     else:
