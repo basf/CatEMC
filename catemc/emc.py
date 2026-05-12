@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Algorithm for canonical evolutionary Monte Carlo (EMC) run"""
+"""Algorithm for NVT/NPT evolutionary Monte Carlo (EMC) run"""
 from .emc_population import EMCPopulation
 from .emc_operators import (
         EMCCutSpliceCrossover,
@@ -23,7 +23,7 @@ import os
 class EMC(object):
 
     """
-    Main algorithm for canonical evolutionary Monte Carlo (EMC).
+    Main algorithm for standard NVT or NPT evolutionary Monte Carlo (EMC).
 
     Parameters
     ----------
@@ -47,6 +47,10 @@ class EMC(object):
     trim_generation: int, default 100
         To trim database (with backup) every N steps. The database file would be
         too large and adding new data would be too slow without trimming.
+
+    pressure: float, default None
+        The common pressure target to perform NPT EMC MD and cell relaxation.
+        If this is not set, run NVT EMC without changing cell volumes.
 
     md_generation: int, default 10
         To perform molecular dynamics every N steps.
@@ -114,6 +118,7 @@ class EMC(object):
             input_pop,
             fix_indices=None,
             trim_generation=100,
+            pressure=None,
             md_generation=10,
             exchange_generation=1,
             crossover_rate=0.,
@@ -138,6 +143,7 @@ class EMC(object):
         self.input_pop = input_pop
         self.fix_indices = fix_indices
         self.trim_generation = trim_generation
+        self.pressure = pressure
         self.md_generation = md_generation
         self.exchange_generation = exchange_generation
         self.crossover_rate = crossover_rate
@@ -495,15 +501,16 @@ class EMC(object):
                     relaxed_offspring1.info['key_value_pairs']['emc_step'] = gen_num + gi
                     relaxed_offspring2.info['key_value_pairs']['emc_step'] = gen_num + gi
                     relaxed_candidates += self.pop.evaluate_offsprings(
-                            parents, [relaxed_offspring1, relaxed_offspring2], 
-                            raw_score_cutoff=self.raw_score_cutoff)
+                            parents, [relaxed_offspring1, relaxed_offspring2],
+                            pressure=self.pressure, raw_score_cutoff=self.raw_score_cutoff)
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
                     relaxed_offspring = relaxed_offsprings[replicas.index(rep)]
                     relaxed_offspring.info['data']['operation'] = parents[0].info['data']['for_operation']
                     relaxed_offspring.info['key_value_pairs']['emc_step'] = gen_num + gi
                     relaxed_candidates += self.pop.evaluate_offsprings(
-                            parents, [relaxed_offspring], raw_score_cutoff=self.raw_score_cutoff)
+                            parents, [relaxed_offspring], pressure=self.pressure, 
+                            raw_score_cutoff=self.raw_score_cutoff)
 
             # Update the population to allow new candidates to enter
             self.dc.add_more_relaxed_candidates(relaxed_candidates)
