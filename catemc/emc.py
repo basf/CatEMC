@@ -361,6 +361,8 @@ class EMC(object):
                 kwargs = {self.temperature_key: atoms.info['key_value_pairs'][self.temperature_key], 
                           self.replica_key: atoms.info['key_value_pairs'][self.replica_key],
                           self.acceptance_key: 0}
+                if self.category_key is not None:
+                    kwargs[self.category_key] = atoms.info['key_value_pairs'][self.category_key]
                 asedb.add_unrelaxed_candidate(atoms, 
                         emc_step=atoms.info['key_value_pairs']['emc_step'],
                         data=atoms.info['data'],
@@ -449,6 +451,9 @@ class EMC(object):
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                         offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
                         offsprings[idx].info['key_value_pairs'][self.replica_key] = rep
+                        if self.category_key is not None:
+                            offsprings[idx].info['key_value_pairs'][self.category_key] = \
+                                    parents[idx].info['key_value_pairs'][self.category_key]
                         write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
@@ -470,6 +475,9 @@ class EMC(object):
                         warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                     offspring.info['key_value_pairs'][self.temperature_key] = parents[0].info['key_value_pairs'][self.temperature_key]
                     offspring.info['key_value_pairs'][self.replica_key] = rep
+                    if self.category_key is not None:
+                        offspring.info['key_value_pairs'][self.category_key] = \
+                                parents[0].info['key_value_pairs'][self.category_key]
                     write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
