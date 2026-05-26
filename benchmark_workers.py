@@ -161,20 +161,21 @@ def run_subprocess_benchmark(n_generations, population):
 
 def load_population():
     """Load the initial population from the production run."""
-    pop_file = f"{POPULATION_DIR}/tmp_Cu0.1Ru0.9Ox_pet/emc_0.traj"
+    tmp_dir = f"{POPULATION_DIR}/tmp_Cu0.1Ru0.9Ox_pet_productionrun_bulk"
+    pop_file = f"{tmp_dir}/atoms_0.traj"
     if os.path.exists(pop_file):
         # Read last frame from each replica's trajectory
         pop = []
         for i in range(48):
-            traj_file = f"{POPULATION_DIR}/tmp_Cu0.1Ru0.9Ox_pet/emc_{i}.traj"
+            traj_file = f"{tmp_dir}/atoms_{i}.traj"
             if os.path.exists(traj_file):
                 atoms = read(traj_file, index=-1)
                 pop.append(atoms)
         if pop:
             return pop
     
-    # Fallback: read from initial population
-    init_file = f"{POPULATION_DIR}/initial_population.traj"
+    # Fallback: read from input population traj
+    init_file = f"{POPULATION_DIR}/Cu0.1Ru0.9Ox_pet_productionrun_bulk_input_pop.traj"
     if os.path.exists(init_file):
         return read(init_file, index=':')
     

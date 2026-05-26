@@ -43,6 +43,77 @@ A typical GC/GE-EMC campaign follows these steps:
 
 ---
 
+## Persistent Worker Pool (Performance Mode)
+
+CatEMC supports a **persistent worker pool** that eliminates the subprocess
+spawn + model reload overhead, achieving **~35× speedup** over the default
+subprocess mode on GPU-accelerated MLIP models.
+
+| Mode | Time per generation (48 replicas) | Throughput |
+|------|-----------------------------------|------------|
+| Subprocess (default) | ~41s | 1.1 struct/s |
+| **Worker pool** | **~1.2s** | **25.5 struct/s** |
+
+### How it works
+
+Instead of spawning a new subprocess per replica (each reloading the ML model
+from disk), the worker pool starts N persistent processes that load the model
+**once** at startup and stay alive across all generations.
+
+### Usage
+
+```python
+from catemc.worker_pool import WorkerPool
+from catemc.geemc import GEEMC
+from ase import units
+
+# Define a calculator factory (module must be importable by workers)
+# Example: create a file my_calc_factory.py with:
+#   def create_calculators():
+#       from nequip.integrations.ase import NequIPCalculator
+#       return [NequIPCalculator.from_compiled_model("model.pt2", device="cuda")]
+
+fitness_kwargs = {
+    'fmax_list': [0.10],
+    'target_metal_species': ['Cu', 'Ru'],
+    'md_timestep': 1 * units.fs,
+    'md_taut': 0.5 * 1000 * units.fs,
+    'md_steps': 200,
+    'md_write_interval': 10,
+    'max_relax_steps': 100,
+    'neighbor_cutoff': 3.5,
+    'raw_score_cutoff': -10000.,
+    'temperature_key': 'temperature',
+    'replica_key': 'replica',
+}
+
+pool = WorkerPool(
+    calculator_factory_module='my_calc_factory',
+    calculator_factory_func='create_calculators',
+    fitness_func_module='catemc.calculation_templates',
+    fitness_func_name='calculate_bulk_fitness_inprocess',
+    fitness_kwargs=fitness_kwargs,
+    num_workers=20,
+    gpu_devices=[0],
+)
+
+# Pass worker_pool to GEEMC/GCEMC/EMC — bypasses subprocess spawning
+geemc = GEEMC(..., worker_pool=pool)
+geemc.run(n_generations=5000)
+pool.shutdown()
+```
+
+### When to use
+
+- **Large models** (NequIP, Allegro, MACE, PET) where model loading takes >1s
+- **Many replicas** (>10) where subprocess spawn overhead dominates
+- **Long runs** (>100 generations) where one-time startup cost is amortized
+
+For details and benchmark methodology, see
+[`tests/benchmark_worker_pool/README.md`](tests/benchmark_worker_pool/README.md).
+
+---
+
 ## GE-EMC (bulk) — structure generation
 
 Generates a set of `pop_size` initial on-lattice bulk replicas (`ase.Atoms`) that have their composition consistent with your target composition. The function `catemc.generate.generate_population()` can return a list of randomized `ase.Atoms` objects that suffices the requirement. You should save these to a structure file and inspect visually before running any production GE-EMC.
