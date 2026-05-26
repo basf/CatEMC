@@ -19,6 +19,8 @@ import time
 import sys
 import os
 
+from .worker_pool import WorkerPool
+
 
 class EMC(object):
 
@@ -135,6 +137,7 @@ class EMC(object):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
+            worker_pool=None,
             verbose=True):
 
         self.name = name
@@ -160,6 +163,7 @@ class EMC(object):
         self.gpu_devices = gpu_devices
         self.procs_per_device = procs_per_device
         self.batching = batching
+        self.worker_pool = worker_pool
         self.verbose = verbose
 
     def get_pop(self):
@@ -228,6 +232,16 @@ class EMC(object):
     def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None, batching=False):
 
         replicas = [c.info['key_value_pairs'][self.replica_key] for c in unrelaxed_candidates]
+        
+        # Fast path: use persistent worker pool if available
+        if self.worker_pool is not None:
+            results = self.worker_pool.evaluate(
+                unrelaxed_candidates,
+                run_md=run_md,
+                fix_indices=self.fix_indices,
+            )
+            return results
+
         if self.fix_indices is None:
             fix_indices_str = 'None'
         else:

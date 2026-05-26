@@ -290,6 +290,7 @@ class GCEMC(EMC):
             gpu_devices=None,
             procs_per_device=1,
             batching=False,
+            worker_pool=None,
             verbose=True):
 
         super().__init__(
@@ -312,6 +313,7 @@ class GCEMC(EMC):
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
                 batching=batching,
+                worker_pool=worker_pool,
                 verbose=verbose)
 
         self.mu_walk_generation = mu_walk_generation
