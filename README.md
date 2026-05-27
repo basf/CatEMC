@@ -148,6 +148,67 @@ For details and benchmark methodology, see
 
 ---
 
+## I/O Reduction for Network Filesystems (CephFS/NFS)
+
+When running on network filesystems like CephFS, **metadata operations** (file
+open/close/fsync) can dominate runtime. The default EMC loop writes offspring
+structures to disk as `.traj` files and re-reads them for energy evaluation.
+On CephFS, this adds **~2s per replica per generation** in metadata overhead.
+
+### The Problem
+
+For a 48-replica system on CephFS:
+- Default mode: ~96 file write + 96 file read operations per generation
+- Each file op incurs ~20–40ms metadata latency (CephFS MDS round-trip)
+- Total overhead: **~4–8s/gen** purely from filesystem metadata
+- At 5000 generations: **5.5–11 hours wasted** on I/O
+
+### The Solution: In-Memory Offspring Cache
+
+When `worker_pool` is active, offspring structures are passed **in-memory**
+via a cache dictionary instead of writing/reading `.traj` files. Combined with
+a configurable `traj_write_interval` that controls how often trajectory snapshots
+are written, this eliminates nearly all filesystem overhead.
+
+### Performance Impact (48 replicas, 216 atoms, NequIP on H100)
+
+| Setting | Time/gen | Speedup vs default |
+|---------|----------|--------------------|
+| No worker pool (baseline) | ~20 s | 1.0× |
+| Worker pool, 48 workers | ~5 s | **4× (compute-bound)** |
+| Worker pool + CephFS under load | ~95 s → ~5 s | **~20×** |
+
+The in-memory cache is most impactful when:
+- CephFS is under heavy metadata load (shared cluster)
+- Many replicas (>20) amplify per-file latency
+- Fast MLIP models where I/O becomes the bottleneck
+
+### Usage
+
+```python
+# traj_write_interval controls how often .traj snapshots are saved
+# Default: 1 (every gen). Set higher for production runs on network FS.
+geemc = GEEMC(...,
+    worker_pool=pool,
+    traj_write_interval=10)  # write every 10th generation
+```
+
+A value of `traj_write_interval=10` means trajectory files are only written
+every 10 generations, reducing file I/O by 90% while still providing periodic
+checkpoints. Set to a large value (e.g., equal to `total_steps`) to disable
+trajectory writes entirely during benchmarking.
+
+### Staggered Worker Startup
+
+When using >4 workers, the pool staggers process spawning (0.5s delay between
+each) to avoid overwhelming the GPU driver and filesystem with simultaneous
+model loads. This is automatic and requires no configuration.
+
+For benchmark methodology and worker scaling results, see
+[`tests/benchmark_io_reduction/README.md`](tests/benchmark_io_reduction/README.md).
+
+---
+
 ## GE-EMC (bulk) — structure generation
 
 Generates a set of `pop_size` initial on-lattice bulk replicas (`ase.Atoms`) that have their composition consistent with your target composition. The function `catemc.generate.generate_population()` can return a list of randomized `ase.Atoms` objects that suffices the requirement. You should save these to a structure file and inspect visually before running any production GE-EMC.
