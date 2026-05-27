@@ -147,7 +147,9 @@ class WorkerPool:
         self.result_queue = ctx.Queue()
         self.workers = []
         
-        # Spawn workers
+        _startup_start = time.time()
+        # Spawn workers with staggered start to avoid CephFS metadata storm
+        _stagger_delay = 0.5 if num_workers > 4 else 0.0
         for i in range(num_workers):
             gpu = self.gpu_devices[i % len(self.gpu_devices)]
             p = ctx.Process(
@@ -162,6 +164,8 @@ class WorkerPool:
             )
             p.start()
             self.workers.append(p)
+            if _stagger_delay and i < num_workers - 1:
+                time.sleep(_stagger_delay)
         
         # Wait for all workers to signal ready
         ready_count = 0
@@ -188,7 +192,9 @@ class WorkerPool:
                         )
         
         print(f"WorkerPool: {num_workers} workers ready "
-              f"(GPUs: {self.gpu_devices})")
+              f"(GPUs: {self.gpu_devices}, startup took {time.time() - _startup_start:.1f}s)")
+
+
     
     def evaluate(self, atoms_list, run_md=False, fix_indices=None, extra_kwargs=None):
         """Submit atoms for evaluation and collect results.
