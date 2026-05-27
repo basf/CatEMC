@@ -18,6 +18,8 @@ import shutil
 import time
 import sys
 import os
+import copy
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from .worker_pool import WorkerPool
@@ -169,6 +171,8 @@ class EMC(object):
         self.worker_pool = worker_pool
         self.traj_write_interval = traj_write_interval
 
+        self._traj_writer = ThreadPoolExecutor(max_workers=2, thread_name_prefix="traj_writer")
+        self._traj_futures = []
         if self.worker_pool is None and self.calculation_script is None:
             raise ValueError('calculation_script is required when not using a worker_pool')
 
@@ -189,6 +193,12 @@ class EMC(object):
                 verbose=self.verbose)
 
         return pop
+
+    def _flush_traj_writes(self):
+        """Wait for any pending async traj writes to complete."""
+        for f in self._traj_futures:
+            f.result()  # raises if write failed
+        self._traj_futures.clear()
 
     def trim_asedb(self):
 
@@ -442,6 +452,7 @@ class EMC(object):
         gi = 0
         while gen_num + gi <= total_steps:
             if (gen_num + gi) % self.trim_generation == 0:
+                self._flush_traj_writes()
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
@@ -557,9 +568,19 @@ class EMC(object):
                     self.pop.exchange(keep_composition=True)
             
             if (gen_num + gi) % self.traj_write_interval == 0:
-                for atoms in self.pop.pop:
-                    rep = atoms.info['key_value_pairs'][self.replica_key]
-                    traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                    traj.write(atoms)
+                # Async traj write: deep-copy atoms and submit to background thread
+                pop_snapshot = [(copy.deepcopy(atoms), atoms.info['key_value_pairs'][self.replica_key]) for atoms in self.pop.pop]
+                calc_dir = self.calculation_dir
+                name = self.name
+                def _write_trajs(snapshot, calc_dir=calc_dir, name=name):
+                    for atoms_copy, rep in snapshot:
+                        traj = Trajectory(f'{calc_dir}/tmp_{name}/emc_{rep}.traj', 'a')
+                        traj.write(atoms_copy)
+                # Prune completed futures
+                self._traj_futures = [f for f in self._traj_futures if not f.done()]
+                self._traj_futures.append(self._traj_writer.submit(_write_trajs, pop_snapshot))
 
             gi += 1
+
+        # Flush any pending async traj writes before returning
+        self._flush_traj_writes()
