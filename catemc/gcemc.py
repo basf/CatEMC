@@ -291,6 +291,7 @@ class GCEMC(EMC):
             procs_per_device=1,
             batching=False,
             worker_pool=None,
+            traj_write_interval=1,
             verbose=True):
 
         super().__init__(
@@ -314,6 +315,7 @@ class GCEMC(EMC):
                 procs_per_device=procs_per_device,
                 batching=batching,
                 worker_pool=worker_pool,
+                traj_write_interval=traj_write_interval,
                 verbose=verbose)
 
         self.mu_walk_generation = mu_walk_generation

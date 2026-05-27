@@ -18,6 +18,7 @@ import shutil
 import time
 import sys
 import os
+from datetime import datetime
 
 from .worker_pool import WorkerPool
 
@@ -35,9 +36,10 @@ class EMC(object):
     calculation_dir: str
         Path of the calculation directory.
 
-    calculation_script: str
+    calculation_script: str, default None
         The name of the Python script for calculating the fitness of each
         configuration. The script must be inside calculation_dir.
+        Only required when using subprocess mode (no worker_pool).
 
     input_pop: list of ase.Atoms objects
         Input population for the EMC run.
@@ -116,8 +118,8 @@ class EMC(object):
 
     def __init__(self, name,
             calculation_dir,
-            calculation_script,
             input_pop,
+            calculation_script=None,
             fix_indices=None,
             trim_generation=100,
             pressure=None,
@@ -138,6 +140,7 @@ class EMC(object):
             procs_per_device=10,
             batching=False,
             worker_pool=None,
+            traj_write_interval=1,
             verbose=True):
 
         self.name = name
@@ -164,6 +167,11 @@ class EMC(object):
         self.procs_per_device = procs_per_device
         self.batching = batching
         self.worker_pool = worker_pool
+        self.traj_write_interval = traj_write_interval
+
+        if self.worker_pool is None and self.calculation_script is None:
+            raise ValueError('calculation_script is required when not using a worker_pool')
+
         self.verbose = verbose
 
     def get_pop(self):
@@ -428,6 +436,7 @@ class EMC(object):
             self.crossover_rate /= rates_sum
 
         start_time = time.perf_counter()
+        _last_gen_time = time.perf_counter()
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
@@ -437,7 +446,8 @@ class EMC(object):
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
                 parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
-            parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
+            _now = time.perf_counter(); _elapsed = _now - _last_gen_time; _last_gen_time = _now
+            parprint(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Creating and evaluating generation {gen_num + gi} (elapsed: {_elapsed:.1f}s)')
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
@@ -448,6 +458,7 @@ class EMC(object):
                 self.dc.add_more_relaxed_candidates(relaxed_candidates) 
                 self.pop.update()
 
+            _offspring_cache = {}  # in-memory offspring cache
             n_crossover_pairs = round((self.pop_size * self.crossover_rate) / 2)
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs=0)
             for parents in all_parents:
@@ -474,7 +485,9 @@ class EMC(object):
                         if self.category_key is not None:
                             offsprings[idx].info['key_value_pairs'][self.category_key] = \
                                     parents[idx].info['key_value_pairs'][self.category_key]
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
+                        _offspring_cache[rep] = offsprings[idx]
+                        if self.worker_pool is None:
+                            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
@@ -503,10 +516,15 @@ class EMC(object):
                     if self.category_key is not None:
                         offspring.info['key_value_pairs'][self.category_key] = \
                                 parents[0].info['key_value_pairs'][self.category_key]
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
+                    _offspring_cache[rep] = offspring
+                    if self.worker_pool is None:
+                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
+            if self.worker_pool is not None:
+                unrelaxed_offsprings = [_offspring_cache[rep] for rep in replicas]
+            else:
+                unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
             relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
@@ -538,9 +556,10 @@ class EMC(object):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(keep_composition=True)
             
-            for atoms in self.pop.pop:
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                traj.write(atoms)
+            if (gen_num + gi) % self.traj_write_interval == 0:
+                for atoms in self.pop.pop:
+                    rep = atoms.info['key_value_pairs'][self.replica_key]
+                    traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
+                    traj.write(atoms)
 
             gi += 1

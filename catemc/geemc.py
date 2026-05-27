@@ -16,6 +16,7 @@ import random
 import shutil
 import time
 import os
+from datetime import datetime
 
 
 class GEEMC(EMC):
@@ -150,6 +151,7 @@ class GEEMC(EMC):
             procs_per_device=10,
             batching=False,
             worker_pool=None,
+            traj_write_interval=1,
             verbose=True):
 
         super().__init__(
@@ -174,6 +176,7 @@ class GEEMC(EMC):
                 procs_per_device=procs_per_device,
                 batching=batching,
                 worker_pool=worker_pool,
+                traj_write_interval=traj_write_interval,
                 verbose=verbose)
 
         self.pressure = pressure
@@ -271,6 +274,7 @@ class GEEMC(EMC):
             self.nonmetal_interswap_rate /= rates_sum
 
         start_time = time.perf_counter()
+        _last_gen_time = time.perf_counter()
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
@@ -280,7 +284,8 @@ class GEEMC(EMC):
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
                 parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
-            parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
+            _now = time.perf_counter(); _elapsed = _now - _last_gen_time; _last_gen_time = _now
+            parprint(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Creating and evaluating generation {gen_num + gi} (elapsed: {_elapsed:.1f}s)')
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
