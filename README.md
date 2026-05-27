@@ -43,6 +43,111 @@ A typical GC/GE-EMC campaign follows these steps:
 
 ---
 
+## Persistent Worker Pool (Performance Mode)
+
+CatEMC supports a **persistent worker pool** that eliminates the subprocess
+spawn + model reload overhead, achieving **3–22× speedup** over the default
+subprocess mode on GPU-accelerated MLIP models (up to **500×** for fast models
+in long production runs).
+
+![Worker Pool Benchmark](images/worker_pool_benchmark.png)
+
+### Measured Performance (NVIDIA A100-40GB, 216-atom system)
+
+| Model | Subprocess (per gen) | Worker Pool (per gen) | Overhead eliminated | Speedup at 300 gen |
+|-------|---------------------|----------------------|--------------------|--------------------|
+| **MACE** | 16.3s | 4.7s | 11.6s (71%) | 3.5× |
+| **PET** | 18.4s | 4.7s | 13.6s (74%) | 3.9× |
+| **NequIP** | 6.2s | 0.054s | 6.1s (99%) | 67× |
+
+**Projected savings for production EMC campaigns:**
+
+| Model | 500 generations | 1500 generations |
+|-------|----------------|-----------------|
+| **MACE** | 2.3h → 0.7h (saves 1.6h) | 6.8h → 2.0h (saves 4.8h) |
+| **PET** | 2.5h → 0.7h (saves 1.9h) | 7.6h → 2.0h (saves 5.7h) |
+| **NequIP** | 0.9h → 8s (saves 0.8h) | 2.6h → 18s (saves 2.5h) |
+
+### How it works
+
+Instead of spawning a new subprocess per replica (each reloading the ML model
+from disk), the worker pool starts N persistent processes that load the model
+**once** at startup and stay alive across all generations.
+
+### Usage
+
+```python
+from catemc.worker_pool import WorkerPool
+from catemc.geemc import GEEMC
+from ase import units
+
+# Define a calculator factory (module must be importable by workers)
+# Example: create a file my_calc_factory.py with:
+#   def create_calculators():
+#       from nequip.integrations.ase import NequIPCalculator
+#       return [NequIPCalculator.from_compiled_model("model.pt2", device="cuda")]
+
+fitness_kwargs = {
+    'fmax_list': [0.10],
+    'target_metal_species': ['Cu', 'Ru'],
+    'md_timestep': 1 * units.fs,
+    'md_taut': 0.5 * 1000 * units.fs,
+    'md_steps': 200,
+    'md_write_interval': 10,
+    'max_relax_steps': 100,
+    'neighbor_cutoff': 3.5,
+    'raw_score_cutoff': -10000.,
+    'temperature_key': 'temperature',
+    'replica_key': 'replica',
+}
+
+pool = WorkerPool(
+    calculator_factory_module='my_calc_factory',
+    calculator_factory_func='create_calculators',
+    fitness_func_module='catemc.calculation_templates',
+    fitness_func_name='calculate_bulk_fitness_inprocess',
+    fitness_kwargs=fitness_kwargs,
+    num_workers=20,
+    gpu_devices=[0],
+)
+
+# Pass worker_pool to GEEMC/GCEMC/EMC — bypasses subprocess spawning
+geemc = GEEMC(..., worker_pool=pool)
+geemc.run(n_generations=5000)
+pool.shutdown()
+```
+
+### Quick start (command-line switch)
+
+The example scripts support `--mode worker_pool` to enable persistent workers
+with no other code changes:
+
+```bash
+# Old way (subprocess, slower):
+python geemc_run.py 0 20
+
+# New way (worker pool, 3-22× faster):
+python geemc_run.py 0 20 --mode worker_pool --calc-factory calc_factory
+```
+
+You only need to provide a `calc_factory.py` module with a `create_calculators()`
+function that returns your ASE calculator(s). See
+[`examples/.../bulk/geemc_run.py`](examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/geemc_run.py)
+for a complete run script with `--mode` support, and
+[`examples/.../bulk/calc_factory.py`](examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/calc_factory.py)
+for a calculator factory template.
+
+### When to use
+
+- **Large models** (NequIP, Allegro, MACE, PET) where model loading takes >1s
+- **Many replicas** (>10) where subprocess spawn overhead dominates
+- **Long runs** (>100 generations) where one-time startup cost is amortized
+
+For details and benchmark methodology, see
+[`tests/benchmark_worker_pool/README.md`](tests/benchmark_worker_pool/README.md).
+
+---
+
 ## GE-EMC (bulk) — structure generation
 
 Generates a set of `pop_size` initial on-lattice bulk replicas (`ase.Atoms`) that have their composition consistent with your target composition. The function `catemc.generate.generate_population()` can return a list of randomized `ase.Atoms` objects that suffices the requirement. You should save these to a structure file and inspect visually before running any production GE-EMC.

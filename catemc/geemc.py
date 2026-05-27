@@ -149,6 +149,7 @@ class GEEMC(EMC):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
+            worker_pool=None,
             verbose=True):
 
         super().__init__(
@@ -172,6 +173,7 @@ class GEEMC(EMC):
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
                 batching=batching,
+                worker_pool=worker_pool,
                 verbose=verbose)
 
         self.pressure = pressure

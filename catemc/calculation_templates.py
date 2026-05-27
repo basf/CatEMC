@@ -1191,3 +1191,152 @@ def calculate_batch_surface_fitness(
     pool.map(_postprocess_surface_worker, post_args)
     pool.close()
     pool.join()
+
+
+def calculate_bulk_fitness_inprocess(
+        atoms,
+        calculators,
+        fmax_list,
+        target_metal_species,
+        run_md,
+        md_timestep,
+        md_taut,
+        md_steps,
+        md_write_interval,
+        md_type='berendsen',
+        md_friction=None,
+        pressure=None,
+        md_taup=1000*units.fs,
+        compressibility=5e-5/units.bar,
+        fix_indices=None,
+        max_relax_steps=300,
+        update_md_positions=True,
+        update_relaxed_positions=False,
+        neighbor_cutoff=2.5,
+        raw_score_cutoff=-10000.,
+        temperature_key='temperature',
+        replica_key='replica',
+        optimize_cell=False):
+    """In-process version of calculate_bulk_fitness.
+    
+    Same logic as calculate_bulk_fitness but:
+    - Takes pre-loaded calculators directly (no file-based model loading)
+    - Returns the result Atoms object instead of writing to disk
+    - No traj_path needed
+    
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Structure to evaluate. Must have info['key_value_pairs'] with
+        temperature and replica keys.
+    calculators : list of ASE Calculator
+        Pre-loaded calculators (already on GPU).
+    fmax_list : list of float or None
+        Convergence criteria for each calculator.
+    (other parameters same as calculate_bulk_fitness)
+    
+    Returns
+    -------
+    ase.Atoms
+        The pseudo_atoms result with raw_score set in info.
+    """
+    assert len(calculators) == len(fmax_list)
+    
+    T = atoms.info['key_value_pairs'][temperature_key]
+    rep = atoms.info['key_value_pairs'][replica_key]
+    atoms = rattle_close_atoms(atoms, min_distance=0.1)
+    md_atoms = None
+    penalize = False
+    
+    if fix_indices is None:
+        fix_indices = []
+    else:
+        atoms.set_constraint(FixAtoms(indices=fix_indices))
+    
+    mut_metal_indices = [a.index for a in atoms if (a.index not in fix_indices)
+                         and (a.symbol in target_metal_species)]
+    vac_indices = [a.index for a in atoms if a.symbol == 'X']
+    real_indices = [a.index for a in atoms if a.symbol != 'X']
+    tmp_atoms = atoms[real_indices].copy()
+    
+    for i, calc in enumerate(calculators):
+        fmax = fmax_list[i]
+        is_last = (i == len(calculators) - 1)
+        
+        if not is_last:
+            try:
+                tmp_atoms.calc = calc
+                if fmax is not None:
+                    opt = LBFGS(tmp_atoms, logfile=None)
+                    opt.run(fmax=fmax, steps=max_relax_steps)
+                E0 = tmp_atoms.get_potential_energy()
+            except Exception:
+                tmp_atoms = atoms[real_indices].copy()
+                continue
+            if np.isinf(E0):
+                penalize = True
+                break
+        else:
+            tmp_atoms.calc = calc
+            E0 = tmp_atoms.get_potential_energy()
+            if np.isinf(E0):
+                penalize = True
+                break
+            if run_md:
+                MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
+                Stationary(tmp_atoms)
+                if pressure is None:
+                    if md_type == 'berendsen':
+                        dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                           taut=md_taut, logfile=None)
+                    elif md_type == 'langevin':
+                        dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                       friction=md_friction, logfile=None)
+                else:
+                    if md_type == 'berendsen':
+                        dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                           taut=md_taut, pressure_au=pressure,
+                                           taup=md_taup, compressibility_au=compressibility,
+                                           logfile=None)
+                    elif md_type == 'langevin':
+                        from ase.md.langevinbaoab import LangevinBAOAB
+                        dyn = LangevinBAOAB(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                            T_tau=md_taut, hydrostatic=True, externalstress=pressure,
+                                            logfile=None)
+                dyn.run(md_steps)
+                if update_md_positions:
+                    md_atoms = tmp_atoms.copy()
+            
+            if fmax is not None:
+                if optimize_cell and pressure is not None:
+                    from ase.filters import FrechetCellFilter
+                    filtered = FrechetCellFilter(tmp_atoms)
+                    opt = LBFGS(filtered, logfile=None)
+                else:
+                    opt = LBFGS(tmp_atoms, logfile=None)
+                converged = opt.run(fmax=fmax, steps=max_relax_steps)
+                if not converged:
+                    penalize = True
+    
+    epot = tmp_atoms.get_potential_energy()
+    if penalize:
+        pseudo_atoms = copy.deepcopy(atoms)
+        volume = atoms.get_volume()
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+    else:
+        if (md_atoms is not None) and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
+        elif update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        else:
+            pseudo_atoms = copy.deepcopy(atoms)
+        volume = tmp_atoms.get_volume()
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
+        
+        if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
+            pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+    
+    pseudo_atoms.info['key_value_pairs']['volume'] = volume
+    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
+    
+    return pseudo_atoms

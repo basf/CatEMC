@@ -19,6 +19,8 @@ import time
 import sys
 import os
 
+from .worker_pool import WorkerPool
+
 
 class EMC(object):
 
@@ -33,9 +35,10 @@ class EMC(object):
     calculation_dir: str
         Path of the calculation directory.
 
-    calculation_script: str
+    calculation_script: str, default None
         The name of the Python script for calculating the fitness of each
         configuration. The script must be inside calculation_dir.
+        Only required when using subprocess mode (no worker_pool).
 
     input_pop: list of ase.Atoms objects
         Input population for the EMC run.
@@ -114,8 +117,8 @@ class EMC(object):
 
     def __init__(self, name,
             calculation_dir,
-            calculation_script,
             input_pop,
+            calculation_script=None,
             fix_indices=None,
             trim_generation=100,
             pressure=None,
@@ -135,6 +138,7 @@ class EMC(object):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
+            worker_pool=None,
             verbose=True):
 
         self.name = name
@@ -160,6 +164,11 @@ class EMC(object):
         self.gpu_devices = gpu_devices
         self.procs_per_device = procs_per_device
         self.batching = batching
+        self.worker_pool = worker_pool
+
+        if self.worker_pool is None and self.calculation_script is None:
+            raise ValueError('calculation_script is required when not using a worker_pool')
+
         self.verbose = verbose
 
     def get_pop(self):
@@ -228,6 +237,16 @@ class EMC(object):
     def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None, batching=False):
 
         replicas = [c.info['key_value_pairs'][self.replica_key] for c in unrelaxed_candidates]
+        
+        # Fast path: use persistent worker pool if available
+        if self.worker_pool is not None:
+            results = self.worker_pool.evaluate(
+                unrelaxed_candidates,
+                run_md=run_md,
+                fix_indices=self.fix_indices,
+            )
+            return results
+
         if self.fix_indices is None:
             fix_indices_str = 'None'
         else:
