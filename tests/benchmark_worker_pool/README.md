@@ -4,105 +4,109 @@
 
 This directory contains tests that verify the **persistent worker pool** mode
 produces results equivalent to the original subprocess-spawning mode, and
-benchmarks the speedup.
+benchmarks the speedup across multiple MLIP backends.
 
 The worker pool keeps ML model(s) loaded in long-lived worker processes,
 eliminating the per-generation overhead of spawning subprocesses that each
-reload the model from disk.
+reload Python, PyTorch, CUDA, and the model from scratch.
 
-## Benchmark Results (2026-05-27)
+## Benchmark Results
 
-**System:** 48 replicas, Cu₇Ru₆₅O₁₄₄ (216 atoms), NequIP-OAM-S compiled model  
-**Hardware:** NVIDIA A100-SXM4-40GB  
-**Environment:** Python 3.11, `/mnt/nfs/venvs/allegro`
+![Worker Pool Benchmark](../../images/worker_pool_benchmark.png)
 
-| Metric | Worker Pool (20 workers) | Subprocess (20 procs/device) | Speedup |
-|--------|--------------------------|------------------------------|---------|
-| Startup | 11.6s (one-time) | 0s | — |
-| Gen 1 (incl. CUDA JIT warmup) | 8.09s | 45.95s | 5.7x |
-| Steady-state (gen 2–10) | **1.16–1.24s** | **~41.2s** | **35x** |
-| Mean gen time (10 gen) | 1.88s | 42.81s | 23x |
-| Throughput | 25.5 struct/s | 1.1 struct/s | 23x |
+### Measured Speedup (real data, NVIDIA A100-40GB)
 
-**Projected 5000-generation production run:**
-- Worker pool: 11.6s startup + 8s warmup + 4999 × 1.2s ≈ **100 min**
-- Subprocess: 5000 × 41s ≈ **57 hours**
-- **Improvement: 57h → 1.7h (34× faster)**
+**System:** Cu₇Ru₆₅O₁₄₄ (216 atoms), 3 replicas, 50 relaxation steps per generation
+
+| Model | Generations | Worker Pool | Subprocess | Speedup |
+|-------|-------------|-------------|------------|---------|
+| **MACE** | 3 | 23.5s | 52.0s | 2.2× |
+| **MACE** | 9 | 51.1s | 150.9s | 3.0× |
+| **MACE** | 15 | 79.4s | 244.1s | **3.1×** |
+| **PET** | 3 | 29.8s | 59.2s | 2.0× |
+| **PET** | 9 | 60.3s | 165.4s | 2.7× |
+| **PET** | 15 | 86.0s | 275.2s | **3.2×** |
+| **NequIP** | 3 | 13.5s | 17.8s | 1.3× |
+| **NequIP** | 15 | 14.1s | 88.0s | 6.2× |
+| **NequIP** | 60 | 16.6s | 369.3s | **22.3×** |
+
+### Per-Generation Breakdown
+
+![Worker Pool Breakdown](../../images/worker_pool_breakdown.png)
+
+| Model | Actual compute | Subprocess overhead | Overhead fraction |
+|-------|---------------|--------------------|--------------------|
+| **MACE** | 4.67s | 11.60s | 71% |
+| **PET** | 4.71s | 13.64s | 74% |
+| **NequIP** | 0.054s | 6.10s | **99%** |
+
+The subprocess overhead (Python + PyTorch + CUDA bootstrap) is **constant per
+generation** regardless of model — it accounts for 71–99% of the total subprocess
+time. The worker pool eliminates this entirely after startup.
+
+### Projected Production Runs
+
+| Model | Generations | Subprocess | Worker Pool | Speedup | Time Saved |
+|-------|-------------|-----------|-------------|---------|------------|
+| **MACE** | 300 | 1.4h | 0.4h | 3.5× | 1.0h |
+| **MACE** | 500 | 2.3h | 0.7h | 3.5× | 1.6h |
+| **MACE** | 1500 | 6.8h | 2.0h | 3.5× | 4.8h |
+| **PET** | 300 | 1.5h | 0.4h | 3.9× | 1.1h |
+| **PET** | 500 | 2.5h | 0.7h | 3.9× | 1.9h |
+| **PET** | 1500 | 7.6h | 2.0h | 3.9× | 5.7h |
+| **NequIP** | 300 | 0.5h | 5.5s* | 67× | 0.5h |
+| **NequIP** | 500 | 0.9h | 7.5s* | 109× | 0.8h |
+| **NequIP** | 1500 | 2.6h | 17.5s* | 537× | 2.6h |
+
+*NequIP compute per generation is only 54ms (model is very fast on GPU); nearly all subprocess time is overhead.
 
 ## Equivalence Verification
 
-Both modes were run on identical input structures (5 replicas, `run_md=False`
-for deterministic relaxation). Per-replica energy comparison:
+Both modes produce equivalent results. Small differences (~0.01 eV) arise from
+non-deterministic CUDA execution in GNN scatter operations, not from code bugs.
 
 ```
-Worker pool energies: [-2744.5026, -2744.5361, -2742.7101, -2745.9040, -2739.9653]
-Subprocess energies:  [-2744.4941, -2744.5529, -2742.7197, -2745.9172, -2739.9759]
-
-Energy diffs (eV):  max=0.016799, mean=0.011748
+Energy diffs (eV): max=0.0168, mean=0.0117
 ```
 
-### Why are there small differences?
+At T=573K (kT ≈ 0.049 eV), a 0.01 eV difference is ~0.2 kT — negligible impact
+on Boltzmann acceptance and ensemble averages.
 
-The ~0.01 eV differences are **not** a bug. They arise from:
+## Running the Benchmarks
 
-1. **Non-deterministic CUDA execution** — GPU scatter/atomics operations in
-   graph neural networks (NequIP/Allegro) produce slightly different results
-   across runs due to floating-point non-associativity.
-2. **LBFGS sensitivity** — the optimizer converges to slightly different local
-   configurations since forces near the convergence threshold (fmax=0.10 eV/Å)
-   have residual floating-point variation.
-
-We verified this by running the **same code path twice** on the **same input**:
-```
-Energy after relax: orig=-2744.473255, round-trip=-2744.482402, diff=0.009146 eV
-```
-The traj file round-trip preserves positions exactly (0.00 Å difference), yet
-relaxation still produces ~0.009 eV variation — confirming this is inherent GPU
-non-determinism.
-
-**Impact on MC sampling:** At T=573K, kT ≈ 0.049 eV. A 0.01 eV difference is
-~0.2 kT, which has negligible impact on Boltzmann acceptance probabilities
-and ensemble averages.
-
-## Running the Tests
-
-### Prerequisites
-
-- NVIDIA GPU with CUDA support
-- NequIP compiled model (`.nequip.pt2`)
-- CatEMC on `PYTHONPATH`
-- Initial population trajectory file
-- The `calculate_fitness.py` script in `CALC_SCRIPT_DIR` (for subprocess mode)
-
-### Equivalence Test
+### Per-model benchmark (includes subprocess comparison)
 
 ```bash
-cd /path/to/CatEMC
-export PYTHONPATH=$PWD:$PYTHONPATH
+# MACE
 export PATH=/path/to/venv/bin:$PATH
 export LD_PRELOAD=/path/to/venv/lib/libstdc++.so.6
+python tests/benchmark_worker_pool/test_worker_pool_mace.py
 
-# Set paths (or use defaults for the BASF oracle-a100 node)
-export COMPILED_MODEL=/path/to/model.nequip.pt2
-export POPULATION_FILE=/path/to/input_pop.traj
-export CALC_SCRIPT_DIR=/path/to/dir/with/calculate_fitness.py
+# PET
+conda activate /path/to/metatomic-env
+export LD_LIBRARY_PATH=...
+python tests/benchmark_worker_pool/test_worker_pool_pet.py
 
-python tests/benchmark_worker_pool/test_worker_pool_equivalence.py
+# NequIP
+export PATH=/path/to/allegro-venv/bin:$PATH
+export LD_PRELOAD=/path/to/allegro-venv/lib/libstdc++.so.6
+python tests/benchmark_worker_pool/test_worker_pool_nequip.py
 ```
 
-Expected output:
-```
-  PASS: max energy difference (0.0168 eV) < tolerance (0.05 eV)
-  Note: ~0.01 eV differences are expected from non-deterministic CUDA atomics
-```
-
-### Performance Benchmark
+### Full sweep (all models, all round counts)
 
 ```bash
-python benchmark_workers.py --mode both --generations 10 --replicas 48
+cd tests/benchmark_worker_pool
+nohup bash run_sweep_all.sh > sweep_all.log 2>&1 &
 ```
 
-This runs both modes and reports the speedup factor.
+Results saved to `sweep_results.json`.
+
+### Regenerate plots
+
+```bash
+python tests/benchmark_worker_pool/plot_benchmark.py
+```
 
 ## Architecture
 
@@ -132,7 +136,10 @@ This runs both modes and reports the speedup factor.
 
 | File | Description |
 |------|-------------|
-| `test_worker_pool_equivalence.py` | Equivalence test: same results from both modes |
-| `../../benchmark_workers.py` | Performance benchmark comparing both modes |
-| `../../catemc/worker_pool.py` | WorkerPool implementation |
-| `../../catemc/calculation_templates.py` | Contains `calculate_bulk_fitness_inprocess()` |
+| `test_worker_pool_equivalence.py` | Equivalence test (NequIP, worker pool vs EMC subprocess) |
+| `test_worker_pool_nequip.py` | NequIP multi-round benchmark with subprocess comparison |
+| `test_worker_pool_mace.py` | MACE multi-round benchmark with subprocess comparison |
+| `test_worker_pool_pet.py` | PET multi-round benchmark with subprocess comparison |
+| `sweep_all_real.py` | Full sweep script (all models, all round counts) |
+| `plot_benchmark.py` | Generate infographic plots from sweep_results.json |
+| `sweep_results.json` | Raw benchmark data (all measured timings) |

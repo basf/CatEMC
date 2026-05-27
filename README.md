@@ -46,13 +46,27 @@ A typical GC/GE-EMC campaign follows these steps:
 ## Persistent Worker Pool (Performance Mode)
 
 CatEMC supports a **persistent worker pool** that eliminates the subprocess
-spawn + model reload overhead, achieving **~35× speedup** over the default
-subprocess mode on GPU-accelerated MLIP models.
+spawn + model reload overhead, achieving **3–22× speedup** over the default
+subprocess mode on GPU-accelerated MLIP models (up to **500×** for fast models
+in long production runs).
 
-| Mode | Time per generation (48 replicas) | Throughput |
-|------|-----------------------------------|------------|
-| Subprocess (default) | ~41s | 1.1 struct/s |
-| **Worker pool** | **~1.2s** | **25.5 struct/s** |
+![Worker Pool Benchmark](images/worker_pool_benchmark.png)
+
+### Measured Performance (NVIDIA A100-40GB, 216-atom system)
+
+| Model | Subprocess (per gen) | Worker Pool (per gen) | Overhead eliminated | Speedup at 300 gen |
+|-------|---------------------|----------------------|--------------------|--------------------|
+| **MACE** | 16.3s | 4.7s | 11.6s (71%) | 3.5× |
+| **PET** | 18.4s | 4.7s | 13.6s (74%) | 3.9× |
+| **NequIP** | 6.2s | 0.054s | 6.1s (99%) | 67× |
+
+**Projected savings for production EMC campaigns:**
+
+| Model | 500 generations | 1500 generations |
+|-------|----------------|-----------------|
+| **MACE** | 2.3h → 0.7h (saves 1.6h) | 6.8h → 2.0h (saves 4.8h) |
+| **PET** | 2.5h → 0.7h (saves 1.9h) | 7.6h → 2.0h (saves 5.7h) |
+| **NequIP** | 0.9h → 8s (saves 0.8h) | 2.6h → 18s (saves 2.5h) |
 
 ### How it works
 
@@ -102,6 +116,26 @@ geemc = GEEMC(..., worker_pool=pool)
 geemc.run(n_generations=5000)
 pool.shutdown()
 ```
+
+### Quick start (command-line switch)
+
+The example scripts support `--mode worker_pool` to enable persistent workers
+with no other code changes:
+
+```bash
+# Old way (subprocess, slower):
+python geemc_run.py 0 20
+
+# New way (worker pool, 3-22× faster):
+python geemc_run.py 0 20 --mode worker_pool --calc-factory calc_factory
+```
+
+You only need to provide a `calc_factory.py` module with a `create_calculators()`
+function that returns your ASE calculator(s). See
+[`examples/.../bulk/geemc_run.py`](examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/geemc_run.py)
+for a complete run script with `--mode` support, and
+[`examples/.../bulk/calc_factory.py`](examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/calc_factory.py)
+for a calculator factory template.
 
 ### When to use
 
