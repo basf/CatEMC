@@ -207,6 +207,42 @@ model loads. This is automatic and requires no configuration.
 For benchmark methodology and worker scaling results, see
 [`tests/benchmark_io_reduction/README.md`](tests/benchmark_io_reduction/README.md).
 
+
+---
+
+## Database on Local Scratch (`scratch_dir`)
+
+When running on network filesystems (CephFS, NFS, GPFS), the **SQLite database**
+becomes the dominant I/O bottleneck at high worker counts. Each generation commits
+48 rows in a single transaction, but the `fsync` still takes 5–20ms on CephFS
+(vs <0.1ms on local NVMe). At 24+ workers this means **>80% of wall time is
+spent waiting on CephFS**.
+
+The `scratch_dir` parameter moves the DB to node-local storage during the run:
+
+```python
+emc = GEEMC(...,
+    worker_pool=pool,
+    scratch_dir='/mnt/scratch/my_emc_run')  # node-local NVMe
+```
+
+![scratch_dir benchmark](images/scratch_dir_benchmark.png)
+
+| Workers | CephFS (s/gen) | scratch_dir (s/gen) | Speedup |
+|---------|---------------|--------------------:|--------:|
+| 1       | 23.7          | 15.6                | 1.5×    |
+| 6       | 14.1          | 3.2                 | 4.4×    |
+| 24      | 9.8           | 1.68                | **5.8×** |
+| 48      | 9.8           | 1.5                 | **6.5×** |
+
+The feature is **restart-safe**: on restart it copies the existing DB from
+`calculation_dir` back to scratch before resuming. At the end of `run()`, the DB
+is synced back with 3 rolling backups (`_sync_bak1.db`, `_sync_bak2.db`,
+`_sync_bak3.db`). Trim backups (`_bak0.db`, ...) are always written to
+`calculation_dir` (persistent storage).
+
+For benchmark details see
+[`tests/benchmark_cephfs_vs_scratch/README.md`](tests/benchmark_cephfs_vs_scratch/README.md).
 ---
 
 ## GE-EMC (bulk) — structure generation

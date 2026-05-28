@@ -152,6 +152,7 @@ class GEEMC(EMC):
             batching=False,
             worker_pool=None,
             traj_write_interval=1,
+            scratch_dir=None,
             verbose=True):
 
         super().__init__(
@@ -177,6 +178,7 @@ class GEEMC(EMC):
                 batching=batching,
                 worker_pool=worker_pool,
                 traj_write_interval=traj_write_interval,
+                scratch_dir=scratch_dir,
                 verbose=verbose)
 
         self.pressure = pressure
@@ -213,8 +215,10 @@ class GEEMC(EMC):
                 starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
             else:
                 starting_step = 1
+        # Setup scratch DB if scratch_dir is configured
+        self._setup_scratch_db()
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -436,3 +440,6 @@ class GEEMC(EMC):
                 traj.write(atoms)
 
             gi += 1
+
+        # Sync DB from scratch back to persistent storage
+        self._sync_db_to_persistent()

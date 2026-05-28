@@ -1,0 +1,46 @@
+[
+  {
+    "num_workers": 1,
+    "num_steps": 20,
+    "traj_write_interval": 1,
+    "cephfs_total_s": 473.9,
+    "cephfs_per_gen_s": 23.7,
+    "scratch_total_s": 312.3,
+    "scratch_per_gen_s": 15.6,
+    "speedup": 1.52,
+    "copy_back_s": 0.4
+  },
+  {
+    "num_workers": 6,
+    "num_steps": 20,
+    "traj_write_interval": 1,
+    "cephfs_total_s": 281.1,
+    "cephfs_per_gen_s": 14.1,
+    "scratch_total_s": 63.0,
+    "scratch_per_gen_s": 3.2,
+    "speedup": 4.47,
+    "copy_back_s": 0.5
+  },
+  {
+    "num_workers": 24,
+    "num_steps": 20,
+    "traj_write_interval": 1,
+    "cephfs_total_s": 196.4,
+    "cephfs_per_gen_s": 9.8,
+    "scratch_total_s": 32.2,
+    "scratch_per_gen_s": 1.6,
+    "speedup": 6.11,
+    "copy_back_s": 0.1
+  },
+  {
+    "num_workers": 48,
+    "num_steps": 20,
+    "traj_write_interval": 1,
+    "cephfs_total_s": 195.0,
+    "cephfs_per_gen_s": 9.8,
+    "scratch_total_s": 30.8,
+    "scratch_per_gen_s": 1.5,
+    "speedup": 6.52,
+    "copy_back_s": 0.6
+  }
+]

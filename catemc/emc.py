@@ -143,10 +143,11 @@ class EMC(object):
             batching=False,
             worker_pool=None,
             traj_write_interval=1,
+            scratch_dir=None,
             verbose=True):
 
         self.name = name
-        self.calculation_dir = calculation_dir
+        self.calculation_dir = os.path.realpath(calculation_dir)
         self.calculation_script = calculation_script
         self.input_pop = input_pop
         self.fix_indices = fix_indices
@@ -170,6 +171,7 @@ class EMC(object):
         self.batching = batching
         self.worker_pool = worker_pool
         self.traj_write_interval = traj_write_interval
+        self.scratch_dir = scratch_dir
 
         self._traj_writer = ThreadPoolExecutor(max_workers=2, thread_name_prefix="traj_writer")
         self._traj_futures = []
@@ -200,15 +202,73 @@ class EMC(object):
             f.result()  # raises if write failed
         self._traj_futures.clear()
 
+    def _get_persistent_db_path(self):
+        """Return the canonical DB path on persistent storage (calculation_dir)."""
+        return os.path.join(self.calculation_dir, "{}.db".format(self.name))
+
+    def _setup_scratch_db(self):
+        """Copy DB to scratch_dir for fast I/O. Sets self._active_db_path."""
+        persistent_path = self._get_persistent_db_path()
+        if self.scratch_dir is None:
+            self._active_db_path = persistent_path
+            return
+
+        os.makedirs(self.scratch_dir, exist_ok=True)
+        scratch_path = os.path.join(self.scratch_dir, "{}.db".format(self.name))
+        self._active_db_path = scratch_path
+
+        if os.path.isfile(persistent_path):
+            t0 = time.time()
+            size_mb = os.path.getsize(persistent_path) / (1024 * 1024)
+            shutil.copy2(persistent_path, scratch_path)
+            elapsed = time.time() - t0
+            parprint(f"[SCRATCH-DB] Copied DB to scratch: {scratch_path} "
+                     f"({size_mb:.1f} MB, {elapsed:.2f}s)")
+        else:
+            parprint(f"[SCRATCH-DB] No existing DB found. Will create fresh on scratch: {scratch_path}")
+
+    def _sync_db_to_persistent(self):
+        """Copy DB from scratch back to persistent storage with backup rotation."""
+        if self.scratch_dir is None:
+            return
+
+        scratch_path = os.path.join(self.scratch_dir, "{}.db".format(self.name))
+        persistent_path = self._get_persistent_db_path()
+
+        if not os.path.isfile(scratch_path):
+            parprint("[SCRATCH-DB] WARNING: No DB on scratch to sync back.")
+            return
+
+        # Rotate backups: keep last 3 versions
+        base = persistent_path[:-3]  # strip .db
+        if os.path.isfile(base + "_sync_bak3.db"):
+            os.remove(base + "_sync_bak3.db")
+        if os.path.isfile(base + "_sync_bak2.db"):
+            os.rename(base + "_sync_bak2.db", base + "_sync_bak3.db")
+        if os.path.isfile(base + "_sync_bak1.db"):
+            os.rename(base + "_sync_bak1.db", base + "_sync_bak2.db")
+        if os.path.isfile(persistent_path):
+            os.rename(persistent_path, base + "_sync_bak1.db")
+
+        # Copy scratch DB to persistent
+        t0 = time.time()
+        size_mb = os.path.getsize(scratch_path) / (1024 * 1024)
+        shutil.copy2(scratch_path, persistent_path)
+        elapsed = time.time() - t0
+        parprint(f"[SCRATCH-DB] Synced DB back to persistent: {persistent_path} "
+                 f"({size_mb:.1f} MB, {elapsed:.2f}s)")
+        parprint(f"[SCRATCH-DB] Backup rotation complete (up to 3 versions kept)")
+
     def trim_asedb(self):
 
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         tmp_asedb = PrepareDB(asedb_path[:-3] + '_tmp.db', population_size=self.pop_size)
         current_pop = self.pop.get_current_population()
         i = 0
-        while os.path.isfile(asedb_path[:-3] + '_bak{}.db'.format(i)):
+        persistent_base = self._get_persistent_db_path()[:-3]
+        while os.path.isfile(persistent_base + '_bak{}.db'.format(i)):
             i += 1
-        shutil.copy(asedb_path, asedb_path[:-3] + '_bak{}.db'.format(i))
+        shutil.copy(asedb_path, persistent_base + '_bak{}.db'.format(i))
         os.remove(asedb_path)
         shutil.move(asedb_path[:-3] + '_tmp.db', asedb_path)
         self.dc = DataConnection(asedb_path)
@@ -216,7 +276,7 @@ class EMC(object):
 
     def connect_data_with_trim(self, starting_step):
 
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         db = connect(asedb_path)
         relaxed_images = []
         unrelaxed_iamges = []
@@ -387,8 +447,10 @@ class EMC(object):
                 starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
             else:
                 starting_step = 1
+        # Setup scratch DB if scratch_dir is configured
+        self._setup_scratch_db()
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -584,3 +646,5 @@ class EMC(object):
 
         # Flush any pending async traj writes before returning
         self._flush_traj_writes()
+        # Sync DB from scratch back to persistent storage
+        self._sync_db_to_persistent()
