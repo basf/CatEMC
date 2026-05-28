@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from .worker_pool import WorkerPool
+from .emclogger import EMCLogger, SILENT, SUMMARY, DETAILED, TRACE
 
 
 class EMC(object):
@@ -144,6 +145,7 @@ class EMC(object):
             worker_pool=None,
             traj_write_interval=1,
             scratch_dir=None,
+            verbosity=None,
             verbose=True):
 
         self.name = name
@@ -178,7 +180,13 @@ class EMC(object):
         if self.worker_pool is None and self.calculation_script is None:
             raise ValueError('calculation_script is required when not using a worker_pool')
 
-        self.verbose = verbose
+        # Structured logging: verbosity param takes precedence over verbose bool
+        if verbosity is not None:
+            _verb = verbosity
+        else:
+            _verb = verbose  # backward compat: True->TRACE, False->SILENT
+        self._logger = EMCLogger(name, self.calculation_dir, verbosity=_verb)
+        self.verbose = (self._logger.verbosity >= TRACE)
 
     def get_pop(self):
 
@@ -192,7 +200,8 @@ class EMC(object):
                 replica_key=self.replica_key,
                 acceptance_key=self.acceptance_key,
                 category_key=self.category_key,
-                verbose=self.verbose)
+                verbose=self.verbose,
+                logger=self._logger)
 
         return pop
 
@@ -222,10 +231,22 @@ class EMC(object):
             size_mb = os.path.getsize(persistent_path) / (1024 * 1024)
             shutil.copy2(persistent_path, scratch_path)
             elapsed = time.time() - t0
-            parprint(f"[SCRATCH-DB] Copied DB to scratch: {scratch_path} "
-                     f"({size_mb:.1f} MB, {elapsed:.2f}s)")
+            self._logger.log_event("scratch_db", f"[SCRATCH-DB] Copied DB to scratch: {scratch_path} ({size_mb:.1f} MB, {elapsed:.2f}s)")
         else:
-            parprint(f"[SCRATCH-DB] No existing DB found. Will create fresh on scratch: {scratch_path}")
+            self._logger.log_event("scratch_db", f"[SCRATCH-DB] No existing DB found. Will create fresh on scratch: {scratch_path}")
+
+        # Write breadcrumb for bash-level crash recovery
+        info_path = os.path.join(self.calculation_dir, '.emc_scratch_info')
+        with open(info_path, 'w') as fh:
+            fh.write(f"SCRATCH_DB={scratch_path}\n")
+            fh.write(f"PERSISTENT_DB={persistent_path}\n")
+            fh.write(f"DB_NAME={self.name}\n")
+
+        # Symlink scratch DB into calc dir for real-time observer access
+        link_path = os.path.join(self.calculation_dir, f'{self.name}_live.db')
+        if os.path.islink(link_path) or os.path.exists(link_path):
+            os.remove(link_path)
+        os.symlink(scratch_path, link_path)
 
     def _sync_db_to_persistent(self):
         """Copy DB from scratch back to persistent storage with backup rotation."""
@@ -236,7 +257,7 @@ class EMC(object):
         persistent_path = self._get_persistent_db_path()
 
         if not os.path.isfile(scratch_path):
-            parprint("[SCRATCH-DB] WARNING: No DB on scratch to sync back.")
+            self._logger.log_event("scratch_db", "[SCRATCH-DB] WARNING: No DB on scratch to sync back.")
             return
 
         # Rotate backups: keep last 3 versions
@@ -255,9 +276,8 @@ class EMC(object):
         size_mb = os.path.getsize(scratch_path) / (1024 * 1024)
         shutil.copy2(scratch_path, persistent_path)
         elapsed = time.time() - t0
-        parprint(f"[SCRATCH-DB] Synced DB back to persistent: {persistent_path} "
-                 f"({size_mb:.1f} MB, {elapsed:.2f}s)")
-        parprint(f"[SCRATCH-DB] Backup rotation complete (up to 3 versions kept)")
+        self._logger.log_event("scratch_db", f"[SCRATCH-DB] Synced DB back to persistent: {persistent_path} ({size_mb:.1f} MB, {elapsed:.2f}s)")
+        self._logger.log_event("scratch_db", "[SCRATCH-DB] Backup rotation complete (up to 3 versions kept)")
 
     def trim_asedb(self):
 
@@ -484,8 +504,7 @@ class EMC(object):
         self.ntask = 1
         self.pop = self.get_pop()                                             
         if self.trim_generation == -1:
-            parprint('Restarting from the final population of the previously-converged EMC run. ' + 
-                     'All other previously-stored structures are discarded from the ASE database.')
+            self._logger.log_event("restart", "Restarting from the final population of the previously-converged EMC run. All other previously-stored structures are discarded from the ASE database.")
             self.trim_asedb()
             self.pop = self.get_pop() 
         # Update the population to allow new candidates to enter
@@ -512,15 +531,23 @@ class EMC(object):
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
+        _stop_file = os.path.join(self.calculation_dir, 'STOP')
         while gen_num + gi <= total_steps:
+            if os.path.exists(_stop_file):
+                self._logger.log_event("stop", f"STOP file detected at generation {gen_num + gi}. Shutting down gracefully.")
+                os.remove(_stop_file)
+                break
             if (gen_num + gi) % self.trim_generation == 0:
                 self._flush_traj_writes()
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
-                parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
+                self._logger.log_event("trim", f'ASE database trimmed at generation {gen_num + gi}. Restart from current population.')
             _now = time.perf_counter(); _elapsed = _now - _last_gen_time; _last_gen_time = _now
-            parprint(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Creating and evaluating generation {gen_num + gi} (elapsed: {_elapsed:.1f}s)')
+            self._logger.log_generation(gen_num + gi, _elapsed,
+                pop=self.pop.pop if hasattr(self, 'pop') and self.pop is not None else None,
+                temperature_key=self.temperature_key,
+                target_metal_species=self.metal_element_pool)
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
@@ -648,3 +675,4 @@ class EMC(object):
         self._flush_traj_writes()
         # Sync DB from scratch back to persistent storage
         self._sync_db_to_persistent()
+        self._logger.close()

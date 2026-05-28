@@ -30,7 +30,7 @@ class EMCPopulation(Population):
                  temperature_key='temperature', replica_key='replica',
                  acceptance_key='accepted', category_key=None, 
                  use_extinct=False, store_delta=True, verbose=True, 
-                 rng=np.random):
+                 logger=None, rng=np.random):
         # The current fitness is set at each update of the population
         self.current_fitness = None
         self.comparator = None
@@ -40,6 +40,7 @@ class EMCPopulation(Population):
         self.ck = category_key
         self.store_delta = store_delta
         self.verbose = verbose
+        self._logger = logger
 
         Population.__init__(self, data_connection, population_size,
                             self.comparator, logfile, use_extinct, rng=rng)
@@ -189,20 +190,33 @@ class EMCPopulation(Population):
                     prefactor = np.exp(lnC)
                 p_acc = min([1, prefactor * np.exp(df1 / (kB*T1) + df2/ (kB*T2))])
                 accept = p_acc > np.random.uniform()
-            if self.verbose:
-                parprint(f"Replicas: {[rep1, rep2]}, " + 
-                         f"parents: {[sorted_parents[0].get_chemical_formula(), sorted_parents[1].get_chemical_formula()]}, " +
-                         f"offsprings: {[sorted_offsprings[0].get_chemical_formula(), sorted_offsprings[1].get_chemical_formula()]}, " +
-                         f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
+            if self._logger:
+                msg = (f"Replicas: {[rep1, rep2]}, "
+                       f"parents: {[sorted_parents[0].get_chemical_formula(), sorted_parents[1].get_chemical_formula()]}, "
+                       f"offsprings: {[sorted_offsprings[0].get_chemical_formula(), sorted_offsprings[1].get_chemical_formula()]}, "
+                       f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
+                       f"deltas: {df1} and {df2}, prefactor: {prefactor}.")
+                self._logger.log_move("inter", None, message=msg)
+            elif self.verbose:
+                parprint(f"Replicas: {[rep1, rep2]}, "
+                         f"parents: {[sorted_parents[0].get_chemical_formula(), sorted_parents[1].get_chemical_formula()]}, "
+                         f"offsprings: {[sorted_offsprings[0].get_chemical_formula(), sorted_offsprings[1].get_chemical_formula()]}, "
+                         f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
                          f"deltas: {df1} and {df2}, prefactor: {prefactor}.")
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
                 offsprings[1].info['key_value_pairs'][self.ak] = 1
-                parprint(f'Replicas {rep1} {rep2} inter move accepted!')
+                if self._logger:
+                    self._logger.log_move("inter", True, message=f'Replicas {rep1} {rep2} inter move accepted!')
+                else:
+                    parprint(f'Replicas {rep1} {rep2} inter move accepted!')
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
                 offsprings[1].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replicas {rep1} {rep2} inter move rejected!')
+                if self._logger:
+                    self._logger.log_move("inter", False, message=f'Replicas {rep1} {rep2} inter move rejected!')
+                else:
+                    parprint(f'Replicas {rep1} {rep2} inter move rejected!')
             if self.store_delta:
                 offsprings[sorted_oids[0]].info['key_value_pairs']['delta'] = df1
                 offsprings[sorted_oids[1]].info['key_value_pairs']['delta'] = df2
@@ -247,17 +261,29 @@ class EMCPopulation(Population):
                     prefactor = np.exp(lnC)
                 p_acc = min([1, prefactor * np.exp(df / (kB*T))])
                 accept = p_acc > np.random.uniform()
-            if self.verbose:
-                parprint(f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, " +
-                         f"offspring: {offsprings[0].get_chemical_formula()}, " + 
-                         f"operation: {offsprings[0].info['key_value_pairs']['origin']}, delta: {df}, " +
+            if self._logger:
+                msg = (f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, "
+                       f"offspring: {offsprings[0].get_chemical_formula()}, "
+                       f"operation: {offsprings[0].info['key_value_pairs']['origin']}, delta: {df}, "
+                       f"prefactor: {prefactor}.")
+                self._logger.log_move("intra", None, message=msg)
+            elif self.verbose:
+                parprint(f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, "
+                         f"offspring: {offsprings[0].get_chemical_formula()}, "
+                         f"operation: {offsprings[0].info['key_value_pairs']['origin']}, delta: {df}, "
                          f"prefactor: {prefactor}.")
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
-                parprint(f'Replica {rep} intra move accepted!')
+                if self._logger:
+                    self._logger.log_move("intra", True, message=f'Replica {rep} intra move accepted!')
+                else:
+                    parprint(f'Replica {rep} intra move accepted!')
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replica {rep} intra move rejected!')
+                if self._logger:
+                    self._logger.log_move("intra", False, message=f'Replica {rep} intra move rejected!')
+                else:
+                    parprint(f'Replica {rep} intra move rejected!')
             if self.store_delta:
                 offsprings[0].info['key_value_pairs']['delta'] = df
                 if pressure is not None:
@@ -493,9 +519,14 @@ class EMCPopulation(Population):
             p_acc = min([1, c12_prefactor * np.exp((1/(kB*T2)-1/(kB*T1))*df)])
             accept = p_acc > np.random.uniform()
 
-            if self.verbose:
-                parprint(f"Replicas: {[rep1, rep2]}, " + 
-                         f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
+            if self._logger:
+                msg = (f"Replicas: {[rep1, rep2]}, "
+                       f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, "
+                       f"operation: exchange, delta: {df}, prefactor: {c12_prefactor}.")
+                self._logger.log_move("exchange", None, message=msg)
+            elif self.verbose:
+                parprint(f"Replicas: {[rep1, rep2]}, "
+                         f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, "
                          f"operation: exchange, delta: {df}, prefactor: {c12_prefactor}.")
             if accept:
                 c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
@@ -511,9 +542,15 @@ class EMCPopulation(Population):
                 if 'mu_window' in c1.info['data']:
                     c1.info['data']['mu_window'], c2.info['data']['mu_window'] = \
                             c2.info['data']['mu_window'], c1.info['data']['mu_window']
-                parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
+                if self._logger:
+                    self._logger.log_move("exchange", True, message=f'Replicas {rep1} and {rep2} exchange move accepted!')
+                else:
+                    parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
             else:
-                parprint(f'Replicas {rep1} and {rep2} exchange move rejected!')
+                if self._logger:
+                    self._logger.log_move("exchange", False, message=f'Replicas {rep1} and {rep2} exchange move rejected!')
+                else:
+                    parprint(f'Replicas {rep1} and {rep2} exchange move rejected!')
             new_pop += [c1, c2]
 
         new_pop.sort(key=lambda x: x.info['key_value_pairs'][self.rk])
@@ -604,9 +641,15 @@ class EMCPopulation(Population):
 
             if accept:
                 c.info['data']['mu'] = trial_mu
-                parprint(f'Replica {rep} mu-walk move accepted!')
+                if self._logger:
+                    self._logger.log_move("mu_walk", True, message=f'Replica {rep} mu-walk move accepted!')
+                else:
+                    parprint(f'Replica {rep} mu-walk move accepted!')
             else:
-                parprint(f'Replica {rep} mu-walk move rejected!')
+                if self._logger:
+                    self._logger.log_move("mu_walk", False, message=f'Replica {rep} mu-walk move rejected!')
+                else:
+                    parprint(f'Replica {rep} mu-walk move rejected!')
             new_pop.append(c)
 
         self.pop = new_pop
@@ -761,14 +804,15 @@ class MixtureEMCPopulation(EMCPopulation):
                  logfile=None, temperature_key='temperature', 
                  replica_key='replica', acceptance_key='accepted', 
                  use_extinct=False, store_delta=False, verbose=False, 
-                 rng=np.random):
+                 logger=None, rng=np.random):
         # The current fitness is set at each update of the population
         self.current_fitness = None
         self.num_tasks = num_tasks
 
         EMCPopulation.__init__(self, data_connection, population_size, logfile, 
                                temperature_key, replica_key, acceptance_key, 
-                               use_extinct, store_delta, verbose=verbose, rng=rng)
+                               use_extinct, store_delta, verbose=verbose,
+                               logger=logger, rng=rng)
 
     def evaluate_offsprings(self, parents, offsprings, prefactor=1, volume=None,
                             nonmetal_species=None, temperature_species_internal_map=None,
@@ -855,27 +899,47 @@ class MixtureEMCPopulation(EMCPopulation):
                 p_acc = min([1, prefactor * np.exp(lnSo1 - lnSp1 + lnSo2 - lnSp2)])
                 accept = p_acc > np.random.uniform()
 
-            if self.verbose:
+            if self._logger:
                 if assignment == 'a':
-                    parprint(f"Replicas: {[rep1, rep2]}, " + 
-                             f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, " + 
-                             f"offsprings: {[offsprings[0].get_chemical_formula(), offsprings[1].get_chemical_formula()]}, " +
-                             f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
+                    msg = (f"Replicas: {[rep1, rep2]}, "
+                           f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, "
+                           f"offsprings: {[offsprings[0].get_chemical_formula(), offsprings[1].get_chemical_formula()]}, "
+                           f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
+                           f"prefactor: {prefactor}.")
+                elif assignment == 'b':
+                    msg = (f"Replicas: {[rep1, rep2]}, "
+                           f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, "
+                           f"offsprings: {[offsprings[1].get_chemical_formula(), offsprings[0].get_chemical_formula()]}, "
+                           f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
+                           f"prefactor: {prefactor}.")
+                self._logger.log_move("inter", None, message=msg)
+            elif self.verbose:
+                if assignment == 'a':
+                    parprint(f"Replicas: {[rep1, rep2]}, "
+                             f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, "
+                             f"offsprings: {[offsprings[0].get_chemical_formula(), offsprings[1].get_chemical_formula()]}, "
+                             f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
                              f"prefactor: {prefactor}.")
                 elif assignment == 'b':
-                    parprint(f"Replicas: {[rep1, rep2]}, " + 
-                             f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, " + 
-                             f"offsprings: {[offsprings[1].get_chemical_formula(), offsprings[0].get_chemical_formula()]}, " +
-                             f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
+                    parprint(f"Replicas: {[rep1, rep2]}, "
+                             f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, "
+                             f"offsprings: {[offsprings[1].get_chemical_formula(), offsprings[0].get_chemical_formula()]}, "
+                             f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
                              f"prefactor: {prefactor}.")
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
                 offsprings[1].info['key_value_pairs'][self.ak] = 1                
-                parprint(f'Replicas {rep1} {rep2} inter move accepted!')
+                if self._logger:
+                    self._logger.log_move("inter", True, message=f'Replicas {rep1} {rep2} inter move accepted!')
+                else:
+                    parprint(f'Replicas {rep1} {rep2} inter move accepted!')
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
                 offsprings[1].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replicas {rep1} {rep2} inter move rejected!')
+                if self._logger:
+                    self._logger.log_move("inter", False, message=f'Replicas {rep1} {rep2} inter move rejected!')
+                else:
+                    parprint(f'Replicas {rep1} {rep2} inter move rejected!')
 
         elif len(parents) == 1:
             # Mutation
@@ -904,17 +968,29 @@ class MixtureEMCPopulation(EMCPopulation):
             offsprings[0].info['key_value_pairs'][self.tk] = T
             if self.store_delta:
                 offsprings[0].info['data']['delta'] = oscores - pscores
-            if self.verbose:
-                parprint(f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, " +
-                         f"offspring: {offsprings[0].get_chemical_formula()}, " + 
-                         f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
+            if self._logger:
+                msg = (f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, "
+                       f"offspring: {offsprings[0].get_chemical_formula()}, "
+                       f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
+                       f"prefactor: {prefactor}.")
+                self._logger.log_move("intra", None, message=msg)
+            elif self.verbose:
+                parprint(f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, "
+                         f"offspring: {offsprings[0].get_chemical_formula()}, "
+                         f"operation: {offsprings[0].info['key_value_pairs']['origin']}, "
                          f"prefactor: {prefactor}.")
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
-                parprint(f'Replica {rep} intra move accepted!') 
+                if self._logger:
+                    self._logger.log_move("intra", True, message=f'Replica {rep} intra move accepted!')
+                else:
+                    parprint(f'Replica {rep} intra move accepted!') 
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replica {rep} intra move rejected!') 
+                if self._logger:
+                    self._logger.log_move("intra", False, message=f'Replica {rep} intra move rejected!')
+                else:
+                    parprint(f'Replica {rep} intra move rejected!') 
                     
         return offsprings 
 
@@ -960,18 +1036,29 @@ class MixtureEMCPopulation(EMCPopulation):
             p_acc = min([1, c12_prefactor * np.exp(lnS2T1 - lnS1T1 + lnS1T2 - lnS2T2)])
             accept = p_acc > np.random.uniform()
 
-            if self.verbose:
-                parprint(f"Replicas: {[rep1, rep2]}, " +
-                         f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
+            if self._logger:
+                msg = (f"Replicas: {[rep1, rep2]}, "
+                       f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, "
+                       f"operation: exchange, prefactor: {c12_prefactor}.")
+                self._logger.log_move("exchange", None, message=msg)
+            elif self.verbose:
+                parprint(f"Replicas: {[rep1, rep2]}, "
+                         f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, "
                          f"operation: exchange, prefactor: {c12_prefactor}.")
             if accept:
                 c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
                         c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]
                 c1.info['key_value_pairs'][self.tk], c2.info['key_value_pairs'][self.tk] = \
                         c2.info['key_value_pairs'][self.tk], c1.info['key_value_pairs'][self.tk]
-                parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
+                if self._logger:
+                    self._logger.log_move("exchange", True, message=f'Replicas {rep1} and {rep2} exchange move accepted!')
+                else:
+                    parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
             else:
-                parprint(f'Replicas {rep1} and {rep2} exchange move rejected!')
+                if self._logger:
+                    self._logger.log_move("exchange", False, message=f'Replicas {rep1} and {rep2} exchange move rejected!')
+                else:
+                    parprint(f'Replicas {rep1} and {rep2} exchange move rejected!')
             new_pop += [c1, c2]
 
         new_pop.sort(key=lambda x: x.info['key_value_pairs'][self.rk])

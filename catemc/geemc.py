@@ -153,6 +153,7 @@ class GEEMC(EMC):
             worker_pool=None,
             traj_write_interval=1,
             scratch_dir=None,
+            verbosity=None,
             verbose=True):
 
         super().__init__(
@@ -179,6 +180,7 @@ class GEEMC(EMC):
                 worker_pool=worker_pool,
                 traj_write_interval=traj_write_interval,
                 scratch_dir=scratch_dir,
+                verbosity=verbosity,
                 verbose=verbose)
 
         self.pressure = pressure
@@ -252,8 +254,7 @@ class GEEMC(EMC):
         self.ntask = 1
         self.pop = self.get_pop()                                             
         if self.trim_generation == -1:
-            parprint('Restarting from the final population of the previously-converged EMC run. ' + 
-                     'All other previously-stored structures are discarded from the ASE database.')
+            self._logger.log_event("restart", "Restarting from the final population of the previously-converged EMC run. All other previously-stored structures are discarded from the ASE database.")
             self.trim_asedb()
             self.pop = self.get_pop() 
         # Update the population to allow new candidates to enter
@@ -282,14 +283,22 @@ class GEEMC(EMC):
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
+        _stop_file = os.path.join(self.calculation_dir, 'STOP')
         while gen_num + gi <= total_steps:
+            if os.path.exists(_stop_file):
+                self._logger.log_event("stop", f"STOP file detected at generation {gen_num + gi}. Shutting down gracefully.")
+                os.remove(_stop_file)
+                break
             if (gen_num + gi) % self.trim_generation == 0:
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
-                parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
+                self._logger.log_event("trim", f'ASE database trimmed at generation {gen_num + gi}. Restart from current population.')
             _now = time.perf_counter(); _elapsed = _now - _last_gen_time; _last_gen_time = _now
-            parprint(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Creating and evaluating generation {gen_num + gi} (elapsed: {_elapsed:.1f}s)')
+            self._logger.log_generation(gen_num + gi, _elapsed,
+                pop=self.pop.pop if hasattr(self, 'pop') and self.pop is not None else None,
+                temperature_key=self.temperature_key,
+                target_metal_species=self.metal_element_pool)
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
@@ -443,3 +452,4 @@ class GEEMC(EMC):
 
         # Sync DB from scratch back to persistent storage
         self._sync_db_to_persistent()
+        self._logger.close()
