@@ -43,6 +43,208 @@ A typical GC/GE-EMC campaign follows these steps:
 
 ---
 
+## Persistent Worker Pool (Performance Mode)
+
+CatEMC supports a **persistent worker pool** that eliminates the subprocess
+spawn + model reload overhead, achieving **3–22× speedup** over the default
+subprocess mode on GPU-accelerated MLIP models (up to **500×** for fast models
+in long production runs).
+
+![Worker Pool Benchmark](images/worker_pool_benchmark.png)
+
+### Measured Performance (NVIDIA A100-40GB, 216-atom system)
+
+| Model | Subprocess (per gen) | Worker Pool (per gen) | Overhead eliminated | Speedup at 300 gen |
+|-------|---------------------|----------------------|--------------------|--------------------|
+| **MACE** | 16.3s | 4.7s | 11.6s (71%) | 3.5× |
+| **PET** | 18.4s | 4.7s | 13.6s (74%) | 3.9× |
+| **NequIP** | 6.2s | 0.054s | 6.1s (99%) | 67× |
+
+**Projected savings for production EMC campaigns:**
+
+| Model | 500 generations | 1500 generations |
+|-------|----------------|-----------------|
+| **MACE** | 2.3h → 0.7h (saves 1.6h) | 6.8h → 2.0h (saves 4.8h) |
+| **PET** | 2.5h → 0.7h (saves 1.9h) | 7.6h → 2.0h (saves 5.7h) |
+| **NequIP** | 0.9h → 8s (saves 0.8h) | 2.6h → 18s (saves 2.5h) |
+
+### How it works
+
+Instead of spawning a new subprocess per replica (each reloading the ML model
+from disk), the worker pool starts N persistent processes that load the model
+**once** at startup and stay alive across all generations.
+
+### Usage
+
+```python
+from catemc.worker_pool import WorkerPool
+from catemc.geemc import GEEMC
+from ase import units
+
+# Define a calculator factory (module must be importable by workers)
+# Example: create a file my_calc_factory.py with:
+#   def create_calculators():
+#       from nequip.integrations.ase import NequIPCalculator
+#       return [NequIPCalculator.from_compiled_model("model.pt2", device="cuda")]
+
+fitness_kwargs = {
+    'fmax_list': [0.10],
+    'target_metal_species': ['Cu', 'Ru'],
+    'md_timestep': 1 * units.fs,
+    'md_taut': 0.5 * 1000 * units.fs,
+    'md_steps': 200,
+    'md_write_interval': 10,
+    'max_relax_steps': 100,
+    'neighbor_cutoff': 3.5,
+    'raw_score_cutoff': -10000.,
+    'temperature_key': 'temperature',
+    'replica_key': 'replica',
+}
+
+pool = WorkerPool(
+    calculator_factory_module='my_calc_factory',
+    calculator_factory_func='create_calculators',
+    fitness_func_module='catemc.calculation_templates',
+    fitness_func_name='calculate_bulk_fitness_inprocess',
+    fitness_kwargs=fitness_kwargs,
+    num_workers=20,
+    gpu_devices=[0],
+)
+
+# Pass worker_pool to GEEMC/GCEMC/EMC — bypasses subprocess spawning
+geemc = GEEMC(..., worker_pool=pool)
+geemc.run(n_generations=5000)
+pool.shutdown()
+```
+
+### Quick start (command-line switch)
+
+The example scripts support `--mode worker_pool` to enable persistent workers
+with no other code changes:
+
+```bash
+# Old way (subprocess, slower):
+python geemc_run.py 0 20
+
+# New way (worker pool, 3-22× faster):
+python geemc_run.py 0 20 --mode worker_pool --calc-factory calc_factory
+```
+
+You only need to provide a `calc_factory.py` module with a `create_calculators()`
+function that returns your ASE calculator(s). See
+[`examples/.../bulk/geemc_run.py`](examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/geemc_run.py)
+for a complete run script with `--mode` support, and
+[`examples/.../bulk/calc_factory.py`](examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/calc_factory.py)
+for a calculator factory template.
+
+### When to use
+
+- **Large models** (NequIP, Allegro, MACE, PET) where model loading takes >1s
+- **Many replicas** (>10) where subprocess spawn overhead dominates
+- **Long runs** (>100 generations) where one-time startup cost is amortized
+
+For details and benchmark methodology, see
+[`tests/benchmark_worker_pool/README.md`](tests/benchmark_worker_pool/README.md).
+
+---
+
+## I/O Reduction for Network Filesystems (CephFS/NFS)
+
+When running on network filesystems like CephFS, **metadata operations** (file
+open/close/fsync) can dominate runtime. The default EMC loop writes offspring
+structures to disk as `.traj` files and re-reads them for energy evaluation.
+On CephFS, this adds **~2s per replica per generation** in metadata overhead.
+
+### The Problem
+
+For a 48-replica system on CephFS:
+- Default mode: ~96 file write + 96 file read operations per generation
+- Each file op incurs ~20–40ms metadata latency (CephFS MDS round-trip)
+- Total overhead: **~4–8s/gen** purely from filesystem metadata
+- At 5000 generations: **5.5–11 hours wasted** on I/O
+
+### The Solution: In-Memory Offspring Cache
+
+When `worker_pool` is active, offspring structures are passed **in-memory**
+via a cache dictionary instead of writing/reading `.traj` files. Combined with
+a configurable `traj_write_interval` that controls how often trajectory snapshots
+are written, this eliminates nearly all filesystem overhead.
+
+### Performance Impact (48 replicas, 216 atoms, NequIP on H100)
+
+| Setting | Time/gen | Speedup vs default |
+|---------|----------|--------------------|
+| No worker pool (baseline) | ~20 s | 1.0× |
+| Worker pool, 48 workers | ~5 s | **4× (compute-bound)** |
+| Worker pool + CephFS under load | ~95 s → ~5 s | **~20×** |
+
+The in-memory cache is most impactful when:
+- CephFS is under heavy metadata load (shared cluster)
+- Many replicas (>20) amplify per-file latency
+- Fast MLIP models where I/O becomes the bottleneck
+
+### Usage
+
+```python
+# traj_write_interval controls how often .traj snapshots are saved
+# Default: 1 (every gen). Set higher for production runs on network FS.
+geemc = GEEMC(...,
+    worker_pool=pool,
+    traj_write_interval=10)  # write every 10th generation
+```
+
+A value of `traj_write_interval=10` means trajectory files are only written
+every 10 generations, reducing file I/O by 90% while still providing periodic
+checkpoints. Set to a large value (e.g., equal to `total_steps`) to disable
+trajectory writes entirely during benchmarking.
+
+### Staggered Worker Startup
+
+When using >4 workers, the pool staggers process spawning (0.5s delay between
+each) to avoid overwhelming the GPU driver and filesystem with simultaneous
+model loads. This is automatic and requires no configuration.
+
+For benchmark methodology and worker scaling results, see
+[`tests/benchmark_io_reduction/README.md`](tests/benchmark_io_reduction/README.md).
+
+
+---
+
+## Database on Local Scratch (`scratch_dir`)
+
+When running on network filesystems (CephFS, NFS, GPFS), the **SQLite database**
+becomes the dominant I/O bottleneck at high worker counts. Each generation commits
+48 rows in a single transaction, but the `fsync` still takes 5–20ms on CephFS
+(vs <0.1ms on local NVMe). At 24+ workers this means **>80% of wall time is
+spent waiting on CephFS**.
+
+The `scratch_dir` parameter moves the DB to node-local storage during the run:
+
+```python
+emc = GEEMC(...,
+    worker_pool=pool,
+    scratch_dir='/mnt/scratch/my_emc_run')  # node-local NVMe
+```
+
+![scratch_dir benchmark](images/scratch_dir_benchmark.png)
+
+| Workers | CephFS (s/gen) | scratch_dir (s/gen) | Speedup |
+|---------|---------------|--------------------:|--------:|
+| 1       | 23.7          | 15.6                | 1.5×    |
+| 6       | 14.1          | 3.2                 | 4.4×    |
+| 24      | 9.8           | 1.68                | **5.8×** |
+| 48      | 9.8           | 1.5                 | **6.5×** |
+
+The feature is **restart-safe**: on restart it copies the existing DB from
+`calculation_dir` back to scratch before resuming. At the end of `run()`, the DB
+is synced back with 3 rolling backups (`_sync_bak1.db`, `_sync_bak2.db`,
+`_sync_bak3.db`). Trim backups (`_bak0.db`, ...) are always written to
+`calculation_dir` (persistent storage).
+
+For benchmark details see
+[`tests/benchmark_cephfs_vs_scratch/README.md`](tests/benchmark_cephfs_vs_scratch/README.md).
+---
+
 ## GE-EMC (bulk) — structure generation
 
 Generates a set of `pop_size` initial on-lattice bulk replicas (`ase.Atoms`) that have their composition consistent with your target composition. The function `catemc.generate.generate_population()` can return a list of randomized `ase.Atoms` objects that suffices the requirement. You should save these to a structure file and inspect visually before running any production GE-EMC.

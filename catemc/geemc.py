@@ -16,6 +16,7 @@ import random
 import shutil
 import time
 import os
+from datetime import datetime
 
 
 class GEEMC(EMC):
@@ -149,6 +150,9 @@ class GEEMC(EMC):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
+            worker_pool=None,
+            traj_write_interval=1,
+            scratch_dir=None,
             verbose=True):
 
         super().__init__(
@@ -172,6 +176,9 @@ class GEEMC(EMC):
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
                 batching=batching,
+                worker_pool=worker_pool,
+                traj_write_interval=traj_write_interval,
+                scratch_dir=scratch_dir,
                 verbose=verbose)
 
         self.pressure = pressure
@@ -208,8 +215,10 @@ class GEEMC(EMC):
                 starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
             else:
                 starting_step = 1
+        # Setup scratch DB if scratch_dir is configured
+        self._setup_scratch_db()
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -269,6 +278,7 @@ class GEEMC(EMC):
             self.nonmetal_interswap_rate /= rates_sum
 
         start_time = time.perf_counter()
+        _last_gen_time = time.perf_counter()
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
@@ -278,7 +288,8 @@ class GEEMC(EMC):
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
                 parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
-            parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
+            _now = time.perf_counter(); _elapsed = _now - _last_gen_time; _last_gen_time = _now
+            parprint(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] Creating and evaluating generation {gen_num + gi} (elapsed: {_elapsed:.1f}s)')
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
@@ -429,3 +440,6 @@ class GEEMC(EMC):
                 traj.write(atoms)
 
             gi += 1
+
+        # Sync DB from scratch back to persistent storage
+        self._sync_db_to_persistent()
