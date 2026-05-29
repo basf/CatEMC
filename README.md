@@ -1175,3 +1175,151 @@ The dashboard renders 6 panels in a full-screen terminal layout:
 | **Per-Move Plot** | Per-move-type acceptance rates + T vs E scatter |
 
 Press `Ctrl+C` to exit cleanly.
+
+---
+
+## CLI Workflow Scaffolding
+
+CatEMC provides a CLI tool to quickly scaffold production EMC workflows from a YAML configuration.
+
+### Installation
+
+```bash
+pip install -e .
+```
+
+This installs the `catemc` command with subcommands `setup` and `overview`.
+
+### Quick Start: ABOx Screening Workflow
+
+**Step 1: Generate a template config**
+
+```bash
+catemc setup ABOx_screening
+```
+
+This creates `emc_config.yaml` with all configurable parameters:
+
+```yaml
+system:
+  dopant: Cu                    # Dopant element
+  host_metal: Ru                # Host metal in the oxide
+  dopant_fraction: 0.1          # Fraction of host replaced by dopant
+  template_cif: RuO2.cif        # Path to host oxide CIF
+  supercell: [3, 3, 4]          # Supercell dimensions
+  structure: bulk               # 'bulk' or surface miller index
+
+population:
+  valences: {Ru: [4], Cu: [1, 2, 3, 4]}  # Allowed valences per species
+  replicas_per_valence: 4       # Replicas per unique valence combination
+  temperature_min: 500          # Min temperature (K)
+  temperature_max: 1000         # Max temperature (K)
+  num_temperatures: 3           # Number of temperature levels
+
+preopt:
+  model: model.nequip.pt2       # NequIP compiled model path
+  lattice_fmax: 0.05            # Force convergence for lattice relaxation
+  num_workers: 4                # Parallel GPU workers for preopt
+  walltime: "04:00:00"          # PBS walltime for preopt job
+
+emc:
+  model: model.nequip.pt2       # NequIP compiled model path
+  total_steps: 5000             # Total EMC generations
+  trim_generation: 100          # Steps between checkpoints
+  num_workers: 24               # Worker pool size
+  walltime: "24:00:00"          # PBS walltime for EMC job
+```
+
+**Step 2: Edit the config**, then scaffold the workflow:
+
+```bash
+catemc setup ABOx_screening --input emc_config.yaml
+```
+
+This generates a complete run directory:
+```
+Cu0.1Ru0.9Ox/bulk/
+├── generate_initial_population.py   # Creates diverse starting replicas
+├── preopt_population.py             # Parallel GPU lattice relaxation
+├── calc_factory_nequip.py           # NequIP calculator factory
+├── emc_run_worker_pool.py           # Main EMC simulation script
+├── submit_preopt.sh                 # PBS job script for preopt
+└── submit.sh                        # PBS job script for EMC
+```
+
+**Step 3: Run the workflow**
+
+```bash
+cd Cu0.1Ru0.9Ox/bulk/
+python generate_initial_population.py    # Create initial population
+qsub submit_preopt.sh                    # Pre-optimize on GPU
+qsub submit.sh                           # Launch EMC
+```
+
+### Key Features
+
+- **X (vacancy) atom handling**: Preopt automatically strips X markers before NequIP relaxation and restores them afterward
+- **Parallel GPU preopt**: Uses multiprocessing with CUDA MPS for concurrent lattice relaxations
+- **Overwrite protection**: Use `--force` to regenerate existing files
+- **Realpath resolution**: Relative paths in config are resolved to absolute paths in generated scripts
+
+---
+
+## Multi-System Overview Dashboard
+
+Monitor all concurrent EMC runs from a single terminal view.
+
+```bash
+cd /path/to/runs/          # Directory containing multiple system subdirs
+catemc overview            # Live full-screen dashboard
+```
+
+### Display Modes
+
+**Cards view** (default) — Each system gets a bordered panel with progress bar, ETA, and stats:
+
+```
+╭────────── Cu0.1Ru0.9Ox_bulk ───────────╮
+│ ● RUNNING  ETA: 3h 15m                 │
+│                                         │
+│ Gen 3444 / 5000                         │
+│ █████████████████████▌░░░░░░░░░ 69%     │
+│                                         │
+│ Acc: 10.9%  t/gen: 9.1s                │
+│ Ē = 2613.6 ± 38.12 eV                  │
+│ Runtime: 10h 29m                        │
+╰─────────────────────────────────────────╯
+```
+
+**Table view** (`--tabular`) — Compact one-row-per-system table:
+
+```bash
+catemc overview --tabular
+```
+
+### Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--dir PATH` | `.` | Base directory to scan |
+| `--refresh N` | `5.0` | Refresh interval (seconds) |
+| `--depth N` | `3` | Max subdirectory search depth |
+| `--sort` | `status` | Sort by: `status`, `name`, `gen`, `energy`, `acceptance` |
+| `--once` | — | Print snapshot and exit (no live updates) |
+| `--tabular` | — | Simple table layout instead of cards |
+| `--stale-timeout N` | `300` | Seconds before marking STALLED |
+
+### Status Classification
+
+| Status | Color | Meaning |
+|--------|-------|---------|
+| **RUNNING** | Green | Last metric update < 5 min ago |
+| **STALLED** | Yellow | 5 min – 1 hr since last update |
+| **STOPPED** | Red | > 1 hr since last update |
+
+### Progress & ETA
+
+- Reads `emc_config.yaml` (if found next to the metrics file) for `total_steps`
+- Progress bar shows `gen / total_steps` percentage
+- ETA computed from average time per generation × remaining generations
+- Blinking cursor at the leading edge of progress bars indicates live activity
