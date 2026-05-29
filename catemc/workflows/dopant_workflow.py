@@ -95,6 +95,22 @@ def scaffold(config_path):
     env_cfg = cfg['environment']
     preopt_cfg = cfg.get('preopt', {})
 
+    # Resolve relative paths to absolute (relative to config file location)
+    config_dir = os.path.dirname(os.path.realpath(config_path))
+    def _resolve(p):
+        if p and isinstance(p, str) and not os.path.isabs(p):
+            return os.path.realpath(os.path.join(config_dir, p))
+        return p
+
+    sys_cfg['template_cif'] = _resolve(sys_cfg.get('template_cif'))
+    emc_cfg['model'] = _resolve(emc_cfg.get('model'))
+    if preopt_cfg:
+        preopt_cfg['model'] = _resolve(preopt_cfg.get('model'))
+    env_cfg['conda_env'] = _resolve(env_cfg.get('conda_env'))
+    env_cfg['catemc_source'] = _resolve(env_cfg.get('catemc_source'))
+    env_cfg['cuda_home'] = _resolve(env_cfg.get('cuda_home'))
+    env_cfg['conda_base'] = _resolve(env_cfg.get('conda_base'))
+
     dopant = sys_cfg['dopant']
     host = sys_cfg['host_metal']
     frac = sys_cfg['dopant_fraction']
