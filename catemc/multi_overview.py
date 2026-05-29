@@ -365,7 +365,10 @@ def _render_system_card(name, state, total_steps, card_width=38):
         filled = int(frac * bar_w)
         empty = bar_w - filled
         pct_str = f"{frac*100:.0f}%"
-        bar_line = f"[green]{'█' * filled}[/green][dim]{'░' * empty}[/dim] {pct_str}"
+        if status == STATUS_RUNNING and filled < bar_w:
+            bar_line = f"[green]{'█' * filled}[/green][blink bold bright_white on green]▌[/blink bold bright_white on green][dim]{'░' * max(0, empty - 1)}[/dim] {pct_str}"
+        else:
+            bar_line = f"[green]{'█' * filled}[/green][dim]{'░' * empty}[/dim] {pct_str}"
         gen_line = f"Gen [bold]{gen}[/bold] / {total_steps}"
     else:
         bar_line = ""
