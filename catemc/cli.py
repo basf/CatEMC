@@ -3,6 +3,7 @@
 Usage:
     catemc setup ABOx_screening              # emit template config YAML
     catemc setup ABOx_screening --input X    # scaffold from config
+    catemc overview                          # multi-system live dashboard
 """
 
 import argparse
@@ -25,6 +26,20 @@ def cmd_setup(args):
         print(f"Unknown workflow: {workflow_name}")
         print(f"Available workflows: {', '.join(AVAILABLE_WORKFLOWS)}")
         sys.exit(1)
+
+
+
+def cmd_overview(args):
+    """Handle the 'overview' subcommand."""
+    from catemc.multi_overview import run
+    run(
+        base_dir=args.dir,
+        refresh=args.refresh,
+        depth=args.depth,
+        sort_by=args.sort,
+        once=args.once,
+        stale_timeout=args.stale_timeout,
+    )
 
 
 def main():
@@ -59,6 +74,38 @@ def main():
         help='Overwrite existing files without prompting',
     )
     setup_parser.set_defaults(func=cmd_setup)
+
+    # --- overview subcommand ---
+    overview_parser = subparsers.add_parser(
+        'overview',
+        help='Live multi-system overview dashboard',
+    )
+    overview_parser.add_argument(
+        '--dir', '-d', default='.',
+        help='Base directory to scan (default: cwd)',
+    )
+    overview_parser.add_argument(
+        '--refresh', '-r', type=float, default=5.0,
+        help='Refresh interval in seconds (default: 5.0)',
+    )
+    overview_parser.add_argument(
+        '--depth', type=int, default=2,
+        help='Max subdirectory depth to search (default: 2)',
+    )
+    overview_parser.add_argument(
+        '--sort', '-s', default='status',
+        choices=['status', 'name', 'gen', 'energy', 'acceptance'],
+        help='Sort order (default: status)',
+    )
+    overview_parser.add_argument(
+        '--once', action='store_true',
+        help='Print snapshot once and exit (no live updates)',
+    )
+    overview_parser.add_argument(
+        '--stale-timeout', type=int, default=300,
+        help='Seconds before a run is marked STALLED (default: 300)',
+    )
+    overview_parser.set_defaults(func=cmd_overview)
 
     args = parser.parse_args()
     if not args.command:
