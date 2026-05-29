@@ -28,5 +28,6 @@ setuptools.setup(
         'Operating System :: POSIX',
     ],
     install_requires=install_requires,
+    entry_points={'console_scripts': ['catemc=catemc.cli:main']},
     python_requires='>=3.6',
 )
