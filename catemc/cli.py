@@ -39,6 +39,7 @@ def cmd_overview(args):
         sort_by=args.sort,
         once=args.once,
         stale_timeout=args.stale_timeout,
+        tabular=getattr(args, "tabular", False),
     )
 
 
@@ -104,6 +105,10 @@ def main():
     overview_parser.add_argument(
         '--stale-timeout', type=int, default=300,
         help='Seconds before a run is marked STALLED (default: 300)',
+    )
+    overview_parser.add_argument(
+        '--tabular', action='store_true',
+        help='Use simple table layout instead of cards dashboard',
     )
     overview_parser.set_defaults(func=cmd_overview)
 

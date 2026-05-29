@@ -132,7 +132,7 @@ _BAR_FILL = "━"
 _BAR_EMPTY = "╺"
 
 
-def _progress_bar(current, total):
+def _progress_bar(current, total, is_running=False):
     """Render a unicode progress bar string."""
     if total is None or total <= 0:
         return ""
@@ -140,7 +140,10 @@ def _progress_bar(current, total):
     filled = int(frac * _BAR_WIDTH)
     empty = _BAR_WIDTH - filled
     pct = frac * 100
-    bar = f"[green]{_BAR_FILL * filled}[/green][dim]{_BAR_EMPTY * empty}[/dim]"
+    if is_running and filled < _BAR_WIDTH:
+        bar = f"[green]{_BAR_FILL * filled}[/green][blink bold green]╸[/blink bold green][dim]{_BAR_EMPTY * max(0, empty - 1)}[/dim]"
+    else:
+        bar = f"[green]{_BAR_FILL * filled}[/green][dim]{_BAR_EMPTY * empty}[/dim]"
     return f"{bar} {pct:5.1f}%"
 
 
@@ -204,7 +207,7 @@ def _sort_key(item, sort_by):
         return (name,)
 
 
-def build_overview_table(systems, sort_by='status'):
+def build_table_view(systems, sort_by='status', console=None):
     """Build the multi-system overview Rich Table.
 
     Parameters
@@ -255,7 +258,7 @@ def build_overview_table(systems, sort_by='status'):
             gen_str = f"{gen}/?"
 
         # Progress bar
-        progress = _progress_bar(gen, total_steps)
+        progress = _progress_bar(gen, total_steps, is_running=(status == STATUS_RUNNING))
 
         # ETA
         avg_elapsed = 0
@@ -302,11 +305,201 @@ def build_overview_table(systems, sort_by='status'):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Dashboard View (cards + pie chart)
+# ──────────────────────────────────────────────────────────────────────
+
+try:
+    import plotext as plt
+    _HAS_PLOTEXT = True
+except ImportError:
+    _HAS_PLOTEXT = False
+
+
+def _render_pie_chart(systems, width=40, height=12):
+    """Render a status pie chart as string using plotext."""
+    if not _HAS_PLOTEXT:
+        return "  (install plotext for pie chart)"
+
+    counts = {STATUS_RUNNING: 0, STATUS_STALLED: 0, STATUS_STOPPED: 0, STATUS_EMPTY: 0}
+    for name, state, ts in systems:
+        status = _classify_status(state)
+        counts[status] += 1
+
+    # Filter out zero counts
+    labels = []
+    values = []
+    colors = []
+    color_map = {STATUS_RUNNING: "green", STATUS_STALLED: "yellow",
+                 STATUS_STOPPED: "red", STATUS_EMPTY: "gray"}
+    for st in [STATUS_RUNNING, STATUS_STALLED, STATUS_STOPPED, STATUS_EMPTY]:
+        if counts[st] > 0:
+            labels.append(f"{st} ({counts[st]})")
+            values.append(counts[st])
+            colors.append(color_map[st])
+
+    plt.clf()
+    plt.clc()
+    plt.plotsize(width, height)
+    plt.theme("clear")
+    plt.simple_bar(labels, values, color=colors, width=width - 5)
+    plt.title("Status Distribution")
+    return plt.build()
+
+
+def _render_system_card(name, state, total_steps, card_width=38):
+    """Render a single system card as a Rich Panel."""
+    status = _classify_status(state)
+    style = STATUS_STYLE[status]
+
+    gen = state.gens[-1] if state.gens else 0
+    acc = state.acc_rates[-1] if state.acc_rates else 0
+    e_mean = state.energy_mean[-1] if state.energy_mean else None
+    e_std = state.energy_std[-1] if state.energy_std else None
+    t_gen = state.elapsed[-1] if state.elapsed else 0
+    avg_elapsed = sum(state.elapsed) / len(state.elapsed) if state.elapsed else 0
+
+    # Progress bar
+    if total_steps and total_steps > 0:
+        frac = min(gen / total_steps, 1.0)
+        bar_w = card_width - 12
+        filled = int(frac * bar_w)
+        empty = bar_w - filled
+        pct_str = f"{frac*100:.0f}%"
+        bar_line = f"[green]{'█' * filled}[/green][dim]{'░' * empty}[/dim] {pct_str}"
+        gen_line = f"Gen [bold]{gen}[/bold] / {total_steps}"
+    else:
+        bar_line = ""
+        gen_line = f"Gen [bold]{gen}[/bold] / ?"
+
+    # ETA
+    eta = _format_eta(gen, total_steps, avg_elapsed)
+    runtime = _format_runtime(state)
+
+    # Energy
+    if e_mean is not None:
+        e_line = f"Ē = [cyan]{e_mean:.1f}[/cyan] ± {e_std:.2f} eV"
+    else:
+        e_line = "Ē = —"
+
+    # Build card content
+    lines = [
+        f"[{style}]● {status}[/{style}]  ETA: [bold]{eta}[/bold]",
+        "",
+        gen_line,
+        bar_line,
+        "",
+        f"Acc: [yellow]{acc:.1%}[/yellow]  t/gen: {t_gen:.1f}s",
+        e_line,
+        f"Runtime: {runtime}",
+    ]
+
+    card_text = "\n".join(lines)
+
+    border_color = {"RUNNING": "green", "STALLED": "yellow",
+                    "STOPPED": "red", "WAITING": "dim"}.get(status, "white")
+
+    return Panel(
+        Text.from_markup(card_text),
+        title=f"[bold]{name}[/bold]",
+        border_style=border_color,
+        width=card_width,
+        padding=(0, 1),
+    )
+
+
+def _compute_global_stats(systems):
+    """Compute aggregate stats across all systems."""
+    n_running = sum(1 for _, s, _ in systems if _classify_status(s) == STATUS_RUNNING)
+    n_stalled = sum(1 for _, s, _ in systems if _classify_status(s) == STATUS_STALLED)
+    n_stopped = sum(1 for _, s, _ in systems if _classify_status(s) == STATUS_STOPPED)
+    total = len(systems)
+
+    # Average progress
+    progs = []
+    for _, state, ts in systems:
+        if ts and ts > 0 and state.gens:
+            progs.append(state.gens[-1] / ts)
+    avg_progress = sum(progs) / len(progs) if progs else 0
+
+    # Total runtime (max across all)
+    max_runtime = 0
+    for _, state, _ in systems:
+        if state.start_time:
+            rt = time.time() - state.start_time
+            max_runtime = max(max_runtime, rt)
+
+    return {
+        'total': total,
+        'running': n_running,
+        'stalled': n_stalled,
+        'stopped': n_stopped,
+        'avg_progress': avg_progress,
+        'max_runtime': max_runtime,
+    }
+
+
+def _build_header(stats):
+    """Build the summary header panel."""
+    h = int(stats['max_runtime'] // 3600)
+    m = int((stats['max_runtime'] % 3600) // 60)
+
+    text = (
+        f"[bold cyan]CatEMC Multi-System Dashboard[/bold cyan]\n\n"
+        f"  Systems: [bold]{stats['total']}[/bold]  │  "
+        f"[green]● {stats['running']} running[/green]  "
+        f"[yellow]● {stats['stalled']} stalled[/yellow]  "
+        f"[red]● {stats['stopped']} stopped[/red]\n"
+        f"  Avg Progress: [bold]{stats['avg_progress']:.0%}[/bold]  │  "
+        f"Max Runtime: [bold]{h}h {m}m[/bold]"
+    )
+    return Panel(Text.from_markup(text), border_style="cyan", padding=(0, 1))
+
+
+def build_dashboard_view(systems, sort_by='status', console=None):
+    """Build the fancy cards + chart dashboard layout."""
+    from rich.columns import Columns
+    from rich.console import Group
+
+    sorted_systems = sorted(systems, key=lambda x: _sort_key(x, sort_by))
+    stats = _compute_global_stats(systems)
+
+    # Header
+    header = _build_header(stats)
+
+    # Determine card width based on terminal
+    term_w = console.width if console else 120
+    card_width = max(36, min(42, (term_w - 4) // 3))
+    ncols = max(1, (term_w - 2) // (card_width + 1))
+
+    # Build cards
+    cards = []
+    for name, state, total_steps in sorted_systems:
+        cards.append(_render_system_card(name, state, total_steps, card_width))
+
+    # Pie chart / status bar
+    if _HAS_PLOTEXT and len(systems) > 1:
+        pie_str = _render_pie_chart(systems, width=term_w - 4, height=6)
+        pie_panel = Panel(
+            Text.from_ansi(pie_str, no_wrap=True),
+            title="[bold]Status Overview[/bold]",
+            border_style="blue",
+        )
+    else:
+        pie_panel = Text("")
+
+    # Grid of cards
+    card_grid = Columns(cards, equal=True, expand=True)
+
+    # Compose
+    return Group(header, pie_panel, card_grid)
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Main entry point
 # ──────────────────────────────────────────────────────────────────────
 
 def run(base_dir='.', refresh=5.0, depth=3, sort_by='status', once=False,
-        stale_timeout=300):
+        stale_timeout=300, tabular=False):
     """Run the multi-system overview dashboard."""
     global STALE_THRESHOLD
     STALE_THRESHOLD = stale_timeout
@@ -342,9 +535,10 @@ def run(base_dir='.', refresh=5.0, depth=3, sort_by='status', once=False,
     def _get_systems():
         return [(name, states[name], total_steps_map[name]) for name in states]
 
+    _build = build_table_view if tabular else build_dashboard_view
+
     if once:
-        table = build_overview_table(_get_systems(), sort_by=sort_by)
-        console.print(table)
+        console.print(_build(_get_systems(), sort_by=sort_by, console=console))
         return
 
     # Live full-screen dashboard
@@ -353,7 +547,7 @@ def run(base_dir='.', refresh=5.0, depth=3, sort_by='status', once=False,
 
     try:
         with Live(
-            build_overview_table(_get_systems(), sort_by=sort_by),
+            _build(_get_systems(), sort_by=sort_by, console=console),
             console=console,
             refresh_per_second=1 / refresh,
             screen=True,
@@ -366,7 +560,7 @@ def run(base_dir='.', refresh=5.0, depth=3, sort_by='status', once=False,
                     if new:
                         states[name].ingest(new)
                 live.update(
-                    build_overview_table(_get_systems(), sort_by=sort_by)
+                    _build(_get_systems(), sort_by=sort_by, console=console)
                 )
     except KeyboardInterrupt:
         pass
@@ -392,7 +586,8 @@ def main():
                         help='Seconds before a run is marked STALLED (default: 300)')
     args = parser.parse_args()
     run(base_dir=args.dir, refresh=args.refresh, depth=args.depth,
-        sort_by=args.sort, once=args.once, stale_timeout=args.stale_timeout)
+        sort_by=args.sort, once=args.once, stale_timeout=args.stale_timeout,
+        tabular=args.tabular)
 
 
 if __name__ == '__main__':
