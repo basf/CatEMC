@@ -141,7 +141,7 @@ def _progress_bar(current, total, is_running=False):
     empty = _BAR_WIDTH - filled
     pct = frac * 100
     if is_running and filled < _BAR_WIDTH:
-        bar = f"[green]{_BAR_FILL * filled}[/green][blink bold green]╸[/blink bold green][dim]{_BAR_EMPTY * max(0, empty - 1)}[/dim]"
+        bar = f"[green]{_BAR_FILL * filled}[/green][blink bold bright_white]╸[/blink bold bright_white][dim]{_BAR_EMPTY * max(0, empty - 1)}[/dim]"
     else:
         bar = f"[green]{_BAR_FILL * filled}[/green][dim]{_BAR_EMPTY * empty}[/dim]"
     return f"{bar} {pct:5.1f}%"
