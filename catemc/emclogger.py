@@ -108,7 +108,7 @@ class EMCLogger:
 
         if pop is not None:
             from ase.ga import get_raw_score
-            energies = [get_raw_score(a) for a in pop]
+            energies = [-1.0*get_raw_score(a) for a in pop]
             energies_arr = np.array(energies)
             energy_stats = {
                 'mean': float(np.mean(energies_arr)),
