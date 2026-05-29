@@ -38,6 +38,8 @@ preopt:
   model: /path/to/preopt_model.nequip.pt2
   lattice_fmax: 0.05
   optimizer: FIRE
+  num_workers: 4  # parallel relaxation workers on GPU
+  walltime: "04:00:00"
 
 emc:
   model: /path/to/emc_model.nequip.pt2
@@ -150,6 +152,7 @@ def scaffold(config_path):
 
     if preopt_cfg:
         _write_preopt(out_dir, cfg, dopant, host, structure, comp_name)
+        _write_submit_preopt(out_dir, cfg, comp_name, structure)
 
     print(f"\nWorkflow scaffolded in: {out_dir}/")
     print(f"  Population size: {pop_size} replicas")
@@ -159,8 +162,11 @@ def scaffold(config_path):
     print(f"\nNext steps:")
     print(f"  1. cd {out_dir}")
     print(f"  2. python generate_initial_population.py")
-    print(f"  3. python preopt_population.py  (if preopt configured)")
-    print(f"  4. qsub submit.sh")
+    if preopt_cfg:
+        print(f"  3. qsub submit_preopt.sh")
+        print(f"  4. qsub submit.sh")
+    else:
+        print(f"  3. qsub submit.sh")
 
 
 def _write_generate_pop(out_dir, cfg, dopant, host, frac, structure,
@@ -455,38 +461,101 @@ fi
 def _write_preopt(out_dir, cfg, dopant, host, structure, comp_name):
     preopt_cfg = cfg['preopt']
     system_name = f"{comp_name}_{structure}"
+    num_workers = preopt_cfg.get('num_workers', 4)
 
-    script = f'''"""Pre-optimize the initial population with lattice relaxation."""
+    script = f'''"""Pre-optimize the initial population with parallel GPU relaxation.
+
+Usage:
+    python preopt_population.py [--workers N]
+"""
 import sys
 import os
+import argparse
+import multiprocessing as mp
+import math
+
 sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_NOW)
 
-from ase.io import read, write
-from ase.optimize import FIRE
-from ase.filters import FrechetCellFilter
-from nequip.integrations.ase import NequIPCalculator
 
 MODEL = "{preopt_cfg['model']}"
 FMAX = {preopt_cfg.get('lattice_fmax', 0.05)}
+DEFAULT_WORKERS = {num_workers}
+
+
+def _relax_batch(args):
+    """Worker function: load model, relax assigned replicas."""
+    worker_id, indices, input_fname, model_path, fmax = args
+
+    import sys, os
+    sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_NOW)
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+    from ase.io import read
+    from ase.optimize import FIRE
+    from ase.filters import FrechetCellFilter
+    from nequip.integrations.ase import NequIPCalculator
+
+    calc = NequIPCalculator.from_compiled_model(model_path, device="cuda")
+    input_pop = read(input_fname, index=":")
+
+    results = []
+    for i in indices:
+        atoms = input_pop[i].copy()
+        atoms.calc = calc
+        fcf = FrechetCellFilter(atoms)
+        opt = FIRE(fcf, logfile=None)
+        opt.run(fmax=fmax, steps=500)
+        atoms.calc = None
+        results.append((i, atoms, opt.nsteps))
+        print(f"  [Worker {{worker_id}}] Replica {{i}}: relaxed ({{opt.nsteps}} steps)")
+
+    return results
+
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
+                        help="Number of parallel workers (default: %(default)s)")
+    args = parser.parse_args()
+
     cwd = os.path.dirname(os.path.abspath(__file__))
     input_fname = os.path.join(cwd, "{system_name}_input_pop_unrelaxed.traj")
     output_fname = os.path.join(cwd, "{system_name}_input_pop.traj")
 
-    calc = NequIPCalculator.from_compiled_model(MODEL, device="cuda")
+    from ase.io import read, write
     input_pop = read(input_fname, index=":")
+    n = len(input_pop)
+    num_workers = min(args.workers, n)
 
-    for i, atoms in enumerate(input_pop):
-        atoms.calc = calc
-        fcf = FrechetCellFilter(atoms)
-        opt = FIRE(fcf, logfile=None)
-        opt.run(fmax=FMAX, steps=500)
-        atoms.calc = None
-        print(f"  Replica {{i}}: relaxed ({{opt.nsteps}} steps)")
+    print(f"Pre-optimizing {{n}} replicas with {{num_workers}} parallel workers on GPU")
+    print(f"  Model: {preopt_cfg['model']}")
+    print(f"  FMAX: {preopt_cfg.get('lattice_fmax', 0.05)}")
 
-    write(output_fname, input_pop)
-    print(f"\nWritten {{len(input_pop)}} pre-optimized replicas to {{output_fname}}")
+    # Split indices into chunks
+    chunk_size = math.ceil(n / num_workers)
+    tasks = []
+    for w in range(num_workers):
+        start = w * chunk_size
+        end = min(start + chunk_size, n)
+        if start >= n:
+            break
+        indices = list(range(start, end))
+        tasks.append((w, indices, input_fname, MODEL, FMAX))
+
+    # Run in parallel with spawn context (CUDA-safe)
+    ctx = mp.get_context("spawn")
+    with ctx.Pool(num_workers) as pool:
+        all_results = pool.map(_relax_batch, tasks)
+
+    # Reassemble in order
+    relaxed = [None] * n
+    for batch in all_results:
+        for idx, atoms, nsteps in batch:
+            relaxed[idx] = atoms
+
+    write(output_fname, relaxed)
+    print()
+    print(f"Written {{n}} pre-optimized replicas to {{output_fname}}")
 
 
 if __name__ == "__main__":
@@ -495,3 +564,55 @@ if __name__ == "__main__":
 
     with open(os.path.join(out_dir, 'preopt_population.py'), 'w') as f:
         f.write(script)
+
+
+def _write_submit_preopt(out_dir, cfg, comp_name, structure):
+    comp_cfg = cfg['compute']
+    env_cfg = cfg['environment']
+    preopt_cfg = cfg['preopt']
+
+    num_workers = preopt_cfg.get('num_workers', 4)
+    walltime = preopt_cfg.get('walltime', '04:00:00')
+    omp = comp_cfg.get('omp_num_threads', 6)
+    job_name = f"d-{comp_name}_{structure}_preopt"
+
+    script = f'''#!/bin/bash
+#PBS -l select=1:ncpus=40:ngpus=1:mem=320gb:mpiprocs=1:ompthreads=1:vm_size={comp_cfg['vm_size']}
+#PBS -l walltime={walltime}
+#PBS -q {comp_cfg['queue']}
+#PBS -N {job_name}
+#PBS -P {comp_cfg['project']}
+
+module purge
+module unuse /gpfs/software/milan9/v2.1/lmod/Core
+module use /gpfs/software/azure9/v2.1/lmod/Core
+module load gcc/12.4.0 openmpi/4.1.7
+
+export TMPDIR=/fs/cephfs/data/qm_inorganics/venvs/.tmp
+mkdir -p $TMPDIR
+
+# CUDA toolkit
+export CUDA_HOME={env_cfg['cuda_home']}
+export PATH=$CUDA_HOME/bin:$PATH
+
+# GCC runtime (for GLIBCXX_3.4.30)
+export LD_PRELOAD=$(dirname $(which g++))/../lib64/libstdc++.so.6
+
+eval "$({env_cfg['conda_base']}/bin/conda shell.bash hook)"
+conda activate {env_cfg['conda_env']}
+
+export OMP_NUM_THREADS={omp}
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export PYTHONPATH="{env_cfg['catemc_source']}:${{PYTHONPATH}}"
+
+cd $PBS_O_WORKDIR
+
+nvidia-cuda-mps-control -d
+python -u preopt_population.py --workers {num_workers} >>preopt.out 2>preopt.err
+'''
+
+    submit_path = os.path.join(out_dir, 'submit_preopt.sh')
+    with open(submit_path, 'w') as f:
+        f.write(script)
+    os.chmod(submit_path, 0o755)
