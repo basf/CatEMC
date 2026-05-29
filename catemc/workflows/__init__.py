@@ -1,1 +1,1 @@
-AVAILABLE_WORKFLOWS = ["dopant_workflow"]
+AVAILABLE_WORKFLOWS = ["ABOx_screening"]

@@ -277,7 +277,8 @@ for idx, img in enumerate(input_pop):
 
 out_fname = os.path.join(cwd, f"{{system_name}}_input_pop_unrelaxed.traj")
 write(out_fname, input_pop)
-print(f"\nWritten {{len(input_pop)}} replicas to {{out_fname}}")
+print()
+print(f"Written {{len(input_pop)}} replicas to {{out_fname}}")
 '''
 
     with open(os.path.join(out_dir, 'generate_initial_population.py'), 'w') as f:
@@ -485,6 +486,9 @@ def _write_preopt(out_dir, cfg, dopant, host, structure, comp_name):
 
     script = f'''"""Pre-optimize the initial population with parallel GPU relaxation.
 
+Handles X (vacancy marker) atoms: removes them before relaxation (NequIP
+doesn't recognize X), then restores them at original positions afterward.
+
 Usage:
     python preopt_population.py [--workers N]
 """
@@ -496,10 +500,36 @@ import math
 
 sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_NOW)
 
+from ase import Atoms
 
 MODEL = "{preopt_cfg['model']}"
 FMAX = {preopt_cfg.get('lattice_fmax', 0.05)}
 DEFAULT_WORKERS = {num_workers}
+
+
+def remove_markers(atoms):
+    """Remove X marker atoms and return clean atoms + marker indices."""
+    marker_indices = [i for i, atom in enumerate(atoms) if atom.symbol == "X"]
+    non_marker_indices = [i for i, atom in enumerate(atoms) if atom.symbol != "X"]
+    clean = atoms[non_marker_indices]
+    return clean, marker_indices
+
+
+def restore_markers(relaxed_atoms, marker_indices, original_atoms):
+    """Reinsert X markers at their original indices to preserve indexing."""
+    symbols = list(relaxed_atoms.symbols)
+    positions = list(relaxed_atoms.positions)
+
+    for idx in sorted(marker_indices):
+        symbols.insert(idx, "X")
+        positions.insert(idx, original_atoms[idx].position)
+
+    restored = Atoms(symbols=symbols,
+                     positions=positions,
+                     cell=relaxed_atoms.cell,
+                     pbc=relaxed_atoms.pbc)
+    restored.info = original_atoms.info.copy()
+    return restored
 
 
 def _relax_batch(args):
@@ -520,14 +550,18 @@ def _relax_batch(args):
 
     results = []
     for i in indices:
-        atoms = input_pop[i].copy()
-        atoms.calc = calc
-        fcf = FrechetCellFilter(atoms)
+        original = input_pop[i].copy()
+        clean, marker_indices = remove_markers(original)
+        clean.calc = calc
+        fcf = FrechetCellFilter(clean)
         opt = FIRE(fcf, logfile=None)
         opt.run(fmax=fmax, steps=500)
-        atoms.calc = None
-        results.append((i, atoms, opt.nsteps))
-        print(f"  [Worker {{worker_id}}] Replica {{i}}: relaxed ({{opt.nsteps}} steps)")
+        clean.calc = None
+
+        # Restore X markers at original positions
+        restored = restore_markers(clean, marker_indices, original)
+        results.append((i, restored, opt.nsteps, len(marker_indices)))
+        print(f"  [Worker {{worker_id}}] Replica {{i}}: relaxed ({{opt.nsteps}} steps, {{len(marker_indices)}} vacancies)")
 
     return results
 
@@ -550,6 +584,7 @@ def main():
     print(f"Pre-optimizing {{n}} replicas with {{num_workers}} parallel workers on GPU")
     print(f"  Model: {preopt_cfg['model']}")
     print(f"  FMAX: {preopt_cfg.get('lattice_fmax', 0.05)}")
+    print(f"  X (vacancy) atoms will be stripped before relaxation and restored after")
 
     # Split indices into chunks
     chunk_size = math.ceil(n / num_workers)
@@ -570,7 +605,7 @@ def main():
     # Reassemble in order
     relaxed = [None] * n
     for batch in all_results:
-        for idx, atoms, nsteps in batch:
+        for idx, atoms, nsteps, n_vac in batch:
             relaxed[idx] = atoms
 
     write(output_fname, relaxed)

@@ -178,6 +178,7 @@ def _plot_to_string(plot_func, width=60, height=15):
     plt.clf()
     plt.clc()
     plt.plotsize(width, height)
+    plt.theme("clear")  # no ANSI colors — let Rich handle styling
     plot_func()
     return plt.build()
 
@@ -373,7 +374,7 @@ def build_dashboard(state, console_width=None, console_height=None):
     h = console_height or 40
 
     # Plot dimensions (in characters)
-    plot_w = max(30, (w - 6) // 2)
+    plot_w = max(30, (w - 10) // 2)  # subtract panel borders (2+2 per panel)
     plot_h = max(8, (h - 14) // 3)
 
     layout = Layout()
@@ -396,9 +397,9 @@ def build_dashboard(state, console_width=None, console_height=None):
     energy_str = _energy_plot(state, plot_w, plot_h)
     acc_str = _acceptance_plot(state, plot_w, plot_h)
     layout["mid"].split_row(
-        Layout(Panel(Text(energy_str), title="Energy Trajectory",
+        Layout(Panel(Text.from_ansi(energy_str, no_wrap=True), title="Energy Trajectory",
                      border_style="blue"), name="energy_plot"),
-        Layout(Panel(Text(acc_str), title="Acceptance Rate",
+        Layout(Panel(Text.from_ansi(acc_str, no_wrap=True), title="Acceptance Rate",
                      border_style="green"), name="acc_plot"),
     )
 
@@ -406,9 +407,9 @@ def build_dashboard(state, console_width=None, console_height=None):
     moves_str = _move_type_plot(state, plot_w, plot_h)
     te_str = _temp_energy_plot(state, plot_w, plot_h)
     layout["bot"].split_row(
-        Layout(Panel(Text(moves_str), title="Per-Move Acceptance",
+        Layout(Panel(Text.from_ansi(moves_str, no_wrap=True), title="Per-Move Acceptance",
                      border_style="yellow"), name="moves_plot"),
-        Layout(Panel(Text(te_str), title="T vs E (latest)",
+        Layout(Panel(Text.from_ansi(te_str, no_wrap=True), title="T vs E (latest)",
                      border_style="magenta"), name="te_plot"),
     )
 

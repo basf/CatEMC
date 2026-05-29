@@ -1,8 +1,8 @@
 """CatEMC command-line interface.
 
 Usage:
-    catemc setup dopant_workflow              # emit template config YAML
-    catemc setup dopant_workflow --input X    # scaffold from config
+    catemc setup ABOx_screening              # emit template config YAML
+    catemc setup ABOx_screening --input X    # scaffold from config
 """
 
 import argparse
@@ -13,8 +13,8 @@ def cmd_setup(args):
     """Handle the 'setup' subcommand."""
     workflow_name = args.workflow
 
-    if workflow_name == 'dopant_workflow':
-        from catemc.workflows.dopant_workflow import emit_template, scaffold
+    if workflow_name == 'ABOx_screening':
+        from catemc.workflows.ABOx_screening import emit_template, scaffold
         if args.input:
             scaffold(args.input, force=args.force)
         else:
@@ -41,7 +41,7 @@ def main():
     )
     setup_parser.add_argument(
         'workflow',
-        help='Workflow name (e.g. dopant_workflow)',
+        help='Workflow name (e.g. ABOx_screening)',
     )
     setup_parser.add_argument(
         '--input', '-i',
