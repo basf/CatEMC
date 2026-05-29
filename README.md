@@ -1124,3 +1124,54 @@ plt.clf()
 ```
 Output:
 ![png](images/adsorbate_spd.png)
+
+---
+
+## Live Terminal Dashboard
+
+CatEMC includes a **terminal-only live dashboard** for monitoring EMC runs in real time over SSH — no GUI or X11 forwarding needed. It tails the JSONL metrics file and renders animated plots and tables directly in the terminal.
+
+### Requirements
+
+```bash
+pip install rich plotext
+```
+
+### Usage
+
+```bash
+python -m catemc.terminal_observer path/to/metrics.jsonl [--refresh 2.0] [--history 200]
+```
+
+**Arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `metrics_file` | *(required)* | Path to the `_metrics.jsonl` file produced by EMCLogger |
+| `--refresh` | `2.0` | Dashboard refresh interval in seconds |
+| `--history` | `200` | Number of generations to keep in rolling plot history |
+
+### Example
+
+```bash
+# Monitor a running EMC job
+python -m catemc.terminal_observer Cu0.1Ru0.9Ox_bulk_metrics.jsonl
+
+# Faster refresh, longer history
+python -m catemc.terminal_observer Cu0.1Ru0.9Ox_bulk_metrics.jsonl --refresh 1.0 --history 500
+```
+
+### Dashboard Panels
+
+The dashboard renders 6 panels in a full-screen terminal layout:
+
+| Panel | Content |
+|-------|---------|
+| **Summary** | Current generation, runtime, acceptance rate, energy stats |
+| **Move Types** | Per-move-type accepted/total/rate (intra, exchange, etc.) |
+| **Composition** | Mean fraction and std for each tracked metal species |
+| **Energy Plot** | Time-series of mean/min/max energy over generations |
+| **Acceptance Plot** | Overall acceptance rate over generations |
+| **Per-Move Plot** | Per-move-type acceptance rates + T vs E scatter |
+
+Press `Ctrl+C` to exit cleanly.
