@@ -16,10 +16,10 @@ def cmd_setup(args):
     if workflow_name == 'dopant_workflow':
         from catemc.workflows.dopant_workflow import emit_template, scaffold
         if args.input:
-            scaffold(args.input)
+            scaffold(args.input, force=args.force)
         else:
             output = args.output or 'emc_config.yaml'
-            emit_template(output)
+            emit_template(output, force=args.force)
     else:
         from catemc.workflows import AVAILABLE_WORKFLOWS
         print(f"Unknown workflow: {workflow_name}")
@@ -52,6 +52,11 @@ def main():
         '--output', '-o',
         metavar='FILE',
         help='Output path for template YAML (default: emc_config.yaml)',
+    )
+    setup_parser.add_argument(
+        '--force', '-f',
+        action='store_true',
+        help='Overwrite existing files without prompting',
     )
     setup_parser.set_defaults(func=cmd_setup)
 

@@ -76,8 +76,12 @@ environment:
 """
 
 
-def emit_template(output_path):
+def emit_template(output_path, force=False):
     """Write a template YAML config file."""
+    if os.path.exists(output_path) and not force:
+        print(f"Error: '{output_path}' already exists.")
+        print(f"  Remove it or use --force to overwrite.")
+        raise SystemExit(1)
     with open(output_path, 'w') as f:
         f.write(TEMPLATE_YAML)
     print(f"Template config written to: {output_path}")
@@ -85,7 +89,7 @@ def emit_template(output_path):
     print(f"  catemc setup dopant_workflow --input {output_path}")
 
 
-def scaffold(config_path):
+def scaffold(config_path, force=False):
     """Generate the full workflow directory from a config YAML."""
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
@@ -137,6 +141,10 @@ def scaffold(config_path):
 
     # Create output directory
     out_dir = os.path.join(os.getcwd(), f"{comp_name}/{structure}")
+    if os.path.exists(out_dir) and os.listdir(out_dir) and not force:
+        print(f"Error: '{out_dir}' already exists and is not empty.")
+        print(f"  Remove it or use --force to overwrite.")
+        raise SystemExit(1)
     os.makedirs(out_dir, exist_ok=True)
 
     # Copy config into output dir
