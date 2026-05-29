@@ -1140,7 +1140,7 @@ pip install rich plotext
 ### Usage
 
 ```bash
-python -m catemc.terminal_observer path/to/metrics.jsonl [--refresh 2.0] [--history 200]
+catemc watch path/to/metrics.jsonl [--refresh 2.0] [--history 200]
 ```
 
 **Arguments:**
@@ -1155,10 +1155,10 @@ python -m catemc.terminal_observer path/to/metrics.jsonl [--refresh 2.0] [--hist
 
 ```bash
 # Monitor a running EMC job
-python -m catemc.terminal_observer Cu0.1Ru0.9Ox_bulk_metrics.jsonl
+catemc watch Cu0.1Ru0.9Ox_bulk_metrics.jsonl
 
 # Faster refresh, longer history
-python -m catemc.terminal_observer Cu0.1Ru0.9Ox_bulk_metrics.jsonl --refresh 1.0 --history 500
+catemc watch Cu0.1Ru0.9Ox_bulk_metrics.jsonl --refresh 1.0 --history 500
 ```
 
 ### Dashboard Panels

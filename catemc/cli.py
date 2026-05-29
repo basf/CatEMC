@@ -3,6 +3,7 @@
 Usage:
     catemc setup ABOx_screening              # emit template config YAML
     catemc setup ABOx_screening --input X    # scaffold from config
+    catemc watch metrics.jsonl               # single-system live dashboard
     catemc overview                          # multi-system live dashboard
 """
 
@@ -28,6 +29,12 @@ def cmd_setup(args):
         sys.exit(1)
 
 
+
+
+def cmd_watch(args):
+    """Handle the 'watch' subcommand — single-system live dashboard."""
+    from catemc.terminal_observer import run
+    run(args.metrics_file, refresh=args.refresh, history=args.history)
 
 def cmd_overview(args):
     """Handle the 'overview' subcommand."""
@@ -75,6 +82,26 @@ def main():
         help='Overwrite existing files without prompting',
     )
     setup_parser.set_defaults(func=cmd_setup)
+
+
+    # --- watch subcommand ---
+    watch_parser = subparsers.add_parser(
+        'watch',
+        help='Live single-system terminal dashboard (plots + stats)',
+    )
+    watch_parser.add_argument(
+        'metrics_file',
+        help='Path to the *_metrics.jsonl file to monitor',
+    )
+    watch_parser.add_argument(
+        '--refresh', '-r', type=float, default=2.0,
+        help='Refresh interval in seconds (default: 2.0)',
+    )
+    watch_parser.add_argument(
+        '--history', type=int, default=200,
+        help='Max generations to keep in history (default: 200)',
+    )
+    watch_parser.set_defaults(func=cmd_watch)
 
     # --- overview subcommand ---
     overview_parser = subparsers.add_parser(
