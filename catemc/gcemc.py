@@ -32,6 +32,7 @@ import pickle
 import math
 import time
 import os
+import copy
 
 
 class GCEMC(EMC):
@@ -244,8 +245,8 @@ class GCEMC(EMC):
 
     def __init__(self, name,
             calculation_dir,
-            calculation_script,
-            input_pop,
+            calculation_script=None,
+            input_pop=None,
             fix_indices=None,
             trim_generation=100,
             md_generation=10,
@@ -292,6 +293,8 @@ class GCEMC(EMC):
             batching=False,
             worker_pool=None,
             traj_write_interval=1,
+            scratch_dir=None,
+            verbosity=None,
             verbose=True):
 
         super().__init__(
@@ -316,6 +319,8 @@ class GCEMC(EMC):
                 batching=batching,
                 worker_pool=worker_pool,
                 traj_write_interval=traj_write_interval,
+                scratch_dir=scratch_dir,
+                verbosity=verbosity,
                 verbose=verbose)
 
         self.mu_walk_generation = mu_walk_generation
@@ -483,8 +488,10 @@ class GCEMC(EMC):
                 starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
             else:
                 starting_step = 1
+        # Setup scratch DB if scratch_dir is configured
+        self._setup_scratch_db()
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -508,11 +515,13 @@ class GCEMC(EMC):
         if self.slab_indices is None:
             slab_indices_str = 'None'
         else:
-            slab_indices_str = ','.join(map(str, self.slab_indices)) 
+            slab_indices_str = ','.join(map(str, self.slab_indices))
+        surface_add_args = ({'slab_indices': self.slab_indices}
+                            if self.worker_pool is not None else [slab_indices_str])
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(
-                    unrelaxed_candidates, run_md=True, add_args=[slab_indices_str], batching=self.batching)
+                    unrelaxed_candidates, run_md=True, add_args=surface_add_args, batching=self.batching)
             for atoms in relaxed_candidates:
                 rep = atoms.info['key_value_pairs'][self.replica_key]
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
@@ -566,9 +575,15 @@ class GCEMC(EMC):
         # Below is the iterative part of the algorithm
         gen_num = starting_step 
         gi = 0
+        _stop_file = os.path.join(self.calculation_dir, 'STOP')
         while gen_num + gi <= total_steps:
+            if os.path.exists(_stop_file):
+                parprint(f'STOP file detected at generation {gen_num + gi}. Shutting down gracefully.')
+                os.remove(_stop_file)
+                break
 
             if (gen_num + gi) % self.trim_generation == 0:
+                self._flush_traj_writes()
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
@@ -586,7 +601,7 @@ class GCEMC(EMC):
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
                 relaxed_candidates = self.get_relaxed_candidates(
-                        unrelaxed_candidates, run_md=True, add_args=[slab_indices_str], batching=self.batching)
+                        unrelaxed_candidates, run_md=True, add_args=surface_add_args, batching=self.batching)
                 relaxed_candidates.sort(key=lambda c: c.info['key_value_pairs'][self.replica_key])
                 for atoms in relaxed_candidates:
                     rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -607,6 +622,7 @@ class GCEMC(EMC):
             n_interswap_pairs = round((self.pop_size * self.interswap_rate) / 2)
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs,
                                                    interswap_within_temperature=True)
+            _offspring_cache = {}
             
             for parents in all_parents:
                 if len(parents) == 2:
@@ -628,7 +644,9 @@ class GCEMC(EMC):
                             offsprings[idx].info['data']['mu'] = parents[idx].info['data']['mu']
                         if 'mu_window' in parents[idx].info['data']:
                             offsprings[idx].info['data']['mu_window'] = parents[idx].info['data']['mu_window']
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
+                        _offspring_cache[rep] = offsprings[idx]
+                        if self.worker_pool is None:
+                            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
             
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
@@ -705,12 +723,17 @@ class GCEMC(EMC):
                         offspring.info['data']['mu'] = parents[0].info['data']['mu']
                     if 'mu_window' in parents[0].info['data']:
                         offspring.info['data']['mu_window'] = parents[0].info['data']['mu_window']
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
+                    _offspring_cache[rep] = offspring
+                    if self.worker_pool is None:
+                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
             
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
+            if self.worker_pool is not None:
+                unrelaxed_offsprings = [_offspring_cache[rep] for rep in replicas]
+            else:
+                unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
             relaxed_offsprings = self.get_relaxed_candidates(
-                    unrelaxed_offsprings, run_md=False, add_args=[slab_indices_str], batching=self.batching)
+                    unrelaxed_offsprings, run_md=False, add_args=surface_add_args, batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:
@@ -774,10 +797,20 @@ class GCEMC(EMC):
                             temperature_species_internal_map=self.tsi_map,
                             no_internal_indices=self.mutable_nonmetal_indices)
             
-            for atoms in self.pop.pop:
-                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                traj.write(atoms) 
+            if (gen_num + gi) % self.traj_write_interval == 0:
+                pop_snapshot = [(copy.deepcopy(atoms), atoms.info['key_value_pairs'][self.replica_key])
+                                for atoms in self.pop.pop]
+                calc_dir = self.calculation_dir
+                name = self.name
+                def _write_trajs(snapshot, calc_dir=calc_dir, name=name):
+                    for atoms_copy, rep in snapshot:
+                        traj = Trajectory(f'{calc_dir}/tmp_{name}/emc_{rep}.traj', 'a')
+                        traj.write(atoms_copy)
+                self._traj_futures = [f for f in self._traj_futures if not f.done()]
+                self._traj_futures.append(self._traj_writer.submit(_write_trajs, pop_snapshot))
 
             gi += 1
+
+        self._flush_traj_writes()
+        self._sync_db_to_persistent()
+        self._logger.close()

@@ -333,10 +333,15 @@ class EMC(object):
         
         # Fast path: use persistent worker pool if available
         if self.worker_pool is not None:
+            # In worker-pool mode, subclasses can pass per-task keyword
+            # overrides through add_args as a dict.  The legacy subprocess
+            # path still treats add_args as positional command-line args.
+            extra_kwargs = add_args if isinstance(add_args, dict) else None
             results = self.worker_pool.evaluate(
                 unrelaxed_candidates,
                 run_md=run_md,
                 fix_indices=self.fix_indices,
+                extra_kwargs=extra_kwargs,
             )
             return results
 
