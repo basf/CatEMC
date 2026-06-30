@@ -1,44 +1,20 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=40:ngpus=1:mem=320gb:mpiprocs=1:ompthreads=1:vm_size=Standard_NC40ads_H100_v5
-#PBS -l walltime=167:00:00
-#PBS -q azure_gpuq
-#PBS -N d-Cu0.1Ru0.9Ox_bulk_EMC
-#PBS -P OER
+#SBATCH --job-name=catemc
+# --array=0-1                
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --gpus-per-node=1
+#SBATCH --mem-per-cpu=4G
+#SBATCH --partition=kernph-rtxpro6000,kernph-rtx6000
+#SBATCH --qos=kernph
+#SBATCH --nodelist=pgd01,pgc01
+#SBATCH -o slurm-%A_%a.out
+#SBATCH -e slurm-%A_%a.err
 
-module purge
-module unuse /gpfs/software/milan9/v2.1/lmod/Core
-module use /gpfs/software/azure9/v2.1/lmod/Core
-module load gcc/12.4.0 openmpi/4.1.7
+source /scicore/home/goedecke/han0011/.bashrc
+conda activate /scicore/home/goedecke/han0011/venvs/general-gpu
+export OMP_NUM_THREADS=8
+cd $SLURM_SUBMIT_DIR
 
-export TMPDIR=/fs/cephfs/data/qm_inorganics/venvs/.tmp
-mkdir -p $TMPDIR
-
-# CUDA toolkit
-export CUDA_HOME=/fs/cephfs/software/azure9/v2.1/apps/linux-rhel9-zen3/gcc-12.4.0/cuda-12.2.2-4sdxvaer7ivh5k5gmlat6vfrfj6tanpg
-export PATH=$CUDA_HOME/bin:$PATH
-
-# GCC runtime (for GLIBCXX_3.4.30)
-export LD_PRELOAD=$(dirname $(which g++))/../lib64/libstdc++.so.6
-
-eval "$(/fs/cephfs/data/qm_inorganics/azure-conda/miniforge3/bin/conda shell.bash hook)"
-conda activate /fs/cephfs/data/qm_inorganics/venvs/nequip-h100
-
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export PYTHONPATH="/fs/cephfs/data/qm_inorganics/sources/CatEMC_sandip/CatEMC:${PYTHONPATH}"
-
-cd $PBS_O_WORKDIR
-
-nvidia-cuda-mps-control -d
-python -u emc_run_worker_pool.py 0 36 50 >>emc.out 2>emc.err
-EXIT_CODE=$?
-
-if [[ $EXIT_CODE -ne 0 && -f .emc_scratch_info ]]; then
-    source .emc_scratch_info
-    echo "[CRASH-RECOVERY] Python exited with code $EXIT_CODE" >>emc.out
-    if [[ -f "$SCRATCH_DB" ]]; then
-        cp "$SCRATCH_DB" "${PERSISTENT_DB%.db}_recovered.db"
-        echo "[CRASH-RECOVERY] Copied $SCRATCH_DB to ${PERSISTENT_DB%.db}_recovered.db" >>emc.out
-    fi
-fi
+python -u gcemc_run.py 0 16 >> emc.out 2> pbs.err
