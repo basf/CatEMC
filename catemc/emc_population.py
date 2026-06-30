@@ -332,103 +332,119 @@ class EMCPopulation(Population):
 
         return cand_pairs
 
+    def _sorted_by_replica(self, candidates):
+
+        return sorted(candidates, key=lambda c: c.info['key_value_pairs'][self.rk])
+
+    def _linear_exchange_pairs(self, candidates, offset=0):
+
+        candidates = self._sorted_by_replica(candidates)
+        pairs = []
+        if offset == 1 and candidates:
+            pairs.append((candidates[0],))
+        i = offset
+        while i + 1 < len(candidates):
+            pairs.append((candidates[i], candidates[i + 1]))
+            i += 2
+        if i < len(candidates):
+            pairs.append((candidates[i],))
+        return pairs
+
+    def _indexed_exchange_pairs(self, candidates1, candidates2, shift=0):
+
+        candidates1 = self._sorted_by_replica(candidates1)
+        candidates2 = self._sorted_by_replica(candidates2)
+        used1 = set()
+        used2 = set()
+        pairs = []
+        for i, c1 in enumerate(candidates1):
+            j = i + shift
+            if 0 <= j < len(candidates2):
+                pairs.append((c1, candidates2[j]))
+                used1.add(i)
+                used2.add(j)
+        pairs += [(c,) for i, c in enumerate(candidates1) if i not in used1]
+        pairs += [(c,) for j, c in enumerate(candidates2) if j not in used2]
+        return pairs
+
+    def _composition_exchange_pairs(self, candidates):
+
+        options = self._sorted_by_replica(candidates)
+        pairs = []
+        while options:
+            c1 = options.pop(0)
+            formula1 = c1.get_chemical_formula()
+            valid_partner_ids = [i for i, c in enumerate(options)
+                                 if c.get_chemical_formula() == formula1]
+            if valid_partner_ids:
+                i2 = random.choice(valid_partner_ids)
+                pairs.append((c1, options.pop(i2)))
+            else:
+                pairs.append((c1,))
+        return pairs
+
+    def _check_exchange_pairs(self, cand_pairs):
+
+        expected = sorted(c.info['key_value_pairs'][self.rk] for c in self.pop)
+        seen = []
+        for pair in cand_pairs:
+            if len(pair) not in (1, 2):
+                raise RuntimeError('Exchange pair must contain one or two replicas')
+            seen.extend(c.info['key_value_pairs'][self.rk] for c in pair)
+        if sorted(seen) != expected:
+            raise RuntimeError(f'Exchange pair coverage mismatch: expected {expected}, got {sorted(seen)}')
+
     def get_exchange_pairs_between_replicas(self, keep_composition=False):
 
         temp_cand_dict = defaultdict(list)
         for c in self.pop:
             temp_cand_dict[c.info['key_value_pairs'][self.tk]].append(c)
-        dicts = [deepcopy(temp_cand_dict), deepcopy(temp_cand_dict)]
         keys = sorted(temp_cand_dict.keys())
+
+        if keep_composition:
+            cand_pairs = self._composition_exchange_pairs(self.pop)
+            if all(len(pair) != 2 for pair in cand_pairs):
+                cand_pairs = self.get_exchange_pairs_within_composition(temp_cand_dict)
+            self._check_exchange_pairs(cand_pairs)
+            return cand_pairs
+
         if len(keys) == 1:
-            prioritize_odd = False
+            offset = random.randrange(2) if len(temp_cand_dict[keys[0]]) > 2 else 0
+            cand_pairs = self._linear_exchange_pairs(temp_cand_dict[keys[0]], offset=offset)
+            self._check_exchange_pairs(cand_pairs)
+            return cand_pairs
+
+        strat = random.choice(['within_temperature', 'same_condition', 'cross_left', 'cross_right'])
+        cand_pairs = []
+        if strat == 'within_temperature':
+            for T in keys:
+                offset = random.randrange(2) if len(temp_cand_dict[T]) > 2 else 0
+                cand_pairs += self._linear_exchange_pairs(temp_cand_dict[T], offset=offset)
         else:
-            prioritize_odd = random.choice([True, False])
-        if prioritize_odd:
-            first_temps = keys[1:]
-            second_temps = keys
-        else:
-            first_temps = keys
-            second_temps = keys[1:]
-        change_strat = True
-        for idx, temps in enumerate([first_temps, second_temps]):
-            cand_pairs = []
-            for T12 in [temps[i:i+2] for i in range(0, len(temps), 2)]:
-                if len(T12) == 1:
-                    temp_cands = dicts[idx][T12[0]]
-                    cand_pairs += [tuple(temp_cands[i:i+2]) for i in 
-                                   range(0, len(temp_cands), 2)]
-                    if idx == 0:
-                        change_strat = False
+            offset = random.randrange(2) if len(keys) > 2 else 0
+            key_pairs = []
+            if offset == 1 and keys:
+                key_pairs.append((keys[0],))
+            i = offset
+            while i + 1 < len(keys):
+                key_pairs.append((keys[i], keys[i + 1]))
+                i += 2
+            if i < len(keys):
+                key_pairs.append((keys[i],))
+            for pair in key_pairs:
+                if len(pair) == 1:
+                    T = pair[0]
+                    cand_pairs += self._linear_exchange_pairs(temp_cand_dict[T], offset=0)
                     continue
-                T1, T2 = T12
-                if keep_composition:                                                                          
-                    options = dicts[idx][T1] + dicts[idx][T2]
-                    while options:
-                        i1 = random.randrange(0, len(options))
-                        c1 = options.pop(i1)
-                        formula1 = c1.get_chemical_formula()
-                        valid_partner_ids = [j for j, c in enumerate(options) if
-                                             c.get_chemical_formula() == formula1]
-                        if valid_partner_ids:
-                            i2 = random.choice(valid_partner_ids)
-                            c2 = options.pop(i2)
-                            cand_pairs.append((c1, c2))
-                            if idx == 0:
-                                change_strat = False
-                        else:
-                            cand_pairs.append((c1,))
-                else:
-                    strat = random.choice(['vertical','horizontal','cross_left','cross_right'])
-                    lst2, lst1 = sorted([dicts[idx][T1], dicts[idx][T2]], key=lambda x: len(x))
-                    if strat == 'vertical':
-                        for i1, c1 in enumerate(lst1):
-                            try:
-                                c2 = lst2[i1]
-                                cand_pairs.append((c1, c2))
-                            except:
-                                cand_pairs.append((c1,))
-                    elif strat == 'horizontal':
-                        for T in [T1, T2]:
-                            temp_cands = dicts[idx][T]
-                            cand_pairs += [tuple(temp_cands[i:i+2]) for i in
-                                           range(0, len(temp_cands), 2)]
-                    elif strat == 'cross_left':
-                        for i1, c1 in enumerate(lst1):
-                            if i1 == 0:
-                                cand_pairs.append((c1,))
-                                if len(lst2) == len(lst1):
-                                    c2 = lst2[-1]
-                                    cand_pairs.append((c2,))
-                            else:
-                                try:
-                                    c2 = lst2[i1-1]
-                                    cand_pairs.append((c1, c2))
-                                except:
-                                    cand_pairs.append((c1,))
-                    elif strat == 'cross_right':
-                        for i1, c1 in enumerate(lst1):
-                            if i1 == len(lst1) - 1:
-                                cand_pairs.append((c1,))
-                                c2 = lst2[0]
-                                cand_pairs.append((c2,))
-                            else:
-                                try:
-                                    c2 = lst2[i1+1]
-                                    cand_pairs.append((c1, c2))
-                                except:
-                                    cand_pairs.append((c1,))
-                    if idx == 0:
-                        change_strat = False
-            if (idx == 0) and (not change_strat):
-                break
-        if prioritize_odd and (not change_strat):
-            cand_pairs += [(c,) for c in dicts[0][keys[0]]]
-        elif (not prioritize_odd) and change_strat:
-            cand_pairs += [(c,) for c in dicts[1][keys[0]]]
+                T1, T2 = pair
+                if strat == 'same_condition':
+                    cand_pairs += self._indexed_exchange_pairs(temp_cand_dict[T1], temp_cand_dict[T2], shift=0)
+                elif strat == 'cross_left':
+                    cand_pairs += self._indexed_exchange_pairs(temp_cand_dict[T1], temp_cand_dict[T2], shift=-1)
+                elif strat == 'cross_right':
+                    cand_pairs += self._indexed_exchange_pairs(temp_cand_dict[T1], temp_cand_dict[T2], shift=1)
 
-        if keep_composition and all([len(pair) != 2 for pair in cand_pairs]):
-            cand_pairs = self.get_exchange_pairs_within_composition(temp_cand_dict)
-
+        self._check_exchange_pairs(cand_pairs)
         return cand_pairs
 
     def get_exchange_pairs_within_composition(self, temp_cand_dict=None):
@@ -475,6 +491,10 @@ class EMCPopulation(Population):
         new_pop = []
         for c12 in cand_pairs:
             if len(c12) == 1:
+                c = c12[0]
+                if self.verbose:
+                    rep = c.info['key_value_pairs'][self.rk]
+                    parprint(f'Replica {rep} exchange skipped: no valid partner in this exchange sweep.')
                 new_pop += list(c12)
                 continue
             c1, c2 = c12
@@ -494,8 +514,9 @@ class EMCPopulation(Population):
             else:
                 c12_prefactor = prefactor
             df = f1 - f2
-            p_acc = min([1, c12_prefactor * np.exp((1/(kB*T2)-1/(kB*T1))*df)])
-            accept = p_acc > np.random.uniform()
+            ln_prefactor = np.log(c12_prefactor) if c12_prefactor > 0 else -np.inf
+            ln_p_acc = ln_prefactor + (1/(kB*T2)-1/(kB*T1))*df
+            accept = (ln_p_acc >= 0) or (np.log(np.random.uniform()) < ln_p_acc)
 
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " + 
@@ -774,9 +795,13 @@ class MixtureEMCPopulation(EMCPopulation):
         self.current_fitness = None
         self.num_tasks = num_tasks
 
-        EMCPopulation.__init__(self, data_connection, population_size, logfile, 
-                               temperature_key, replica_key, acceptance_key, 
-                               use_extinct, store_delta, verbose=verbose, rng=rng)
+        EMCPopulation.__init__(self, data_connection, population_size, logfile,
+                               temperature_key=temperature_key,
+                               replica_key=replica_key,
+                               acceptance_key=acceptance_key,
+                               use_extinct=use_extinct,
+                               store_delta=store_delta,
+                               verbose=verbose, rng=rng)
 
     def evaluate_offsprings(self, parents, offsprings, prefactor=1, volume=None,
                             nonmetal_species=None, temperature_species_internal_map=None,
@@ -878,12 +903,14 @@ class MixtureEMCPopulation(EMCPopulation):
                              f"prefactor: {prefactor}.")
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
-                offsprings[1].info['key_value_pairs'][self.ak] = 1                
-                parprint(f'Replicas {rep1} {rep2} inter move accepted!')
+                offsprings[1].info['key_value_pairs'][self.ak] = 1
+                if self.verbose:
+                    parprint(f'Replicas {rep1} {rep2} inter move accepted!')
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
                 offsprings[1].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replicas {rep1} {rep2} inter move rejected!')
+                if self.verbose:
+                    parprint(f'Replicas {rep1} {rep2} inter move rejected!')
 
         elif len(parents) == 1:
             # Mutation
@@ -919,10 +946,12 @@ class MixtureEMCPopulation(EMCPopulation):
                          f"prefactor: {prefactor}.")
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
-                parprint(f'Replica {rep} intra move accepted!') 
+                if self.verbose:
+                    parprint(f'Replica {rep} intra move accepted!')
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replica {rep} intra move rejected!') 
+                if self.verbose:
+                    parprint(f'Replica {rep} intra move rejected!')
                     
         return offsprings 
 
@@ -941,6 +970,10 @@ class MixtureEMCPopulation(EMCPopulation):
         new_pop = []
         for c12 in cand_pairs:
             if len(c12) == 1:
+                c = c12[0]
+                if self.verbose:
+                    rep = c.info['key_value_pairs'][self.rk]
+                    parprint(f'Replica {rep} exchange skipped: no valid partner in this exchange sweep.')
                 new_pop += list(c12)
                 continue
             c1, c2 = c12
@@ -965,8 +998,9 @@ class MixtureEMCPopulation(EMCPopulation):
             lnS1T2 = logsumexp(f1 / (kB*T2))
             lnS2T1 = logsumexp(f2 / (kB*T1))
             lnS2T2 = logsumexp(f2 / (kB*T2))
-            p_acc = min([1, c12_prefactor * np.exp(lnS2T1 - lnS1T1 + lnS1T2 - lnS2T2)])
-            accept = p_acc > np.random.uniform()
+            ln_prefactor = np.log(c12_prefactor) if c12_prefactor > 0 else -np.inf
+            ln_p_acc = ln_prefactor + lnS2T1 - lnS1T1 + lnS1T2 - lnS2T2
+            accept = (ln_p_acc >= 0) or (np.log(np.random.uniform()) < ln_p_acc)
 
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " +

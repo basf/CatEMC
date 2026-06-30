@@ -280,7 +280,7 @@ class EMC(object):
         asedb_path = self.asedb_path
         db = connect(asedb_path)
         relaxed_images = []
-        unrelaxed_iamges = []
+        unrelaxed_images = []
         for i, row in enumerate(db.select('relaxed<=1')):
             atoms = row.toatoms()
             atoms.info['key_value_pairs'] = row.key_value_pairs

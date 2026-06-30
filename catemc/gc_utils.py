@@ -156,8 +156,8 @@ def compute_crossover_prefactor(
     if temperature_species_internal_map is None:
         fct11, fct12, fct21, fct22 = ect11, ect12, ect21, ect22        
     else:
-        ads11 = atoms2.info['data']['fragments']
-        ads12 = trial_atoms2.info['data']['fragments']
+        ads11 = atoms1.info['data']['fragments']
+        ads12 = trial_atoms1.info['data']['fragments']
         ads21 = atoms2.info['data']['fragments']
         ads22 = trial_atoms2.info['data']['fragments']
         fct11, fct12 = Counter(ads11), Counter(ads12)
@@ -206,7 +206,7 @@ def compute_crossover_prefactor(
                     frac2 = temperature_species_internal_map[T2][k] / beta2**1.5
                     if no_internal_indices is not None:
                         delta_Nk1 = nfct12[k] - nfct11[k]
-                        delta_NK2 = nfct22[k] - nfct21[k]
+                        delta_Nk2 = nfct22[k] - nfct21[k]
                 try:
                     prefactor *= (math.factorial(fct11[k]) / math.factorial(fct12[k]) * math.factorial(fct21[k]) 
                                   / math.factorial(fct22[k]) * frac1**delta_Nk1 * frac2**delta_Nk2)
