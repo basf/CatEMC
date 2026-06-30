@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from catemc.gcemc import GCEMC
+from calculate_fitness import get_fitness_kwargs
 from ase import data
 from ase.io import read, write
 from ase.geometry import get_layers
@@ -14,6 +15,10 @@ import os
 
 gpu_devices = [int(di) for di in sys.argv[1].split(',')]
 ppg = int(sys.argv[2])
+traj_write_interval = int(sys.argv[3]) if len(sys.argv) > 3 else 1
+scratch_dir = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != 'None' else None
+scratch_sync_interval = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] != 'None' else None
+verbose = bool(int(sys.argv[6])) if len(sys.argv) > 6 else True
 os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_devices[0])
 comp = 'Rh13_MnO'
 surface = '100'
@@ -112,6 +117,12 @@ emc = GCEMC(system_name,
            acceptance_key='accepted',
            raw_score_cutoff=-10000.,
            gpu_devices=gpu_devices,
-           procs_per_device=ppg)
+           procs_per_device=ppg,
+           use_worker_pool=True,
+           fitness_kwargs=get_fitness_kwargs(),
+           scratch_dir=scratch_dir,
+           scratch_sync_interval=scratch_sync_interval,
+           traj_write_interval=traj_write_interval,
+           verbose=verbose)
 
 emc.run(starting_step=1, total_steps=4000)

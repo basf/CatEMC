@@ -6,6 +6,7 @@ from .emc_operators import (
         EMCInterSwap,
         EMCIntraSwap)
 from .emc import EMC
+from .emc_logger import EMCLogger
 from ase.io import read, write
 from ase.io.trajectory import Trajectory
 from ase.ga.data import DataConnection, PrepareDB
@@ -16,7 +17,6 @@ import random
 import shutil
 import time
 import os
-import copy
 
 
 class GEEMC(EMC):
@@ -150,12 +150,16 @@ class GEEMC(EMC):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
-            worker_pool=None,
-            traj_write_interval=1,
+            verbose=True,
+            use_worker_pool=False,
+            calculator_factory=None,
+            calculator_factory_kwargs=None,
+            fitness_kwargs=None,
+            worker_startup_timeout=300.,
+            worker_result_timeout=3600.,
             scratch_dir=None,
             scratch_sync_interval=None,
-            verbosity=None,
-            verbose=True):
+            traj_write_interval=1):
 
         super().__init__(
                 name=name, 
@@ -178,12 +182,16 @@ class GEEMC(EMC):
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
                 batching=batching,
-                worker_pool=worker_pool,
-                traj_write_interval=traj_write_interval,
+                verbose=verbose,
+                use_worker_pool=use_worker_pool,
+                calculator_factory=calculator_factory,
+                calculator_factory_kwargs=calculator_factory_kwargs,
+                fitness_kwargs=fitness_kwargs,
+                worker_startup_timeout=worker_startup_timeout,
+                worker_result_timeout=worker_result_timeout,
                 scratch_dir=scratch_dir,
                 scratch_sync_interval=scratch_sync_interval,
-                verbosity=verbosity,
-                verbose=verbose)
+                traj_write_interval=traj_write_interval)
 
         self.pressure = pressure
         self.bias_starting_step = bias_starting_step
@@ -213,16 +221,17 @@ class GEEMC(EMC):
 
         restart = True
         self.pop_size = len(self.input_pop)
+        self.set_asedb_path()
+        self.worker_pool = self.make_worker_pool()
+        logger = EMCLogger(verbose=self.verbose, acceptance_key=self.acceptance_key)
         if starting_step is None:
             if os.path.isfile(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj'):
                 atoms0 = read(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj', index=-1)
                 starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
             else:
                 starting_step = 1
-        # Setup scratch DB if scratch_dir is configured
-        self._setup_scratch_db()
         # Connect to the ase db
-        asedb_path = self._active_db_path
+        asedb_path = self.asedb_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -256,18 +265,15 @@ class GEEMC(EMC):
         self.ntask = 1
         self.pop = self.get_pop()                                             
         if self.trim_generation == -1:
-            self._logger.log_event("restart", "Restarting from the final population of the previously-converged EMC run. All other previously-stored structures are discarded from the ASE database.")
+            parprint('Restarting from the final population of the previously-converged EMC run. ' + 
+                     'All other previously-stored structures are discarded from the ASE database.')
             self.trim_asedb()
             self.pop = self.get_pop() 
         # Update the population to allow new candidates to enter
         self.dc.add_more_relaxed_candidates(relaxed_candidates)
         self.pop.update()
         if not restart:
-            for atoms in self.pop.pop:
-                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                traj.write(atoms)
+            self.write_population_traj(0)
         if restart_with_trim:
             for atoms in self.pop.pop:
                 rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -284,21 +290,13 @@ class GEEMC(EMC):
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
-        _stop_file = os.path.join(self.calculation_dir, 'STOP')
         while gen_num + gi <= total_steps:
-            if os.path.exists(_stop_file):
-                self._logger.log_event("stop", f"STOP file detected at generation {gen_num + gi}. Shutting down gracefully.")
-                os.remove(_stop_file)
-                break
-            _gen_start = time.perf_counter()
-            self._logger.begin_generation()
-            if (self.trim_generation is not None and self.trim_generation > 0
-                    and (gen_num + gi) % self.trim_generation == 0):
-                self._flush_traj_writes()
+            if (gen_num + gi) % self.trim_generation == 0:
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
-                self._logger.log_event("trim", f'ASE database trimmed at generation {gen_num + gi}. Restart from current population.')
+                parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
+            parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
@@ -314,7 +312,7 @@ class GEEMC(EMC):
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs,
                                                    interswap_within_temperature=True,
                                                    interswap_within_key=self.interswap_within_key)
-            _offspring_cache = {}
+            unrelaxed_dict = {}
             for parents in all_parents:
                 if len(parents) == 2:
                     switch_to_interswap = False
@@ -361,7 +359,7 @@ class GEEMC(EMC):
                             desc = 'Double IntraSwap: Parents {0} {1}'.format(parents[0].info['confid'], parents[1].info['confid'])
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
-                        if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
+                        if (self.worker_pool is None) and os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
                             continue
                         if offsprings[idx] == parents[idx]:
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
@@ -370,13 +368,13 @@ class GEEMC(EMC):
                         if self.interswap_within_key is not None:
                             offsprings[idx].info['key_value_pairs'][self.interswap_within_key] = \
                                     parents[idx].info['key_value_pairs'][self.interswap_within_key]
-                        _offspring_cache[rep] = offsprings[idx]
+                        unrelaxed_dict[rep] = offsprings[idx]
                         if self.worker_pool is None:
                             write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
-                    if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
+                    if (self.worker_pool is None) and os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
                         continue
                     do_metal = False
                     if self.nonmetal_element_pool is None:
@@ -401,15 +399,15 @@ class GEEMC(EMC):
                     if self.interswap_within_key is not None:
                         offspring.info['key_value_pairs'][self.interswap_within_key] = \
                                 parents[0].info['key_value_pairs'][self.interswap_within_key]
-                    _offspring_cache[rep] = offspring
+                    unrelaxed_dict[rep] = offspring
                     if self.worker_pool is None:
                         write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            if self.worker_pool is not None:
-                unrelaxed_offsprings = [_offspring_cache[rep] for rep in replicas]
-            else:
+            if self.worker_pool is None:
                 unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
+            else:
+                unrelaxed_offsprings = [unrelaxed_dict[rep] for rep in replicas]
             relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
@@ -447,37 +445,17 @@ class GEEMC(EMC):
             # Update the population to allow new candidates to enter
             self.dc.add_more_relaxed_candidates(relaxed_candidates)
             self.pop.update()
+            logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             if (self.exchange_generation is not None) and (self.exchange_generation > 0):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(keep_composition=True)
             
-            if (gen_num + gi) % self.traj_write_interval == 0:
-                pop_snapshot = [(copy.deepcopy(atoms), atoms.info['key_value_pairs'][self.replica_key])
-                                for atoms in self.pop.pop]
-                calc_dir = self.calculation_dir
-                name = self.name
-                def _write_trajs(snapshot, calc_dir=calc_dir, name=name):
-                    for atoms_copy, rep in snapshot:
-                        traj = Trajectory(f'{calc_dir}/tmp_{name}/emc_{rep}.traj', 'a')
-                        traj.write(atoms_copy)
-                self._traj_futures = [f for f in self._traj_futures if not f.done()]
-                self._traj_futures.append(self._traj_writer.submit(_write_trajs, pop_snapshot))
-
-            _elapsed = time.perf_counter() - _gen_start
-            self._logger.log_generation(
-                gen_num + gi, _elapsed,
-                pop=self.pop.pop if hasattr(self, 'pop') and self.pop is not None else None,
-                temperature_key=self.temperature_key,
-                target_metal_species=self.metal_element_pool)
-            if (self.scratch_dir is not None and self.scratch_sync_interval is not None
-                    and self.scratch_sync_interval > 0
-                    and (gen_num + gi) % self.scratch_sync_interval == 0):
-                self._flush_traj_writes()
-                self._sync_db_to_persistent()
+            self.write_population_traj(gen_num + gi)
+            if (self.scratch_sync_interval is not None) and ((gen_num + gi) % self.scratch_sync_interval == 0):
+                self.sync_asedb()
 
             gi += 1
 
-        self._flush_traj_writes()
-        # Sync DB from scratch back to persistent storage
-        self._sync_db_to_persistent()
-        self._logger.close()
+        self.sync_asedb()
+        if self.worker_pool is not None:
+            self.worker_pool.close()

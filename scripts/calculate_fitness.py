@@ -2,97 +2,83 @@ from catemc.calculation_templates import calculate_surface_fitness
 from catemc.repulsive import RepulsivePotential
 from metatomic_ase import MetatomicCalculator
 from ase import units
-from ase.io import read, write
-from ase.units import Bohr
-from ase.neighborlist import NeighborList
-from ase.constraints import FixAtoms
-from ase.optimize import BFGS, LBFGS
-from ase.io.trajectory import Trajectory
-from ase.md import Langevin
-from ase.md.nvtberendsen import NVTBerendsen
-from ase.md.nptberendsen import NPTBerendsen
-from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
-from acat.adsorption_sites import SlabAdsorptionSites
-from acat.adsorbate_coverage import SlabAdsorbateCoverage
-from acat.settings import adsorbate_elements
-from itertools import combinations
-import numpy as np
+from ase.io import read
 import pickle
-import math
 import sys
 import os
 
 
-#=====================Don't change this======================
-traj_path = sys.argv[1]
-run_md = bool(int(sys.argv[2]))
-gpu_device = sys.argv[3]
-if sys.argv[4] == 'None':
-    fix_indices = None
-else:
-    fix_indices = [int(i) for i in sys.argv[4].split(',')]
-if sys.argv[5] == 'None':
-    slab_indices = None
-else:
-    slab_indices = [int(i) for i in sys.argv[5].split(',')]
-os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_device)
-dir_name = '/'.join(traj_path.split('/')[:-1])
-atoms = read(traj_path, index=-1)
-atoms.wrap()
-#============================================================
+MODEL_PATH = '/scicore/home/goedecke/han0011/model.pt'
 
-calc1 = RepulsivePotential()
-fmax1 = 0.5
+E_C = -9.944
+E_O2 = -8.768 + 0.101
+E_H2 = -6.773 + 0.267
 
-calc2 = MetatomicCalculator("/scicore/home/goedecke/han0011/model.pt", device="cuda", 
-                            variants={"energy": "react-r2scan"}, extensions_directory=None)
-fmax2 = 0.05
-#fmax2 = 0.25
-#calc3 = MACECalculator(model_paths="/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model", 
-#                       dispersion=False, device='cuda', default_dtype='float64')
-#fmax3 = 0.05
+TARGET_METAL_SPECIES = ['Mn', 'Rh']
+TARGET_METAL_COMPOSITION = {'Mn': 0.9326424870466321, 'Rh': 0.06735751295336788}
+ALLOWED_ADSORBATE_SPECIES = ['O', 'H', 'OH', 'OH2', 'H2', 'O2', 'O2H', 'OOH',
+                             'C', 'CO', 'OC', 'CO2', 'COH', 'CHO', 'CH', 'CH2',
+                             'CH3', 'CH3O', 'OCH3']
 
-E_C = -9.944    # Etot per atom graphite PBE
-E_O2 = -8.768 + 0.101   # Etot incl. ZPE PBE
-E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
-rep = atoms.info['key_value_pairs']['replica']
-site_path = f'{dir_name}/sites_{rep}.pkl'
 
-try:
-    with open(site_path, 'rb') as f:
-        sas = pickle.load(f)
-except:
-    with open(f'/scicore/home/goedecke/han0011/projects/RhMnO/Rh13_MnO/pet_100/Rh13_MnO_100_sites.pkl', 'rb') as f:
-        sas = pickle.load(f)
-#with open(f'/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_wls_dmu_estimates.pkl', 'rb') as f:
-#    tdmu_map = pickle.load(f)
+def create_calculators():
 
-tdmu_map = None
+    calc1 = RepulsivePotential()
+    calc2 = MetatomicCalculator(MODEL_PATH, device='cuda',
+                                variants={'energy': 'react-r2scan'},
+                                extensions_directory=None)
+    return [calc1, calc2]
 
-allowed_adsorbate_species = ['O','H','OH','OH2','H2','O2','O2H','OOH','C','CO','OC','CO2','COH','CHO','CH','CH2','CH3','CH3O','OCH3']
 
-calculate_surface_fitness(
-        atoms, traj_path=traj_path,
-        calculator_list=[calc1, calc2], # , calc3],
-        fmax_list=[fmax1, fmax2], #, fmax3],
-        target_metal_species=['Mn','Rh'],
-        target_metal_composition={'Mn': 0.9326424870466321, 'Rh': 0.06735751295336788},
-        allowed_adsorbate_species=allowed_adsorbate_species,
-        run_md=run_md,
-        md_timestep=1*units.fs,
-        md_taut=0.5*1000**units.fs,
-        md_steps=50,
-        md_write_interval=10,
-        temperature_dmu_map=tdmu_map,
-        element_column_map={'C': 0, 'O': 1, 'H': 2},
-        element_eref_map={'C': E_C, 'O': E_O2/2, 'H': E_H2/2},
-        element_y2x_map={'C': 0., 'O': 1., 'H': 0.}, # fix this in another run, O should be 1
-        adsorption_sites=sas,
-        slab_indices=slab_indices, 
-        fix_indices=fix_indices,
-        adsorbate_surface_dmax=2.5,
-        neighbor_cutoff=2.5,
-        update_relaxed_positions=False, # Set to True for generating relaxed structures
-        raw_score_cutoff=-10000.,
-        temperature_key='temperature',
-        replica_key='replica')
+def get_fitness_kwargs():
+
+    return dict(
+            fmax_list=[0.5, 0.05],
+            target_metal_species=TARGET_METAL_SPECIES,
+            target_metal_composition=TARGET_METAL_COMPOSITION,
+            allowed_adsorbate_species=ALLOWED_ADSORBATE_SPECIES,
+            md_timestep=1 * units.fs,
+            md_taut=500 * units.fs,
+            md_steps=50,
+            md_write_interval=10,
+            temperature_dmu_map=None,
+            element_column_map={'C': 0, 'O': 1, 'H': 2},
+            element_eref_map={'C': E_C, 'O': E_O2 / 2, 'H': E_H2 / 2},
+            element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
+            adsorbate_surface_dmax=2.5,
+            neighbor_cutoff=2.5,
+            update_relaxed_positions=False,
+            raw_score_cutoff=-10000.,
+            temperature_key='temperature',
+            replica_key='replica')
+
+
+def main():
+
+    traj_path = sys.argv[1]
+    run_md = bool(int(sys.argv[2]))
+    gpu_device = sys.argv[3]
+    fix_indices = None if sys.argv[4] == 'None' else [int(i) for i in sys.argv[4].split(',')]
+    slab_indices = None if sys.argv[5] == 'None' else [int(i) for i in sys.argv[5].split(',')]
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_device)
+    dir_name = '/'.join(traj_path.split('/')[:-1])
+    atoms = read(traj_path, index=-1)
+    atoms.wrap()
+
+    with open(f'{dir_name}/Rh13_MnO_100_sites.pkl', 'rb') as handle:
+        sas = pickle.load(handle)
+
+    kwargs = get_fitness_kwargs()
+    kwargs['adsorption_sites'] = sas
+    kwargs['slab_indices'] = slab_indices
+    calculate_surface_fitness(atoms,
+                              traj_path=traj_path,
+                              calculator_list=create_calculators(),
+                              run_md=run_md,
+                              fix_indices=fix_indices,
+                              **kwargs)
+
+
+if __name__ == '__main__':
+    main()
