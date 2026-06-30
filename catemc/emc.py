@@ -208,11 +208,13 @@ class EMC(object):
         if not self.use_worker_pool:
             return None
         n_workers = len(self.gpu_devices) * self.procs_per_device
+        fitness_kwargs = dict(self.fitness_kwargs)
+        fitness_kwargs.update(self.get_worker_extra_kwargs())
         return WorkerPool(
                 calculator_factory=self.get_calculator_factory(),
                 fitness_function=self.get_fitness_function(),
                 calculator_factory_kwargs=self.calculator_factory_kwargs,
-                fitness_kwargs=self.fitness_kwargs,
+                fitness_kwargs=fitness_kwargs,
                 num_workers=n_workers,
                 gpu_devices=self.gpu_devices,
                 startup_timeout=self.worker_startup_timeout,
@@ -311,8 +313,7 @@ class EMC(object):
     def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None, batching=False):
 
         if self.worker_pool is not None:
-            extra_kwargs = self.get_worker_extra_kwargs()
-            extra_kwargs['work_dir'] = f'{self.calculation_dir}/tmp_{self.name}'
+            extra_kwargs = {'work_dir': f'{self.calculation_dir}/tmp_{self.name}'}
             return self.worker_pool.evaluate(unrelaxed_candidates, run_md=run_md,
                                              fix_indices=self.fix_indices,
                                              extra_kwargs=extra_kwargs)

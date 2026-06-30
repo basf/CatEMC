@@ -41,6 +41,7 @@ def calculate_bulk_fitness(
         fix_indices=None,
         max_relax_steps=300,
         write_relax_traj=False,
+        write_md_traj=True,
         optimize_cell=False,
         update_md_positions=True,
         update_relaxed_positions=False,
@@ -162,32 +163,35 @@ def calculate_bulk_fitness(
                 break
             if run_md:
                 tag = f"{dir_name}/md"
+                md_logfile = tag + f'_{rep}.log' if write_md_traj else None
+                md_trajfile = tag + f'_{rep}.traj' if write_md_traj else None
                 MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
                 Stationary(tmp_atoms)
-                if pressure is None:                                                              
+                if pressure is None:
                     if md_type == 'berendsen':
-                        dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
-                                           taut=md_taut, logfile=tag+f'_{rep}.log',
-                                           trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                        dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                           taut=md_taut, logfile=md_logfile,
+                                           trajectory=None, append_trajectory=False)
                     elif md_type == 'langevin':
                         dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
-                                       friction=md_friction, logfile=tag+f'_{rep}.log',
-                                       trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                                       friction=md_friction, logfile=md_logfile,
+                                       trajectory=None, append_trajectory=False)
                 else:
                     if md_type == 'berendsen':
                         dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
                                            taut=md_taut, pressure_au=pressure,
                                            taup=md_taup, compressibility_au=compressibility,
-                                           logfile=tag+f'_{rep}.log', trajectory=tag+f'_{rep}.traj', 
-                                           append_trajectory=True)
+                                           logfile=md_logfile, trajectory=None,
+                                           append_trajectory=False)
                     elif md_type == 'langevin':
                         from ase.md.langevinbaoab import LangevinBAOAB
                         dyn = LangevinBAOAB(tmp_atoms, timestep=md_timestep, temperature_K=T,
                                             T_tau=md_taut, hydrostatic=True, externalstress=pressure,
-                                            P_tau=md_taup, logfile=tag+f'_{rep}.log', 
-                                            trajectory=tag+f'_{rep}.traj', append_trajectory=True)
-                traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
-                dyn.attach(traj.write, interval=md_write_interval)
+                                            P_tau=md_taup, logfile=md_logfile,
+                                            trajectory=None, append_trajectory=False)
+                if write_md_traj:
+                    traj = Trajectory(md_trajfile, 'a', tmp_atoms)
+                    dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
                 if update_md_positions:
                     md_atoms = tmp_atoms.copy()
@@ -231,6 +235,9 @@ def calculate_bulk_fitness(
 
 def calculate_bulk_fitness_inprocess(atoms, calculator_list, **kwargs):
 
+    kwargs = dict(kwargs)
+    kwargs.setdefault('write_md_traj', False)
+    kwargs.setdefault('write_relax_traj', False)
     return calculate_bulk_fitness(atoms.copy(), None, calculator_list, write_output=False, **kwargs)
 
 
@@ -258,6 +265,7 @@ def calculate_surface_fitness(
         temperature_dmu_map=None,
         max_relax_steps=300,
         write_relax_traj=False,
+        write_md_traj=True,
         update_md_positions=True,
         update_relaxed_positions=False,
         adsorbate_surface_dmax=2.5,
@@ -388,18 +396,21 @@ def calculate_surface_fitness(
                 break
             if run_md:
                 tag = f"{dir_name}/md"
+                md_logfile = tag + f'_{rep}.log' if write_md_traj else None
+                md_trajfile = tag + f'_{rep}.traj' if write_md_traj else None
                 MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
                 Stationary(tmp_atoms)
                 if md_type == 'berendsen':
-                    dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
-                                       taut=md_taut, logfile=tag+f'_{rep}.log',
-                                       trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                    dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                       taut=md_taut, logfile=md_logfile,
+                                       trajectory=None, append_trajectory=False)
                 elif md_type == 'langevin':
                     dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
-                                   friction=md_friction, logfile=tag+f'_{rep}.log',
-                                   trajectory=tag+f'_{rep}.traj', append_trajectory=True)
-                traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
-                dyn.attach(traj.write, interval=md_write_interval)
+                                   friction=md_friction, logfile=md_logfile,
+                                   trajectory=None, append_trajectory=False)
+                if write_md_traj:
+                    traj = Trajectory(md_trajfile, 'a', tmp_atoms)
+                    dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
                 if update_md_positions:
                     md_atoms = tmp_atoms.copy()
@@ -507,6 +518,9 @@ def calculate_surface_fitness(
 
 def calculate_surface_fitness_inprocess(atoms, calculator_list, **kwargs):
 
+    kwargs = dict(kwargs)
+    kwargs.setdefault('write_md_traj', False)
+    kwargs.setdefault('write_relax_traj', False)
     return calculate_surface_fitness(atoms.copy(), None, calculator_list, write_output=False, **kwargs)
 
 
