@@ -1191,3 +1191,397 @@ def calculate_batch_surface_fitness(
     pool.map(_postprocess_surface_worker, post_args)
     pool.close()
     pool.join()
+
+
+def calculate_bulk_fitness_inprocess(
+        atoms,
+        calculators,
+        fmax_list,
+        target_metal_species,
+        run_md,
+        md_timestep,
+        md_taut,
+        md_steps,
+        md_write_interval,
+        md_type='berendsen',
+        md_friction=None,
+        pressure=None,
+        md_taup=1000*units.fs,
+        compressibility=5e-5/units.bar,
+        fix_indices=None,
+        max_relax_steps=300,
+        update_md_positions=True,
+        update_relaxed_positions=False,
+        neighbor_cutoff=2.5,
+        raw_score_cutoff=-10000.,
+        temperature_key='temperature',
+        replica_key='replica',
+        optimize_cell=False):
+    """In-process version of calculate_bulk_fitness.
+    
+    Same logic as calculate_bulk_fitness but:
+    - Takes pre-loaded calculators directly (no file-based model loading)
+    - Returns the result Atoms object instead of writing to disk
+    - No traj_path needed
+    
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Structure to evaluate. Must have info['key_value_pairs'] with
+        temperature and replica keys.
+    calculators : list of ASE Calculator
+        Pre-loaded calculators (already on GPU).
+    fmax_list : list of float or None
+        Convergence criteria for each calculator.
+    (other parameters same as calculate_bulk_fitness)
+    
+    Returns
+    -------
+    ase.Atoms
+        The pseudo_atoms result with raw_score set in info.
+    """
+    assert len(calculators) == len(fmax_list)
+    
+    T = atoms.info['key_value_pairs'][temperature_key]
+    rep = atoms.info['key_value_pairs'][replica_key]
+    atoms = rattle_close_atoms(atoms, min_distance=0.1)
+    md_atoms = None
+    penalize = False
+    
+    if fix_indices is None:
+        fix_indices = []
+    else:
+        atoms.set_constraint(FixAtoms(indices=fix_indices))
+    
+    mut_metal_indices = [a.index for a in atoms if (a.index not in fix_indices)
+                         and (a.symbol in target_metal_species)]
+    vac_indices = [a.index for a in atoms if a.symbol == 'X']
+    real_indices = [a.index for a in atoms if a.symbol != 'X']
+    tmp_atoms = atoms[real_indices].copy()
+    
+    for i, calc in enumerate(calculators):
+        fmax = fmax_list[i]
+        is_last = (i == len(calculators) - 1)
+        
+        if not is_last:
+            try:
+                tmp_atoms.calc = calc
+                if fmax is not None:
+                    opt = LBFGS(tmp_atoms, logfile=None)
+                    opt.run(fmax=fmax, steps=max_relax_steps)
+                E0 = tmp_atoms.get_potential_energy()
+            except Exception:
+                tmp_atoms = atoms[real_indices].copy()
+                continue
+            if np.isinf(E0):
+                penalize = True
+                break
+        else:
+            tmp_atoms.calc = calc
+            E0 = tmp_atoms.get_potential_energy()
+            if np.isinf(E0):
+                penalize = True
+                break
+            if run_md:
+                MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
+                Stationary(tmp_atoms)
+                if pressure is None:
+                    if md_type == 'berendsen':
+                        dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                           taut=md_taut, logfile=None)
+                    elif md_type == 'langevin':
+                        dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                       friction=md_friction, logfile=None)
+                else:
+                    if md_type == 'berendsen':
+                        dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                           taut=md_taut, pressure_au=pressure,
+                                           taup=md_taup, compressibility_au=compressibility,
+                                           logfile=None)
+                    elif md_type == 'langevin':
+                        from ase.md.langevinbaoab import LangevinBAOAB
+                        dyn = LangevinBAOAB(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                            T_tau=md_taut, hydrostatic=True, externalstress=pressure,
+                                            logfile=None)
+                dyn.run(md_steps)
+                if update_md_positions:
+                    md_atoms = tmp_atoms.copy()
+            
+            if fmax is not None:
+                if optimize_cell and pressure is not None:
+                    from ase.filters import FrechetCellFilter
+                    filtered = FrechetCellFilter(tmp_atoms)
+                    opt = LBFGS(filtered, logfile=None)
+                else:
+                    opt = LBFGS(tmp_atoms, logfile=None)
+                converged = opt.run(fmax=fmax, steps=max_relax_steps)
+                if not converged:
+                    penalize = True
+    
+    epot = tmp_atoms.get_potential_energy()
+    if penalize:
+        pseudo_atoms = copy.deepcopy(atoms)
+        volume = atoms.get_volume()
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+    else:
+        if (md_atoms is not None) and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
+        elif update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        else:
+            pseudo_atoms = copy.deepcopy(atoms)
+        volume = tmp_atoms.get_volume()
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
+        
+        if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
+            pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+    
+    pseudo_atoms.info['key_value_pairs']['volume'] = volume
+    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
+    
+    return pseudo_atoms
+
+
+
+def calculate_surface_fitness_inprocess(
+        atoms,
+        calculators,
+        fmax_list,
+        target_metal_species,
+        target_metal_composition,
+        allowed_adsorbate_species,
+        element_column_map,
+        element_eref_map,
+        element_y2x_map,
+        adsorption_sites,
+        slab_indices,
+        run_md,
+        md_timestep,
+        md_taut,
+        md_steps,
+        md_write_interval,
+        md_type='berendsen',
+        md_friction=None,
+        fix_indices=None,
+        temperature_dmu_map=None,
+        max_relax_steps=300,
+        update_md_positions=True,
+        update_relaxed_positions=False,
+        adsorbate_surface_dmax=2.5,
+        neighbor_cutoff=2.5,
+        raw_score_cutoff=-10000.,
+        temperature_key='temperature',
+        replica_key='replica',
+        ignore_sites='bridge'):
+    """In-process version of :func:`calculate_surface_fitness`.
+
+    This is the surface-GCEMC analogue of ``calculate_bulk_fitness_inprocess``:
+    calculators are already loaded inside a persistent worker process, no
+    ``atoms_*.traj`` / ``relaxed_atoms_*.traj`` handoff is used, and the
+    evaluated pseudo-structure is returned directly.
+    """
+    if not isinstance(calculators, (list, tuple)):
+        calculators = [calculators]
+    assert len(calculators) == len(fmax_list), 'calculators and fmax_list must match length'
+
+    atoms = copy.deepcopy(atoms)
+    atoms.info.setdefault('data', {})
+    atoms.info.setdefault('key_value_pairs', {})
+
+    T = atoms.info['key_value_pairs'][temperature_key]
+    rep = atoms.info['key_value_pairs'][replica_key]
+    mu = atoms.info.get('data', {}).get('mu', None)
+    sas = adsorption_sites
+    if isinstance(sas, str):
+        with open(sas, 'rb') as handle:
+            import pickle
+            sas = pickle.load(handle)
+
+    atoms = rattle_close_atoms(atoms, min_distance=0.1)
+    md_atoms = None
+    penalize = False
+
+    if fix_indices is None:
+        fix_indices_local = []
+    else:
+        fix_indices_local = list(fix_indices)
+        atoms.set_constraint(FixAtoms(indices=fix_indices_local))
+
+    slab_indices = list(range(len(atoms))) if slab_indices is None else list(slab_indices)
+    slab_index_set = set(slab_indices)
+    allowed_adsorbate_species = [] if allowed_adsorbate_species is None else list(allowed_adsorbate_species)
+    element_column_map = {} if element_column_map is None else element_column_map
+    element_eref_map = {} if element_eref_map is None else element_eref_map
+    element_y2x_map = {} if element_y2x_map is None else element_y2x_map
+
+    mut_metal_indices = [a.index for a in atoms if (a.index not in fix_indices_local)
+                         and (a.symbol in target_metal_species)]
+    real_indices = [a.index for a in atoms if a.symbol != 'X']
+    tmp_atoms = atoms[real_indices].copy()
+    tmp_slab_indices = [new_i for new_i, orig_i in enumerate(real_indices)
+                        if orig_i in slab_index_set]
+
+    for i, calc in enumerate(calculators):
+        fmax = fmax_list[i]
+        is_last = (i == len(calculators) - 1)
+        if not is_last:
+            try:
+                tmp_atoms.calc = calc
+                if fmax is not None:
+                    opt = LBFGS(tmp_atoms, logfile=None)
+                    opt.run(fmax=fmax, steps=max_relax_steps)
+                E0 = tmp_atoms.get_potential_energy()
+            except Exception:
+                tmp_atoms = atoms[real_indices].copy()
+                tmp_slab_indices = [new_i for new_i, orig_i in enumerate(real_indices)
+                                    if orig_i in slab_index_set]
+                continue
+            if np.isinf(E0):
+                penalize = True
+                break
+        else:
+            try:
+                tmp_atoms.calc = calc
+                E0 = tmp_atoms.get_potential_energy()
+            except Exception:
+                penalize = True
+                break
+            if np.isinf(E0):
+                penalize = True
+                break
+            if run_md:
+                MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
+                Stationary(tmp_atoms)
+                if md_type == 'berendsen':
+                    dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                       taut=md_taut, logfile=None)
+                elif md_type == 'langevin':
+                    dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                   friction=md_friction, logfile=None)
+                else:
+                    raise ValueError(f"Unsupported md_type for surface GCEMC: {md_type!r}")
+                dyn.run(md_steps)
+                if update_md_positions:
+                    md_atoms = tmp_atoms.copy()
+            if fmax is not None:
+                opt = LBFGS(tmp_atoms, logfile=None)
+                converged = opt.run(fmax=fmax, steps=max_relax_steps)
+                if not converged:
+                    penalize = True
+
+    # Surface/adsorbate sanity checks and fragment bookkeeping.
+    adsorbates = []
+    adsorbate_indices = []
+    if not penalize:
+        if any(a for a in tmp_atoms if a.position[2] < atoms.positions[:, 2].min()):
+            penalize = True
+        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and
+               (adsorbate_surface_dmax is not None) and
+               (a.position[2] > atoms.positions[:, 2].max() + adsorbate_surface_dmax)):
+            penalize = True
+        try:
+            nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate',
+                                       composition_effect=False,
+                                       ignore_sites=ignore_sites)
+            sas = nsas
+        except Exception:
+            if sas is None:
+                penalize = True
+
+    if not penalize:
+        try:
+            sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas,
+                                        dmax=adsorbate_surface_dmax,
+                                        adsorbate_indices=[a.index for a in tmp_atoms
+                                                           if a.index not in tmp_slab_indices])
+            adsorbate_tuples = sac.get_adsorbates(allowed_adsorbate_species)
+            adsorbates = [t[0] for t in adsorbate_tuples]
+            adsorbate_ids = set()
+            rm_adsorbate_ids = set()
+            for t in adsorbate_tuples:
+                adsorbate_ids.update(t[1])
+                if t[0] not in allowed_adsorbate_species:
+                    rm_adsorbate_ids.update(list(t[1]))
+            adsorbate_indices = [real_indices[i] for i in sorted(adsorbate_ids - rm_adsorbate_ids)]
+            keep_orig_indices = slab_indices + adsorbate_indices
+            keep_orig_set = set(keep_orig_indices)
+            new_atoms = tmp_atoms[[a.index for a in tmp_atoms
+                                   if real_indices[a.index] in keep_orig_set]]
+            if len(new_atoms) < len(tmp_atoms):
+                if md_atoms is not None:
+                    md_atoms = md_atoms[[a.index for a in md_atoms
+                                         if real_indices[a.index] in keep_orig_set]]
+                kept_orig_full_indices = [a.index for a in atoms if a.index in keep_orig_set]
+                atoms = atoms[[a.index for a in atoms if a.index in keep_orig_set]]
+                orig_to_new_full = {orig_i: new_i for new_i, orig_i in enumerate(kept_orig_full_indices)}
+                current_slab_indices = [orig_to_new_full[i] for i in slab_indices if i in orig_to_new_full]
+                current_slab_index_set = set(current_slab_indices)
+                real_indices = [a.index for a in atoms if a.symbol != 'X']
+                tmp_atoms = new_atoms.copy()
+                tmp_atoms.calc = calculators[-1]
+                if fmax_list[-1] is not None:
+                    opt = LBFGS(tmp_atoms, logfile=None)
+                    converged = opt.run(fmax=fmax_list[-1], steps=max_relax_steps)
+                    if not converged:
+                        penalize = True
+                tmp_slab_indices = [new_i for new_i, full_i in enumerate(real_indices)
+                                    if full_i in current_slab_index_set]
+                if not penalize:
+                    sas.update(tmp_atoms)
+                    sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas,
+                                                dmax=adsorbate_surface_dmax,
+                                                adsorbate_indices=[a.index for a in tmp_atoms
+                                                                   if a.index not in tmp_slab_indices])
+                    adsorbate_tuples = sac.get_adsorbates(allowed_adsorbate_species)
+                    adsorbates = [t[0] for t in adsorbate_tuples]
+                    adsorbate_ids = set()
+                    for t in adsorbate_tuples:
+                        adsorbate_ids.update(t[1])
+                    adsorbate_indices = [real_indices[i] for i in sorted(adsorbate_ids)]
+        except Exception:
+            penalize = True
+
+    try:
+        tmp_atoms.calc = calculators[-1]
+        epot = tmp_atoms.get_potential_energy()
+    except Exception:
+        epot = raw_score_cutoff
+        penalize = True
+
+    if penalize:
+        pseudo_atoms = copy.deepcopy(atoms)
+        pseudo_atoms.info.setdefault('key_value_pairs', {})
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+        fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()]
+    else:
+        if (md_atoms is not None) and update_md_positions and not update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
+        elif update_relaxed_positions:
+            pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
+        else:
+            pseudo_atoms = copy.deepcopy(atoms)
+
+        nonmetal_species = list(element_column_map.keys())
+        num_dict = dict((m, len([a for a in tmp_atoms if a.symbol == m]))
+                        for m in target_metal_species + nonmetal_species)
+        num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
+        cond_arr = np.array([T]) if mu is None else np.array([np.append(mu, T)])
+        phi = compute_phi(num_dict, target_metal_species, target_metal_composition,
+                          temperature_dmu_map, cond_arr, element_column_map,
+                          element_eref_map, element_y2x_map, num_metal, epot,
+                          dimensionless=False)[0]
+        pseudo_atoms.info.setdefault('key_value_pairs', {})
+        pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
+        fragments = list(adsorbates)
+        fragments += [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
+                      and (real_indices[a.index] not in adsorbate_indices)]
+        if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
+            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
+            pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
+
+    pseudo_atoms.info.setdefault('data', {})
+    pseudo_atoms.info['data']['fragments'] = fragments
+    pseudo_atoms.info.setdefault('key_value_pairs', {})
+    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
+
+    return pseudo_atoms

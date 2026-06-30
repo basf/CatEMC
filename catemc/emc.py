@@ -18,6 +18,12 @@ import shutil
 import time
 import sys
 import os
+import copy
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+
+from .worker_pool import WorkerPool
+from .emc_logger import EMCLogger, SILENT, SUMMARY, DETAILED, TRACE
 
 
 class EMC(object):
@@ -33,9 +39,10 @@ class EMC(object):
     calculation_dir: str
         Path of the calculation directory.
 
-    calculation_script: str
+    calculation_script: str, default None
         The name of the Python script for calculating the fitness of each
         configuration. The script must be inside calculation_dir.
+        Only required when using subprocess mode (no worker_pool).
 
     input_pop: list of ase.Atoms objects
         Input population for the EMC run.
@@ -114,8 +121,8 @@ class EMC(object):
 
     def __init__(self, name,
             calculation_dir,
-            calculation_script,
             input_pop,
+            calculation_script=None,
             fix_indices=None,
             trim_generation=100,
             pressure=None,
@@ -135,10 +142,15 @@ class EMC(object):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
+            worker_pool=None,
+            traj_write_interval=1,
+            scratch_dir=None,
+            scratch_sync_interval=None,
+            verbosity=None,
             verbose=True):
 
         self.name = name
-        self.calculation_dir = calculation_dir
+        self.calculation_dir = os.path.realpath(calculation_dir)
         self.calculation_script = calculation_script
         self.input_pop = input_pop
         self.fix_indices = fix_indices
@@ -160,7 +172,26 @@ class EMC(object):
         self.gpu_devices = gpu_devices
         self.procs_per_device = procs_per_device
         self.batching = batching
-        self.verbose = verbose
+        self.worker_pool = worker_pool
+        self.traj_write_interval = traj_write_interval
+        self.scratch_dir = scratch_dir
+        self.scratch_sync_interval = scratch_sync_interval
+
+        self._traj_writer = ThreadPoolExecutor(max_workers=2, thread_name_prefix="traj_writer")
+        self._traj_futures = []
+        if self.worker_pool is None and self.calculation_script is None:
+            raise ValueError('calculation_script is required when not using a worker_pool')
+
+        # Structured logging: verbosity param takes precedence over verbose bool.
+        # Backward compatible default: verbose=True gives the old per-move TRACE
+        # output.  verbose=False keeps concise generation summaries instead of
+        # becoming fully silent, which is more useful for long production runs.
+        if verbosity is not None:
+            _verb = verbosity
+        else:
+            _verb = 'TRACE' if verbose else 'SUMMARY'
+        self._logger = EMCLogger(name, self.calculation_dir, verbosity=_verb)
+        self.verbose = (self._logger.verbosity >= TRACE)
 
     def get_pop(self):
 
@@ -174,19 +205,95 @@ class EMC(object):
                 replica_key=self.replica_key,
                 acceptance_key=self.acceptance_key,
                 category_key=self.category_key,
-                verbose=self.verbose)
+                verbose=self.verbose,
+                logger=self._logger)
 
         return pop
 
+    def _flush_traj_writes(self):
+        """Wait for any pending async traj writes to complete."""
+        for f in self._traj_futures:
+            f.result()  # raises if write failed
+        self._traj_futures.clear()
+
+    def _get_persistent_db_path(self):
+        """Return the canonical DB path on persistent storage (calculation_dir)."""
+        return os.path.join(self.calculation_dir, "{}.db".format(self.name))
+
+    def _setup_scratch_db(self):
+        """Copy DB to scratch_dir for fast I/O. Sets self._active_db_path."""
+        persistent_path = self._get_persistent_db_path()
+        if self.scratch_dir is None:
+            self._active_db_path = persistent_path
+            return
+
+        os.makedirs(self.scratch_dir, exist_ok=True)
+        scratch_path = os.path.join(self.scratch_dir, "{}.db".format(self.name))
+        self._active_db_path = scratch_path
+
+        if os.path.isfile(persistent_path):
+            t0 = time.time()
+            size_mb = os.path.getsize(persistent_path) / (1024 * 1024)
+            shutil.copy2(persistent_path, scratch_path)
+            elapsed = time.time() - t0
+            self._logger.log_event("scratch_db", f"[SCRATCH-DB] Copied DB to scratch: {scratch_path} ({size_mb:.1f} MB, {elapsed:.2f}s)")
+        else:
+            self._logger.log_event("scratch_db", f"[SCRATCH-DB] No existing DB found. Will create fresh on scratch: {scratch_path}")
+
+        # Write breadcrumb for bash-level crash recovery
+        info_path = os.path.join(self.calculation_dir, '.emc_scratch_info')
+        with open(info_path, 'w') as fh:
+            fh.write(f"SCRATCH_DB={scratch_path}\n")
+            fh.write(f"PERSISTENT_DB={persistent_path}\n")
+            fh.write(f"DB_NAME={self.name}\n")
+
+        # Symlink scratch DB into calc dir for real-time observer access
+        link_path = os.path.join(self.calculation_dir, f'{self.name}_live.db')
+        if os.path.islink(link_path) or os.path.exists(link_path):
+            os.remove(link_path)
+        os.symlink(scratch_path, link_path)
+
+    def _sync_db_to_persistent(self):
+        """Copy DB from scratch back to persistent storage with backup rotation."""
+        if self.scratch_dir is None:
+            return
+
+        scratch_path = os.path.join(self.scratch_dir, "{}.db".format(self.name))
+        persistent_path = self._get_persistent_db_path()
+
+        if not os.path.isfile(scratch_path):
+            self._logger.log_event("scratch_db", "[SCRATCH-DB] WARNING: No DB on scratch to sync back.")
+            return
+
+        # Rotate backups: keep last 3 versions
+        base = persistent_path[:-3]  # strip .db
+        if os.path.isfile(base + "_sync_bak3.db"):
+            os.remove(base + "_sync_bak3.db")
+        if os.path.isfile(base + "_sync_bak2.db"):
+            os.rename(base + "_sync_bak2.db", base + "_sync_bak3.db")
+        if os.path.isfile(base + "_sync_bak1.db"):
+            os.rename(base + "_sync_bak1.db", base + "_sync_bak2.db")
+        if os.path.isfile(persistent_path):
+            os.rename(persistent_path, base + "_sync_bak1.db")
+
+        # Copy scratch DB to persistent
+        t0 = time.time()
+        size_mb = os.path.getsize(scratch_path) / (1024 * 1024)
+        shutil.copy2(scratch_path, persistent_path)
+        elapsed = time.time() - t0
+        self._logger.log_event("scratch_db", f"[SCRATCH-DB] Synced DB back to persistent: {persistent_path} ({size_mb:.1f} MB, {elapsed:.2f}s)")
+        self._logger.log_event("scratch_db", "[SCRATCH-DB] Backup rotation complete (up to 3 versions kept)")
+
     def trim_asedb(self):
 
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         tmp_asedb = PrepareDB(asedb_path[:-3] + '_tmp.db', population_size=self.pop_size)
         current_pop = self.pop.get_current_population()
         i = 0
-        while os.path.isfile(asedb_path[:-3] + '_bak{}.db'.format(i)):
+        persistent_base = self._get_persistent_db_path()[:-3]
+        while os.path.isfile(persistent_base + '_bak{}.db'.format(i)):
             i += 1
-        shutil.copy(asedb_path, asedb_path[:-3] + '_bak{}.db'.format(i))
+        shutil.copy(asedb_path, persistent_base + '_bak{}.db'.format(i))
         os.remove(asedb_path)
         shutil.move(asedb_path[:-3] + '_tmp.db', asedb_path)
         self.dc = DataConnection(asedb_path)
@@ -194,7 +301,7 @@ class EMC(object):
 
     def connect_data_with_trim(self, starting_step):
 
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         db = connect(asedb_path)
         relaxed_images = []
         unrelaxed_iamges = []
@@ -228,6 +335,21 @@ class EMC(object):
     def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None, batching=False):
 
         replicas = [c.info['key_value_pairs'][self.replica_key] for c in unrelaxed_candidates]
+        
+        # Fast path: use persistent worker pool if available
+        if self.worker_pool is not None:
+            # In worker-pool mode, subclasses can pass per-task keyword
+            # overrides through add_args as a dict.  The legacy subprocess
+            # path still treats add_args as positional command-line args.
+            extra_kwargs = add_args if isinstance(add_args, dict) else None
+            results = self.worker_pool.evaluate(
+                unrelaxed_candidates,
+                run_md=run_md,
+                fix_indices=self.fix_indices,
+                extra_kwargs=extra_kwargs,
+            )
+            return results
+
         if self.fix_indices is None:
             fix_indices_str = 'None'
         else:
@@ -355,8 +477,10 @@ class EMC(object):
                 starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
             else:
                 starting_step = 1
+        # Setup scratch DB if scratch_dir is configured
+        self._setup_scratch_db()
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -390,8 +514,7 @@ class EMC(object):
         self.ntask = 1
         self.pop = self.get_pop()                                             
         if self.trim_generation == -1:
-            parprint('Restarting from the final population of the previously-converged EMC run. ' + 
-                     'All other previously-stored structures are discarded from the ASE database.')
+            self._logger.log_event("restart", "Restarting from the final population of the previously-converged EMC run. All other previously-stored structures are discarded from the ASE database.")
             self.trim_asedb()
             self.pop = self.get_pop() 
         # Update the population to allow new candidates to enter
@@ -417,13 +540,21 @@ class EMC(object):
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
+        _stop_file = os.path.join(self.calculation_dir, 'STOP')
         while gen_num + gi <= total_steps:
-            if (gen_num + gi) % self.trim_generation == 0:
+            if os.path.exists(_stop_file):
+                self._logger.log_event("stop", f"STOP file detected at generation {gen_num + gi}. Shutting down gracefully.")
+                os.remove(_stop_file)
+                break
+            _gen_start = time.perf_counter()
+            self._logger.begin_generation()
+            if (self.trim_generation is not None and self.trim_generation > 0
+                    and (gen_num + gi) % self.trim_generation == 0):
+                self._flush_traj_writes()
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
-                parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
-            parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
+                self._logger.log_event("trim", f'ASE database trimmed at generation {gen_num + gi}. Restart from current population.')
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
@@ -434,6 +565,7 @@ class EMC(object):
                 self.dc.add_more_relaxed_candidates(relaxed_candidates) 
                 self.pop.update()
 
+            _offspring_cache = {}  # in-memory offspring cache
             n_crossover_pairs = round((self.pop_size * self.crossover_rate) / 2)
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs=0)
             for parents in all_parents:
@@ -460,7 +592,9 @@ class EMC(object):
                         if self.category_key is not None:
                             offsprings[idx].info['key_value_pairs'][self.category_key] = \
                                     parents[idx].info['key_value_pairs'][self.category_key]
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
+                        _offspring_cache[rep] = offsprings[idx]
+                        if self.worker_pool is None:
+                            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
@@ -489,10 +623,15 @@ class EMC(object):
                     if self.category_key is not None:
                         offspring.info['key_value_pairs'][self.category_key] = \
                                 parents[0].info['key_value_pairs'][self.category_key]
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
+                    _offspring_cache[rep] = offspring
+                    if self.worker_pool is None:
+                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
+            if self.worker_pool is not None:
+                unrelaxed_offsprings = [_offspring_cache[rep] for rep in replicas]
+            else:
+                unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
             relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
@@ -524,9 +663,35 @@ class EMC(object):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(keep_composition=True)
             
-            for atoms in self.pop.pop:
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                traj.write(atoms)
+            if (gen_num + gi) % self.traj_write_interval == 0:
+                # Async traj write: deep-copy atoms and submit to background thread
+                pop_snapshot = [(copy.deepcopy(atoms), atoms.info['key_value_pairs'][self.replica_key]) for atoms in self.pop.pop]
+                calc_dir = self.calculation_dir
+                name = self.name
+                def _write_trajs(snapshot, calc_dir=calc_dir, name=name):
+                    for atoms_copy, rep in snapshot:
+                        traj = Trajectory(f'{calc_dir}/tmp_{name}/emc_{rep}.traj', 'a')
+                        traj.write(atoms_copy)
+                # Prune completed futures
+                self._traj_futures = [f for f in self._traj_futures if not f.done()]
+                self._traj_futures.append(self._traj_writer.submit(_write_trajs, pop_snapshot))
+
+            _elapsed = time.perf_counter() - _gen_start
+            self._logger.log_generation(
+                gen_num + gi, _elapsed,
+                pop=self.pop.pop if hasattr(self, 'pop') and self.pop is not None else None,
+                temperature_key=self.temperature_key,
+                target_metal_species=self.metal_element_pool)
+            if (self.scratch_dir is not None and self.scratch_sync_interval is not None
+                    and self.scratch_sync_interval > 0
+                    and (gen_num + gi) % self.scratch_sync_interval == 0):
+                self._flush_traj_writes()
+                self._sync_db_to_persistent()
 
             gi += 1
+
+        # Flush any pending async traj writes before returning
+        self._flush_traj_writes()
+        # Sync DB from scratch back to persistent storage
+        self._sync_db_to_persistent()
+        self._logger.close()

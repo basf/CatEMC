@@ -16,6 +16,7 @@ import random
 import shutil
 import time
 import os
+import copy
 
 
 class GEEMC(EMC):
@@ -149,6 +150,11 @@ class GEEMC(EMC):
             gpu_devices=1,
             procs_per_device=10,
             batching=False,
+            worker_pool=None,
+            traj_write_interval=1,
+            scratch_dir=None,
+            scratch_sync_interval=None,
+            verbosity=None,
             verbose=True):
 
         super().__init__(
@@ -172,6 +178,11 @@ class GEEMC(EMC):
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
                 batching=batching,
+                worker_pool=worker_pool,
+                traj_write_interval=traj_write_interval,
+                scratch_dir=scratch_dir,
+                scratch_sync_interval=scratch_sync_interval,
+                verbosity=verbosity,
                 verbose=verbose)
 
         self.pressure = pressure
@@ -208,8 +219,10 @@ class GEEMC(EMC):
                 starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
             else:
                 starting_step = 1
+        # Setup scratch DB if scratch_dir is configured
+        self._setup_scratch_db()
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self._active_db_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -243,8 +256,7 @@ class GEEMC(EMC):
         self.ntask = 1
         self.pop = self.get_pop()                                             
         if self.trim_generation == -1:
-            parprint('Restarting from the final population of the previously-converged EMC run. ' + 
-                     'All other previously-stored structures are discarded from the ASE database.')
+            self._logger.log_event("restart", "Restarting from the final population of the previously-converged EMC run. All other previously-stored structures are discarded from the ASE database.")
             self.trim_asedb()
             self.pop = self.get_pop() 
         # Update the population to allow new candidates to enter
@@ -272,13 +284,21 @@ class GEEMC(EMC):
         # Below is the iterative part of the algorithm
         gen_num = starting_step
         gi = 0
+        _stop_file = os.path.join(self.calculation_dir, 'STOP')
         while gen_num + gi <= total_steps:
-            if (gen_num + gi) % self.trim_generation == 0:
+            if os.path.exists(_stop_file):
+                self._logger.log_event("stop", f"STOP file detected at generation {gen_num + gi}. Shutting down gracefully.")
+                os.remove(_stop_file)
+                break
+            _gen_start = time.perf_counter()
+            self._logger.begin_generation()
+            if (self.trim_generation is not None and self.trim_generation > 0
+                    and (gen_num + gi) % self.trim_generation == 0):
+                self._flush_traj_writes()
                 self.trim_asedb()
                 self.pop = self.get_pop()
                 self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
-                parprint('ASE database trimed at generation {0}. Restart from current population.'.format(gen_num + gi))
-            parprint('Creating and evaluating generation {0}'.format(gen_num + gi))
+                self._logger.log_event("trim", f'ASE database trimmed at generation {gen_num + gi}. Restart from current population.')
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
@@ -294,6 +314,7 @@ class GEEMC(EMC):
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs,
                                                    interswap_within_temperature=True,
                                                    interswap_within_key=self.interswap_within_key)
+            _offspring_cache = {}
             for parents in all_parents:
                 if len(parents) == 2:
                     switch_to_interswap = False
@@ -349,7 +370,9 @@ class GEEMC(EMC):
                         if self.interswap_within_key is not None:
                             offsprings[idx].info['key_value_pairs'][self.interswap_within_key] = \
                                     parents[idx].info['key_value_pairs'][self.interswap_within_key]
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
+                        _offspring_cache[rep] = offsprings[idx]
+                        if self.worker_pool is None:
+                            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
@@ -378,10 +401,15 @@ class GEEMC(EMC):
                     if self.interswap_within_key is not None:
                         offspring.info['key_value_pairs'][self.interswap_within_key] = \
                                 parents[0].info['key_value_pairs'][self.interswap_within_key]
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
+                    _offspring_cache[rep] = offspring
+                    if self.worker_pool is None:
+                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
+            if self.worker_pool is not None:
+                unrelaxed_offsprings = [_offspring_cache[rep] for rep in replicas]
+            else:
+                unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
             relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
             relaxed_candidates = []
             for parents in all_parents:
@@ -423,9 +451,33 @@ class GEEMC(EMC):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(keep_composition=True)
             
-            for atoms in self.pop.pop:
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                traj.write(atoms)
+            if (gen_num + gi) % self.traj_write_interval == 0:
+                pop_snapshot = [(copy.deepcopy(atoms), atoms.info['key_value_pairs'][self.replica_key])
+                                for atoms in self.pop.pop]
+                calc_dir = self.calculation_dir
+                name = self.name
+                def _write_trajs(snapshot, calc_dir=calc_dir, name=name):
+                    for atoms_copy, rep in snapshot:
+                        traj = Trajectory(f'{calc_dir}/tmp_{name}/emc_{rep}.traj', 'a')
+                        traj.write(atoms_copy)
+                self._traj_futures = [f for f in self._traj_futures if not f.done()]
+                self._traj_futures.append(self._traj_writer.submit(_write_trajs, pop_snapshot))
+
+            _elapsed = time.perf_counter() - _gen_start
+            self._logger.log_generation(
+                gen_num + gi, _elapsed,
+                pop=self.pop.pop if hasattr(self, 'pop') and self.pop is not None else None,
+                temperature_key=self.temperature_key,
+                target_metal_species=self.metal_element_pool)
+            if (self.scratch_dir is not None and self.scratch_sync_interval is not None
+                    and self.scratch_sync_interval > 0
+                    and (gen_num + gi) % self.scratch_sync_interval == 0):
+                self._flush_traj_writes()
+                self._sync_db_to_persistent()
 
             gi += 1
+
+        self._flush_traj_writes()
+        # Sync DB from scratch back to persistent storage
+        self._sync_db_to_persistent()
+        self._logger.close()
