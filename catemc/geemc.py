@@ -445,10 +445,10 @@ class GEEMC(EMC):
             # Update the population to allow new candidates to enter
             self.dc.add_more_relaxed_candidates(relaxed_candidates)
             self.pop.update()
-            logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             if (self.exchange_generation is not None) and (self.exchange_generation > 0):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(keep_composition=True)
+            logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             
             self.write_population_traj(gen_num + gi)
             if (self.scratch_sync_interval is not None) and ((gen_num + gi) % self.scratch_sync_interval == 0):

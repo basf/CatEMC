@@ -777,7 +777,6 @@ class GCEMC(EMC):
             # Update the population to allow new candidates to enter
             self.dc.add_more_relaxed_candidates(relaxed_candidates)
             self.pop.update()
-            logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             for atoms in relaxed_candidates:
                 if atoms.info['key_value_pairs'][self.acceptance_key] == 1:
                     rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -807,6 +806,7 @@ class GCEMC(EMC):
                             element_column_map=self.element_column_map,
                             temperature_species_internal_map=self.tsi_map,
                             no_internal_indices=self.mutable_nonmetal_indices)
+            logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             
             self.write_population_traj(gen_num + gi)
             if (self.scratch_sync_interval is not None) and ((gen_num + gi) % self.scratch_sync_interval == 0):

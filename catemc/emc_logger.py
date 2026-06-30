@@ -15,8 +15,6 @@ class EMCLogger(object):
 
     def generation(self, generation, candidates, population):
 
-        if self.verbose:
-            return
         n_moves = len(candidates)
         n_accept = sum(a.info['key_value_pairs'][self.acceptance_key] for a in candidates)
         rate = 0. if n_moves == 0 else n_accept / n_moves
