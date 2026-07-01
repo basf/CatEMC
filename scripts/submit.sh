@@ -15,4 +15,4 @@ conda activate /scicore/home/goedecke/han0011/venvs/general-gpu
 export OMP_NUM_THREADS=1
 cd $SLURM_SUBMIT_DIR
 
-python -u gcemc_run.py 0 32 50 /scratch/$USER/catemc_${SLURM_JOB_ID} 100 1 >> emc.out 2> emc.err
+python -u gcemc_run.py 0 32 100 /scratch/$USER/catemc_${SLURM_JOB_ID} 50 >> emc.out 2> emc.err

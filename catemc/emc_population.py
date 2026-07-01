@@ -521,7 +521,7 @@ class EMCPopulation(Population):
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " + 
                          f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
-                         f"operation: exchange, delta: {df}, prefactor: {c12_prefactor}.")
+                         f"operation: Exchange, delta: {df}, prefactor: {c12_prefactor}.")
             if accept:
                 c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
                         c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]
@@ -1005,7 +1005,7 @@ class MixtureEMCPopulation(EMCPopulation):
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " +
                          f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
-                         f"operation: exchange, prefactor: {c12_prefactor}.")
+                         f"operation: Exchange, prefactor: {c12_prefactor}.")
             if accept:
                 c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
                         c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]

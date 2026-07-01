@@ -18,10 +18,10 @@ def main():
 
     gpu_devices = [int(di) for di in sys.argv[1].split(',')]
     ppg = int(sys.argv[2])
-    traj_write_interval = int(sys.argv[3]) if len(sys.argv) > 3 else 1
+    trim_generation = int(sys.argv[3]) if len(sys.argv) > 3 else 100
     scratch_dir = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != 'None' else None
-    scratch_sync_interval = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] != 'None' else None
-    verbose = bool(int(sys.argv[6])) if len(sys.argv) > 6 else True
+    traj_write_interval = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] not in ['None', '0'] else 1
+    verbose = True
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_devices[0])
 
     comp = 'Rh13_MnO'
@@ -77,7 +77,7 @@ def main():
                calculation_script='calculate_fitness.py',
                input_pop=input_pop,
                fix_indices=fix_indices,
-               trim_generation=100,
+               trim_generation=trim_generation,
                md_generation=10,
                mu_walk_generation=1,
                exchange_generation=1,
@@ -122,7 +122,7 @@ def main():
                use_worker_pool=True,
                fitness_kwargs=get_fitness_kwargs(),
                scratch_dir=scratch_dir,
-               scratch_sync_interval=scratch_sync_interval,
+               scratch_sync_interval=None,
                traj_write_interval=traj_write_interval,
                verbose=verbose)
 

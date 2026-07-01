@@ -17,6 +17,7 @@ import subprocess
 import warnings
 import random
 import shutil
+import sqlite3
 import time
 import sys
 import os
@@ -228,17 +229,57 @@ class EMC(object):
             return
         os.makedirs(self.scratch_dir, exist_ok=True)
         self.asedb_path = os.path.join(self.scratch_dir, '{}.db'.format(self.name))
-        if os.path.isfile(self.persistent_asedb_path):
-            shutil.copy2(self.persistent_asedb_path, self.asedb_path)
+        if os.path.isfile(self.asedb_path):
+            parprint('Using existing scratch ASE database: {}'.format(self.asedb_path))
+        elif os.path.isfile(self.persistent_asedb_path):
+            self.copy_asedb(self.persistent_asedb_path, self.asedb_path)
+        parprint('Scratch ASE database: {}'.format(self.asedb_path))
+        parprint('Persistent ASE database mirror: {}'.format(self.persistent_asedb_path))
+
+    def copy_asedb(self, source, target):
+
+        target_dir = os.path.dirname(os.path.abspath(target))
+        os.makedirs(target_dir, exist_ok=True)
+        tmp_target = target + '.syncing'
+        if os.path.isfile(tmp_target):
+            os.remove(tmp_target)
+        source_conn = sqlite3.connect(source, timeout=60.0)
+        target_conn = sqlite3.connect(tmp_target, timeout=60.0)
+        source_conn.backup(target_conn)
+        target_conn.close()
+        source_conn.close()
+        os.replace(tmp_target, target)
 
     def sync_asedb(self):
 
         if self.scratch_dir is not None and os.path.isfile(self.asedb_path):
-            shutil.copy2(self.asedb_path, self.persistent_asedb_path)
+            self.copy_asedb(self.asedb_path, self.persistent_asedb_path)
+
+    def sync_asedb_if_needed(self, generation):
+
+        if self.scratch_sync_interval is None:
+            return
+        if self.scratch_sync_interval <= 0:
+            return
+        if generation % self.scratch_sync_interval == 0:
+            self.sync_asedb()
+
+    def get_persistent_backup_path(self, scratch_backup_path):
+
+        backup_name = os.path.basename(scratch_backup_path)
+        return os.path.join(self.calculation_dir, backup_name)
+
+    def sync_backup_asedb(self, scratch_backup_path):
+
+        if self.scratch_dir is not None and os.path.isfile(scratch_backup_path):
+            persistent_backup_path = self.get_persistent_backup_path(scratch_backup_path)
+            self.copy_asedb(scratch_backup_path, persistent_backup_path)
 
     def write_population_traj(self, generation):
 
         if self.traj_write_interval is None:
+            return
+        if self.traj_write_interval <= 0:
             return
         if generation % self.traj_write_interval != 0:
             return
@@ -246,6 +287,7 @@ class EMC(object):
             rep = atoms.info['key_value_pairs'][self.replica_key]
             traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
             traj.write(atoms)
+            traj.close()
 
     def get_pop(self):
 
@@ -266,16 +308,23 @@ class EMC(object):
     def trim_asedb(self):
 
         asedb_path = self.asedb_path
-        tmp_asedb = PrepareDB(asedb_path[:-3] + '_tmp.db', population_size=self.pop_size)
+        tmp_asedb_path = asedb_path[:-3] + '_tmp.db'
+        tmp_asedb = PrepareDB(tmp_asedb_path, population_size=self.pop_size)
         current_pop = self.pop.get_current_population()
         i = 0
-        while os.path.isfile(asedb_path[:-3] + '_bak{}.db'.format(i)):
+        backup_path = asedb_path[:-3] + '_bak{}.db'.format(i)
+        persistent_backup_path = self.get_persistent_backup_path(backup_path)
+        while os.path.isfile(backup_path) or os.path.isfile(persistent_backup_path):
             i += 1
-        shutil.copy(asedb_path, asedb_path[:-3] + '_bak{}.db'.format(i))
+            backup_path = asedb_path[:-3] + '_bak{}.db'.format(i)
+            persistent_backup_path = self.get_persistent_backup_path(backup_path)
+        self.copy_asedb(asedb_path, backup_path)
+        self.sync_backup_asedb(backup_path)
         os.remove(asedb_path)
-        shutil.move(asedb_path[:-3] + '_tmp.db', asedb_path)
+        shutil.move(tmp_asedb_path, asedb_path)
         self.dc = DataConnection(asedb_path)
         self.dc.add_more_relaxed_candidates(current_pop)
+        self.sync_asedb()
 
     def connect_data_with_trim(self, starting_step):
 
@@ -493,6 +542,7 @@ class EMC(object):
         self.pop.update()
         if not restart:
             self.write_population_traj(0)
+        self.sync_asedb()
         if restart_with_trim:
             for atoms in self.pop.pop:
                 rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -624,8 +674,7 @@ class EMC(object):
             logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             
             self.write_population_traj(gen_num + gi)
-            if (self.scratch_sync_interval is not None) and ((gen_num + gi) % self.scratch_sync_interval == 0):
-                self.sync_asedb()
+            self.sync_asedb_if_needed(gen_num + gi)
 
             gi += 1
 
