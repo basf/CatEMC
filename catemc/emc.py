@@ -17,7 +17,6 @@ import subprocess
 import warnings
 import random
 import shutil
-import sqlite3
 import time
 import sys
 import os
@@ -240,15 +239,7 @@ class EMC(object):
 
         target_dir = os.path.dirname(os.path.abspath(target))
         os.makedirs(target_dir, exist_ok=True)
-        tmp_target = target + '.syncing'
-        if os.path.isfile(tmp_target):
-            os.remove(tmp_target)
-        source_conn = sqlite3.connect(source, timeout=60.0)
-        target_conn = sqlite3.connect(tmp_target, timeout=60.0)
-        source_conn.backup(target_conn)
-        target_conn.close()
-        source_conn.close()
-        os.replace(tmp_target, target)
+        shutil.copyfile(source, target)
 
     def sync_asedb(self):
 
