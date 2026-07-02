@@ -224,12 +224,7 @@ class GEEMC(EMC):
         self.set_asedb_path()
         self.worker_pool = self.make_worker_pool()
         logger = EMCLogger(verbose=self.verbose, acceptance_key=self.acceptance_key)
-        if starting_step is None:
-            if os.path.isfile(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj'):
-                atoms0 = read(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj', index=-1)
-                starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
-            else:
-                starting_step = 1
+        starting_step = self.get_starting_step(starting_step)
         # Connect to the ase db
         asedb_path = self.asedb_path
         if not os.path.isfile(asedb_path):

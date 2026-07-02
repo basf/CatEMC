@@ -225,6 +225,10 @@ class EMC(object):
         self.persistent_asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
         if self.scratch_dir is None:
             self.asedb_path = self.persistent_asedb_path
+            if not os.path.isfile(self.asedb_path):
+                backup_path = self.get_latest_working_backup_path()
+                if backup_path is not None:
+                    self.restore_asedb_from_backup(backup_path, self.asedb_path)
             return
         os.makedirs(self.scratch_dir, exist_ok=True)
         self.asedb_path = os.path.join(self.scratch_dir, '{}.db'.format(self.name))
@@ -232,6 +236,11 @@ class EMC(object):
             parprint('Using existing scratch ASE database: {}'.format(self.asedb_path))
         elif os.path.isfile(self.persistent_asedb_path):
             self.copy_asedb(self.persistent_asedb_path, self.asedb_path)
+        else:
+            backup_path = self.get_latest_working_backup_path()
+            if backup_path is not None:
+                self.restore_asedb_from_backup(backup_path, self.asedb_path)
+                self.copy_asedb(self.asedb_path, self.persistent_asedb_path)
         parprint('Scratch ASE database: {}'.format(self.asedb_path))
         parprint('Persistent ASE database mirror: {}'.format(self.persistent_asedb_path))
 
@@ -240,6 +249,87 @@ class EMC(object):
         target_dir = os.path.dirname(os.path.abspath(target))
         os.makedirs(target_dir, exist_ok=True)
         shutil.copyfile(source, target)
+
+    def get_backup_index(self, path):
+
+        name = os.path.basename(path)
+        prefix = '{}_bak'.format(self.name)
+        suffix = '.db'
+        if not name.startswith(prefix):
+            return None
+        if not name.endswith(suffix):
+            return None
+        index = name[len(prefix):-len(suffix)]
+        if not index.isdigit():
+            return None
+        return int(index)
+
+    def get_latest_working_backup_path(self):
+
+        backup_paths = []
+        if not os.path.isdir(self.calculation_dir):
+            return None
+        for name in os.listdir(self.calculation_dir):
+            path = os.path.join(self.calculation_dir, name)
+            index = self.get_backup_index(path)
+            if index is not None and os.path.isfile(path):
+                backup_paths.append((index, path))
+        if not backup_paths:
+            return None
+        backup_paths.sort(key=lambda x: x[0])
+        return backup_paths[-1][1]
+
+    def restore_asedb_from_backup(self, backup_path, target_path):
+
+        backup_dc = DataConnection(backup_path)
+        backup_pop = EMCPopulation(
+                data_connection=backup_dc,
+                population_size=self.pop_size,
+                logfile=None,
+                temperature_key=self.temperature_key,
+                replica_key=self.replica_key,
+                acceptance_key=self.acceptance_key,
+                category_key=self.category_key,
+                verbose=False)
+        backup_pop.update()
+        current_pop = backup_pop.get_current_population()
+        if len(current_pop) != self.pop_size:
+            raise RuntimeError('Could not recover a complete population from {}'.format(backup_path))
+        target_dir = os.path.dirname(os.path.abspath(target_path))
+        os.makedirs(target_dir, exist_ok=True)
+        if os.path.isfile(target_path):
+            os.remove(target_path)
+        PrepareDB(target_path, population_size=self.pop_size)
+        dc = DataConnection(target_path)
+        dc.add_more_relaxed_candidates(current_pop)
+        latest_generation = self.get_latest_asedb_generation(target_path)
+        parprint('Recovered generation {} from {}'.format(latest_generation, backup_path))
+
+    def get_latest_asedb_generation(self, asedb_path):
+
+        if not os.path.isfile(asedb_path):
+            return None
+        db = connect(asedb_path)
+        generations = []
+        for row in db.select('relaxed=1'):
+            key_value_pairs = row.key_value_pairs
+            if 'emc_step' in key_value_pairs:
+                generations.append(key_value_pairs['emc_step'])
+        if not generations:
+            return None
+        return max(generations)
+
+    def get_starting_step(self, starting_step):
+
+        if starting_step is not None:
+            return starting_step
+        latest_generation = self.get_latest_asedb_generation(self.asedb_path)
+        if latest_generation is not None:
+            return latest_generation + 1
+        if os.path.isfile(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj'):
+            atoms0 = read(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj', index=-1)
+            return atoms0.info['key_value_pairs']['emc_step'] + 1
+        return 1
 
     def sync_asedb(self):
 
@@ -483,12 +573,7 @@ class EMC(object):
         self.set_asedb_path()
         self.worker_pool = self.make_worker_pool()
         logger = EMCLogger(verbose=self.verbose, acceptance_key=self.acceptance_key)
-        if starting_step is None:
-            if os.path.isfile(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj'):
-                atoms0 = read(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj', index=-1)
-                starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
-            else:
-                starting_step = 1
+        starting_step = self.get_starting_step(starting_step)
         # Connect to the ase db
         asedb_path = self.asedb_path
         if not os.path.isfile(asedb_path):
