@@ -96,7 +96,7 @@ class GCEMC(EMC):
         The rate of performing intraswap operations in the catalyst slab.
 
     slab_mutation_rate: float, default 0.
-        The rate of performing intraswap operations in the catalyst slab.
+        The rate of performing mutation operations in the catalyst slab.
 
     adsorbate_insertion_rate: float, default 0.
         The rate of adding an adsorbate fragment to the catalyst surface.
@@ -679,12 +679,34 @@ class GCEMC(EMC):
                     else:
                         allowed_indices = [self.mutable_metal_indices, self.mutable_nonmetal_indices]
                         element_pools = [self.metal_element_pool, self.nonmetal_element_pool]
-                    operators = [EMCIntraSwap(allowed_indices=allowed_indices, 
-                                              element_pools=element_pools), 
-                                 EMCMutation(allowed_indices=allowed_indices, 
-                                             element_pools=element_pools,
-                                             element_probabilities=self.bulk_metal_composition)]
+    
+                    operators = [EMCIntraSwap(allowed_indices=allowed_indices,
+                                              element_pools=element_pools)]
                     weights = [self.slab_intraswap_rate, self.slab_mutation_rate]
+                    if (self.tdmu_map is None) and (self.mutable_metal_indices is not None):
+                        if (self.mutable_nonmetal_indices is not None) and (self.nonmetal_element_pool is not None):
+                            warnings.warn(
+                                "self.tdmu_map is None, so grand-canonical energy changes for metal "
+                                "composition mutations cannot be evaluated. EMCMutation is now restricted "
+                                "to mutable non-metal indices only."
+                            )
+                            operators.append(
+                                EMCMutation(allowed_indices=self.mutable_nonmetal_indices,
+                                            element_pools=self.nonmetal_element_pool)
+                            )
+                        else:
+                            warnings.warn(
+                                "self.tdmu_map is None, so grand-canonical energy changes for metal "
+                                "composition mutations cannot be evaluated. No mutable non-metal indices "
+                                "are available, so doing EMCIntraswap instead of EMCMutation."
+                            )
+                            weights = [self.slab_intraswap_rate]
+                    else:
+                        operators.append(
+                            EMCMutation(allowed_indices=allowed_indices,
+                                        element_pools=element_pools,
+                                        element_probabilities=self.bulk_metal_composition)
+                        )
                     if self.adsorbate_species is not None:
                         operators += \
                                 [AddAdsorbate(adsorbate_species=adsorbate_species, 

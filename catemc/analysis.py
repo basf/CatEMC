@@ -1338,9 +1338,6 @@ class GCEMCAnalysis(object):
                         idx_match = np.where(np.all(np.abs(grid - sample_cond) < tol, axis=1))[0] 
                         
                         if idx_match.size == 0:
-                            print(grid)
-                            print(sample_cond)
-                            assert False
                             parprint('No matching state found for sample:', sample_cond)
                             continue
                         state_idx = int(idx_match[0])
