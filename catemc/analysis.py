@@ -123,6 +123,7 @@ class GEEMCAnalysis(object):
 
                     accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
                     U = float(row.potential_energy)
+                    score = float(row.raw_score)
                     if self.interswap_within_key is None:
                         self.mc_data[T].setdefault(rep, {})[row.emc_step] = {
                             'energy': U,
@@ -140,7 +141,8 @@ class GEEMCAnalysis(object):
                         atoms.info = {'key_value_pairs': {
                             self.temperature_key: T,
                             self.replica_key: rep,
-                            'potential_energy': U},
+                            'potential_energy': U,
+                            'raw_score': score},
                             'data': {}}
                         if self.pressure is not None:
                             V = row.volume
@@ -960,9 +962,10 @@ class GCEMCAnalysis(object):
                         self.mc_data[T][rep] = {}
 
                     accepted = bool(row.key_value_pairs[self.acceptance_key])
-                    energy = float(row.potential_energy)
+                    U = float(row.potential_energy)
+                    score = float(row.raw_score)
                     self.mc_data[T][rep][step] = {
-                        'energy': energy,
+                        'energy': U,
                         'accepted': accepted,
                         'mu': mu,
                         'mu_window': mu_window,
@@ -973,7 +976,8 @@ class GCEMCAnalysis(object):
                         atoms.info = {'key_value_pairs': {
                             self.temperature_key: T,
                             self.replica_key: rep,
-                            'potential_energy': energy},
+                            'potential_energy': U,
+                            'raw_score': score},
                             'data': {}}
                         atoms.info['data']['mu'] = mu
                         atoms.info['data']['mu_window'] = mu_window
@@ -1324,7 +1328,7 @@ class GCEMCAnalysis(object):
                             images.append(atoms)
                             image_meta.append((T, rep, n_minus_1))
 
-                        epot = atoms.info['key_value_pairs']['potential_energy']
+                        U = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
                         if atoms.info['data'].get('mu') is not None:
@@ -1346,7 +1350,7 @@ class GCEMCAnalysis(object):
                         phi = compute_phi(
                                 num_dict, self.target_metal_species, self.target_metal_composition, 
                                 temperature_dmu_map, grid, element_column_map, element_eref_map, 
-                                element_y2x_map, num_metal, epot, dimensionless=True)
+                                element_y2x_map, num_metal, U, dimensionless=True)
                         phi_kn.append(phi.reshape(-1,1))
 
         if traj_exists:
@@ -1560,7 +1564,7 @@ class GCEMCAnalysis(object):
                             images.append(atoms)
                             image_meta.append((T, rep, n_minus_1))
 
-                        epot = atoms.info['key_value_pairs']['potential_energy']
+                        U = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
                         if atoms.info['data'].get('mu') is not None:
@@ -1578,7 +1582,7 @@ class GCEMCAnalysis(object):
                         phi = compute_phi(
                                 num_dict, self.target_metal_species, self.target_metal_composition,
                                 temperature_dmu_map, grid, element_column_map, element_eref_map,
-                                element_y2x_map, num_metal, epot, dimensionless=True)
+                                element_y2x_map, num_metal, U, dimensionless=True)
                         phi_kn.append(phi.reshape(-1,1))
 
         if traj_exists:
