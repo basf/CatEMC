@@ -888,7 +888,7 @@ class GCEMCAnalysis(object):
             pop_size,
             target_metal_species,
             target_metal_composition,
-            adsorbate_species,
+            adsorbate_species=None,
             trim_generation=100,
             temperature_key='temperature',
             replica_key='replica',
@@ -1216,7 +1216,7 @@ class GCEMCAnalysis(object):
 
         fragments = atoms.info['data'].get('fragments', None)
         lattice_nonmetal_symbols = []
-        if element_column_map is not None and fragments is not None:
+        if (element_column_map is not None) and (fragments is not None) and (self.adsorbate_species is not None):
             for nm in element_column_map.keys():
                 lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
             adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
