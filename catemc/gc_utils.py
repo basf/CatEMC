@@ -225,7 +225,6 @@ def compute_crossover_prefactor(
 
 def compute_exchange_prefactor(
         atoms1, atoms2, 
-        reaction_conditions=None, 
         element_column_map=None, 
         temperature_species_internal_map=None,
         no_internal_indices=None,
