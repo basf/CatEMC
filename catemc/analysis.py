@@ -956,8 +956,8 @@ class GCEMCAnalysis(object):
 
         collect_data = True
         if use_exist:
-            data_path = f'{self.calculation_dir}/{self.name}_mbar_data_full.pkl'
-            mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data_full.pkl'
+            data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
+            mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl'
             if os.path.isfile(data_path) and os.path.isfile(mc_path):
                 with open(data_path, 'rb') as handle:
                     self.data = pickle.load(handle)
@@ -1061,9 +1061,9 @@ class GCEMCAnalysis(object):
                 max_step = min(max_step, ending_step)
             self.complete_trajectories(last_atoms, max_step)
 
-            with open(f'{self.calculation_dir}/{self.name}_mbar_data_full.pkl', 'wb') as handle:
+            with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
                 pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            with open(f'{self.calculation_dir}/{self.name}_mbar_mc_data_full.pkl', 'wb') as handle:
+            with open(f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl', 'wb') as handle:
                 pickle.dump(self.mc_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def get_diagnostics(self,
