@@ -15,6 +15,18 @@ import warnings
 import random
 
 
+def log_prefactor_value(prefactor):
+
+    if prefactor is None or prefactor <= 0:
+        return -np.inf
+    return np.log(prefactor)
+
+
+def metropolis_accept_log(ln_ratio):
+
+    return (ln_ratio >= 0.) or (np.log(np.random.uniform()) < ln_ratio)
+
+
 class EMCPopulation(Population):
     """The EMC population instance that evolves based on
     the Metropolis-Hastings algorithm individually.
@@ -173,6 +185,7 @@ class EMCPopulation(Population):
                                 sorted_parents[0], sorted_parents[1],
                                 offsprings[sorted_oids[0]], offsprings[sorted_oids[1]])
 
+                ln_prefactor = log_prefactor_value(prefactor)
                 if pressure is not None:
                     V11 = sorted_parents[0].info['key_value_pairs']['volume']
                     V12 = sorted_offsprings[0].info['key_value_pairs']['volume']
@@ -185,10 +198,9 @@ class EMCPopulation(Population):
                     lnV = N12*np.log(V12) - N11*np.log(V11) + N22*np.log(V22) - N21*np.log(V21)
                     df1 += pressure * (V12 - V11)
                     df2 += pressure * (V22 - V21)
-                    lnC = np.log(prefactor) + lnV
-                    prefactor = np.exp(lnC)
-                p_acc = min([1, prefactor * np.exp(df1 / (kB*T1) + df2/ (kB*T2))])
-                accept = p_acc > np.random.uniform()
+                    ln_prefactor += lnV
+                ln_p_acc = ln_prefactor + df1 / (kB*T1) + df2 / (kB*T2)
+                accept = metropolis_accept_log(ln_p_acc)
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " + 
                          f"parents: {[sorted_parents[0].get_chemical_formula(), sorted_parents[1].get_chemical_formula()]}, " +
@@ -238,6 +250,7 @@ class EMCPopulation(Population):
                             no_internal_indices,
                             metal_species_probabilities,
                             temperature_key=self.tk)
+                ln_prefactor = log_prefactor_value(prefactor)
                 if pressure is not None:
                     V1 = parents[0].info['key_value_pairs']['volume']
                     V2 = offsprings[0].info['key_value_pairs']['volume']
@@ -245,10 +258,9 @@ class EMCPopulation(Population):
                     N2 = len([a for a in offsprings[0] if a.symbol != 'X'])
                     lnV = N2*np.log(V2) - N1*np.log(V1)
                     df += pressure * (V2 - V1)
-                    lnC = np.log(prefactor) + lnV
-                    prefactor = np.exp(lnC)
-                p_acc = min([1, prefactor * np.exp(df / (kB*T))])
-                accept = p_acc > np.random.uniform()
+                    ln_prefactor += lnV
+                ln_p_acc = ln_prefactor + df / (kB*T)
+                accept = metropolis_accept_log(ln_p_acc)
             if self.verbose:
                 parprint(f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, " +
                          f"offspring: {offsprings[0].get_chemical_formula()}, " + 
@@ -884,9 +896,9 @@ class MixtureEMCPopulation(EMCPopulation):
             if any(o for o in offsprings if get_raw_score(o) <= raw_score_cutoff):
                 prefactor = None
                 accept = False
-            else:    
-                p_acc = min([1, prefactor * np.exp(lnSo1 - lnSp1 + lnSo2 - lnSp2)])
-                accept = p_acc > np.random.uniform()
+            else:
+                ln_p_acc = log_prefactor_value(prefactor) + lnSo1 - lnSp1 + lnSo2 - lnSp2
+                accept = metropolis_accept_log(ln_p_acc)
 
             if self.verbose:
                 if assignment == 'a':
@@ -933,8 +945,8 @@ class MixtureEMCPopulation(EMCPopulation):
                             metal_species_probabilities,
                             temperature_key=self.tk)
              
-                p_acc = min([1, prefactor * np.exp(lnSo - lnSp)])
-                accept = p_acc > np.random.uniform()
+                ln_p_acc = log_prefactor_value(prefactor) + lnSo - lnSp
+                accept = metropolis_accept_log(ln_p_acc)
             offsprings[0].info['key_value_pairs'][self.rk] = rep 
             offsprings[0].info['key_value_pairs'][self.tk] = T
             if self.store_delta:

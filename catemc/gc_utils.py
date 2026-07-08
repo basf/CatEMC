@@ -57,6 +57,7 @@ def compute_intramove_prefactor(
 
     species = set(list(fct1.keys()) + list(fct2.keys()) + list(ect1.keys()) + list(ect2.keys()))
     prefactor = 1
+    m, n = None, None
     for k in species:
         if k in nonmetal_species:
             delta_Nk = fct2[k] - fct1[k]
@@ -86,7 +87,6 @@ def compute_intramove_prefactor(
                 except:
                     prefactor *= (np.exp(stirling(fct1[k]) - stirling(fct2[k])) * frac)
         else:
-            m, n = None, None
             if ect2[k] - ect1[k] == 1:
                 n = k
             if ect1[k] - ect2[k] == 1:
@@ -282,12 +282,8 @@ def compute_exchange_prefactor(
             for k in set(list(ect1.keys()) + list(ect2.keys())):
                 if k in element_column_map:
                     col = element_column_map[k]
-                    if reaction_conditions is None:
-                        mu1 = atoms1.info['data']['mu'][col]
-                        mu2 = atoms2.info['data']['mu'][col]
-                    else:
-                        mu1 = reaction_conditions[:, col]
-                        mu2 = reaction_conditions[:, col]
+                    mu1 = atoms1.info['data']['mu'][col]
+                    mu2 = atoms2.info['data']['mu'][col]
                     exponent += (beta1*ect2[k] - beta2*ect1[k]) * (mu2 - mu1)
     prefactor /= np.exp(exponent)
 
