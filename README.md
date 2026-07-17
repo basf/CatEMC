@@ -29,13 +29,13 @@ A minimal accelerated job has the following pieces:
 The accelerated launch command used by the scripts in this repository is:
 
 ```bash
-python -u gcemc_run.py 0 16 50 /scratch/$USER/catemc_gcemc 100 1
+python -u gcemc_run.py 0 16 100 /scratch/$USER/catemc_gcemc 50
 ```
 
 or for bulk GE-EMC:
 
 ```bash
-python -u geemc_run.py 0 16 50 /scratch/$USER/catemc_geemc 100 1
+python -u geemc_run.py 0 16 100 /scratch/$USER/catemc_geemc 50
 ```
 
 The positional arguments are:
