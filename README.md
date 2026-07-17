@@ -190,16 +190,15 @@ Instantiates `GEEMC` and runs a bulk GE-EMC simulation. The accelerated engine c
 * Keep the executable part of the run script under `if __name__ == '__main__':` because the worker pool uses Python multiprocessing.
 
 ```python
-import os
+from catemc.geemc import GEEMC
+from calculate_bulk_fitness import get_fitness_kwargs
+from ase.io import read
+from ase import units
 import sys
+import os
 
 
 def main():
-
-    from catemc.geemc import GEEMC
-    from calculate_bulk_fitness import get_fitness_kwargs
-    from ase.io import read
-    from ase import units
 
     gpu_devices = [int(di) for di in sys.argv[1].split(',')]
     workers_per_gpu = int(sys.argv[2])
@@ -265,7 +264,6 @@ import sys
 
 MODEL_PATH = '/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model'
 TARGET_METAL_SPECIES = ['Co', 'Ni', 'Mg', 'Zn', 'Mn', 'Al']
-
 
 def create_calculators():
 
@@ -545,21 +543,20 @@ Instantiates `GCEMC` and runs a surface GC-EMC simulation. The accelerated engin
 * Use `scratch_dir` and `traj_write_interval` for production runs on HPC filesystems.
 
 ```python
-import os
+from catemc.gcemc import GCEMC
+from calculate_fitness import get_fitness_kwargs
+from acat.adsorption_sites import SlabAdsorptionSites
+from ase import data
+from ase.io import read
+from collections import Counter
+import math
+import numpy as np
+import pickle
 import sys
+import os
 
 
 def main():
-
-    from catemc.gcemc import GCEMC
-    from calculate_fitness import get_fitness_kwargs
-    from acat.adsorption_sites import SlabAdsorptionSites
-    from ase import data
-    from ase.io import read
-    from collections import Counter
-    import math
-    import numpy as np
-    import pickle
 
     gpu_devices = [int(di) for di in sys.argv[1].split(',')]
     workers_per_gpu = int(sys.argv[2])
