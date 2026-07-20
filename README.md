@@ -14,19 +14,29 @@ Shuang Han: hanshuangshiren@gmail.com
 
 ## Quick start
 
-CatEMC is normally used from a project directory that contains an input population, a calculation script, and a run script. The accelerated workflow keeps one persistent worker pool alive during the simulation, so each worker initializes its calculator stack once and reuses it for all subsequent EMC fitness evaluations.
+A CatEMC simulation is configured in one Python input file. The same file defines the calculator sequence, the fitness settings and the EMC parameters. No separate `calculate_fitness.py` script or command-line argument parser is required.
 
-Python 3.9+ is recommended. The core runtime uses ASE, ACAT, AutoAdsorbate, NumPy, SciPy and pymbar. Install your chosen MLIP calculator package, such as MACE or metatomic/PET-MAD, in the same environment used for production jobs.
+A run directory normally contains:
 
-A minimal accelerated job has the following pieces:
+* an initial population trajectory;
+* one input file, for example `emc_run.py`;
+* optional thermodynamic data used by GC-EMC, such as metal chemical-potential differences and internal partition functions.
 
-* `*_input_pop.traj`: initial replicas with `temperature`, `replica`, and, for GC-EMC, `mu` / `mu_window` metadata.
-* `calculate_fitness.py` or `calculate_bulk_fitness.py`: defines `create_calculators()` and `get_fitness_kwargs()`.
-* `gcemc_run.py` or `geemc_run.py`: constructs `GCEMC` or `GEEMC` with `use_worker_pool=True`.
-* optional `scratch_dir`: a node-local directory used for database I/O during the run.
-* optional `traj_write_interval`: frequency for writing the EMC trajectory.
+The input file has three parts:
 
-Use `None` for `scratch_dir` or `scratch_sync_interval` when you want to disable scratch acceleration.
+1. `create_calculators()` returns one ASE calculator or a list of calculators. When several calculators are returned, `calculate_bulk_fitness` or `calculate_surface_fitness` applies them in sequence using the corresponding `fmax_list`.
+2. `get_fitness_kwargs()` defines relaxation, MD and scoring parameters.
+3. `main()` constructs `EMC`, `GEEMC` or `GCEMC` and calls `run()`.
+
+The calculator factory must be defined at module level, and the executable code must be protected by `if __name__ == '__main__':` because the persistent workers use Python's `spawn` multiprocessing context.
+
+Run the input directly:
+
+```bash
+python -u emc_run.py
+```
+
+A scheduler script only needs to activate the environment, set CPU thread limits and execute this command.
 
 ---
 
@@ -55,18 +65,55 @@ A typical GC/GE-EMC campaign follows these steps:
 
 ## Accelerated execution model
 
-The accelerated EMC engine is designed to preserve the original CatEMC sampling logic while removing avoidable Python and filesystem overhead. In the worker-pool mode, every worker process creates its calculator list once through `create_calculators()`, then repeatedly receives candidate structures from the EMC driver and returns relaxed/evaluated structures. This is the main speed-up compared with repeatedly launching a subprocess and reloading the calculator for every trial structure.
+CatEMC uses persistent worker processes for every fitness evaluation. Each worker sets its assigned device, calls `create_calculators()` once, and reuses the resulting calculator sequence for all structures handled by that worker. Calculator initialization therefore scales with the number of workers rather than the number of EMC moves. Separate workers require separate calculator instances; this is necessary for process-safe parallel evaluation.
 
-The input script controls acceleration through the standard EMC constructor arguments:
+Candidate structures and evaluated structures are transferred directly through multiprocessing queues. The old subprocess, temporary input trajectory and `sys.argv` interface is not used.
 
-* `use_worker_pool=True` enables persistent in-process evaluation.
-* `fitness_kwargs=get_fitness_kwargs()` passes static relaxation, MD, scoring and thermodynamic options into the worker.
-* `scratch_dir=None` keeps the database in the run directory; setting it to a node-local path writes the live database on scratch and synchronizes it back.
-* `scratch_sync_interval=None` gives the fastest mode by syncing at clean shutdown; an integer such as `100` synchronizes every 100 generations for better crash recovery.
-* `traj_write_interval=50` writes the EMC trajectory every 50 generations instead of every generation.
-* `verbose=True` prints detailed move diagnostics and the compact acceptance summary.
+The worker-related constructor parameters are:
 
-For jobs with many workers per GPU, set BLAS/OpenMP thread counts to one in the submission script:
+* `calculator_factory` — a top-level callable returning one calculator or a sequence of calculators;
+* `calculator_factory_kwargs` — optional keyword arguments passed to the factory in each worker;
+* `fitness_function` — optional custom fitness callable; bulk EMC/GE-EMC uses `calculate_bulk_fitness` by default and GC-EMC uses `calculate_surface_fitness`;
+* `fitness_kwargs` — static keyword arguments passed to the fitness function;
+* `gpu_devices` — device identifiers assigned to workers round-robin;
+* `procs_per_device` — number of persistent workers per device;
+* `worker_startup_timeout` — maximum time allowed for all workers and calculators to initialize;
+* `worker_result_timeout` — maximum time allowed between completed fitness evaluations.
+
+The built-in fitness functions support sequential calculators. For example,
+
+```python
+def create_calculators():
+    from catemc.repulsive import RepulsivePotential
+    from mace.calculators.mace import MACECalculator
+
+    return [
+        RepulsivePotential(),
+        MACECalculator(model_paths=MODEL_PATH,
+                       device='cuda',
+                       default_dtype='float64'),
+    ]
+
+
+def get_fitness_kwargs():
+    return dict(
+        fmax_list=[0.5, 0.05],
+        # remaining fitness parameters
+    )
+```
+
+The first calculator pre-relaxes to `fmax=0.5` and the second calculator performs the final MD/relaxation to `fmax=0.05`. A `None` entry in `fmax_list` evaluates that stage without relaxation.
+
+Database and trajectory I/O are controlled independently:
+
+* `scratch_dir=None` keeps the active ASE database in `calculation_dir`;
+* when `scratch_dir` is set, the active database is kept on scratch;
+* every `trim_generation` creates `{name}_bak{i}.db` and copies the backup to `calculation_dir`;
+* `scratch_sync_interval=None` relies on trim-time synchronization and the final clean-exit synchronization;
+* a positive `scratch_sync_interval` additionally mirrors the active database every specified number of generations;
+* `traj_write_interval` controls how often `emc_{replica}.traj` is appended and does not change the database sampling history.
+
+For many workers per GPU, prevent CPU oversubscription:
 
 ```bash
 export OMP_NUM_THREADS=1
@@ -75,6 +122,7 @@ export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 ```
 
+---
 
 ## GE-EMC (bulk) — structure generation
 
@@ -156,110 +204,34 @@ write(f'{cwd}/{comp}_{structure}_input_pop.traj', input_pop)
 
 ## GE-EMC (bulk) — run simulation
 
-Instantiates `GEEMC` and runs a bulk GE-EMC simulation. The accelerated engine coordinates intraswap, interswap, crossover, replica exchange and optional MD/relaxation through persistent workers. Each worker imports the calculation script and creates the calculator list once, then evaluates candidates repeatedly.
+A GE-EMC run uses a single input file. The calculator imports are placed inside `create_calculators()` so that each worker selects its device before the calculator package initializes CUDA.
 
-**Files required**
-
-* `*_input_pop.traj` — the initial bulk population;
-* `calculate_bulk_fitness.py` — calculation script defining `create_calculators()` and `get_fitness_kwargs()`.
-
-**Practical tips**
-
-* Put all calculator construction inside `create_calculators()`.
-* Put relaxation, MD, scoring and target-species arguments inside `get_fitness_kwargs()`.
-* Use `scratch_dir` on node-local storage for faster database I/O.
-* Use `traj_write_interval > 1` for production runs.
-* Keep the executable part of the run script under `if __name__ == '__main__':` because the worker pool uses Python multiprocessing.
+The example below applies a repulsive pre-relaxation followed by a MACE calculation. All worker, scratch, trajectory and thermodynamic settings are specified in the same file.
 
 ```python
 from catemc.geemc import GEEMC
-from calculate_bulk_fitness import get_fitness_kwargs
-from ase.io import read
-from ase import units
-import sys
-import os
-
-
-def main():
-
-    gpu_devices = [0]
-    procs_per_gpu = 32
-    traj_write_interval = 50 
-    scratch_dir = '/scratch/han0011/catemc_15867815'
-    trim_generation = 100 
-    scratch_sync_interval = 100 
-    verbose = True
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_devices[0])
-
-    comp = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5'
-    structure = 'bulk'
-    system_name = f'{comp}_{structure}'
-    dir_name = f'/mnt/nfs/emc_tutorial/{comp}/{structure}'
-    input_pop = read(f'{dir_name}/{system_name}_input_pop.traj', index=':')
-
-    emc = GEEMC(system_name,
-                calculation_dir=dir_name,
-                calculation_script='calculate_bulk_fitness.py',
-                input_pop=input_pop,
-                fix_indices=None,
-                trim_generation=trim_generation,
-                pressure=1.01325 * units.bar,
-                md_generation=10,
-                exchange_generation=1,
-                bias_starting_step=300,
-                crossover_rate=0.1,
-                metal_interswap_rate=0.5,
-                nonmetal_interswap_rate=0.3,
-                intraswap_rate=0.1,
-                metal_element_pool=['Co', 'Ni', 'Mg', 'Zn', 'Mn', 'Al'],
-                nonmetal_element_pool=['O', 'X'],
-                raw_score_cutoff=-10000.,
-                temperature_key='temperature',
-                replica_key='replica',
-                acceptance_key='accepted',
-                gpu_devices=gpu_devices,
-                procs_per_device=procs_per_gpu,
-                use_worker_pool=True,
-                fitness_kwargs=get_fitness_kwargs(),
-                scratch_dir=scratch_dir,
-                scratch_sync_interval=scratch_sync_interval,
-                traj_write_interval=traj_write_interval,
-                verbose=verbose)
-
-    emc.run(starting_step=1, total_steps=5000)
-
-
-if __name__ == '__main__':
-    main()
-```
-
-An accelerated bulk calculation script looks like this:
-
-```python
-from catemc.calculation_templates import calculate_bulk_fitness
-from catemc.repulsive import RepulsivePotential
-from mace.calculators.mace import MACECalculator
 from ase import units
 from ase.io import read
-import os
-import sys
 
 
 MODEL_PATH = '/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model'
 TARGET_METAL_SPECIES = ['Co', 'Ni', 'Mg', 'Zn', 'Mn', 'Al']
 
-def create_calculators():
 
-    calc1 = RepulsivePotential()
-    calc2 = MACECalculator(model_paths=MODEL_PATH,
-                           dispersion=False,
-                           device='cuda',
-                           default_dtype='float64')
-    return [calc1, calc2]
+def create_calculators():
+    from catemc.repulsive import RepulsivePotential
+    from mace.calculators.mace import MACECalculator
+
+    return [
+        RepulsivePotential(),
+        MACECalculator(model_paths=MODEL_PATH,
+                       dispersion=False,
+                       device='cuda',
+                       default_dtype='float64'),
+    ]
 
 
 def get_fitness_kwargs():
-
     return dict(
             fmax_list=[0.5, 0.05],
             target_metal_species=TARGET_METAL_SPECIES,
@@ -277,27 +249,57 @@ def get_fitness_kwargs():
 
 
 def main():
+    comp = 'Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5'
+    structure = 'bulk'
+    system_name = f'{comp}_{structure}'
+    dir_name = f'/mnt/nfs/emc_tutorial/{comp}/{structure}'
+    input_pop = read(f'{dir_name}/{system_name}_input_pop.traj', index=':')
 
-    traj_path = sys.argv[1]
-    run_md = bool(int(sys.argv[2]))
-    gpu_device = sys.argv[3]
-    fix_indices = None if sys.argv[4] == 'None' else [int(i) for i in sys.argv[4].split(',')]
+    emc = GEEMC(
+            system_name,
+            calculation_dir=dir_name,
+            input_pop=input_pop,
+            calculator_factory=create_calculators,
+            fitness_kwargs=get_fitness_kwargs(),
+            fix_indices=None,
+            trim_generation=100,
+            pressure=1.01325 * units.bar,
+            md_generation=10,
+            exchange_generation=1,
+            bias_starting_step=300,
+            crossover_rate=0.1,
+            metal_interswap_rate=0.5,
+            nonmetal_interswap_rate=0.3,
+            intraswap_rate=0.1,
+            metal_element_pool=TARGET_METAL_SPECIES,
+            nonmetal_element_pool=['O', 'X'],
+            raw_score_cutoff=-10000.,
+            temperature_key='temperature',
+            replica_key='replica',
+            acceptance_key='accepted',
+            gpu_devices=[0],
+            procs_per_device=32,
+            worker_startup_timeout=600.,
+            worker_result_timeout=3600.,
+            scratch_dir='/scratch/han0011/catemc_bulk',
+            scratch_sync_interval=None,
+            traj_write_interval=50,
+            verbose=True)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_device)
-    atoms = read(traj_path, index=-1)
-    atoms.wrap()
-
-    calculate_bulk_fitness(atoms,
-                           traj_path=traj_path,
-                           calculator_list=create_calculators(),
-                           run_md=run_md,
-                           fix_indices=fix_indices,
-                           **get_fitness_kwargs())
+    emc.run(total_steps=5000)
 
 
 if __name__ == '__main__':
     main()
 ```
+
+Important points:
+
+* `calculator_factory=create_calculators` passes the function itself; CatEMC does not import a calculation script by filename.
+* `fitness_kwargs=get_fitness_kwargs()` is copied once to each worker and reused for every task.
+* `emc.run(total_steps=5000)` automatically continues from the latest database generation when a restart database is found.
+* `scratch_sync_interval=None` still synchronizes every database trim and at clean shutdown.
+* Set `scratch_dir=None` when node-local scratch is not available.
 
 ---
 
@@ -509,195 +511,48 @@ write(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', assigned_input_pop)
 
 ## GC-EMC (surface) — run simulation
 
-Instantiates `GCEMC` and runs a surface GC-EMC simulation. The accelerated engine coordinates intraswap, slab mutation, adsorbate insertion/removal/displacement/mutation, interswap, crossover, replica exchange, μ-walk and optional MD/relaxation through persistent workers. `reaction_conditions` defines the chemical-potential grid used by the simulation and later MBAR reweighting.
+GC-EMC uses the same one-file pattern. In addition to the calculator and fitness settings, the input defines the mutable slab region, reaction-condition grid, adsorption sites, bulk metal chemical potentials and internal partition data.
 
-**Files required**
-
-* `*_input_pop.traj` — the initial surface population with μ-window metadata;
-* `calculate_fitness.py` — calculation script defining `create_calculators()` and `get_fitness_kwargs()`;
-* `temperature_dmu_map` — mapping between temperature and metal chemical-potential differences from bulk GE-EMC, or `None` if the surface metal composition is fixed;
-* `temperature_species_internal_map` — mapping between temperature and internal partition data for adsorbate species.
-
-**Practical tips**
-
-* Build the `SlabAdsorptionSites` object once in the run script and pass it to `GCEMC`; the worker pool keeps it as static worker data.
-* Use a repulsive pre-relaxation calculator before the MLIP when vacancies or insertions can create bad contacts.
-* Keep multi-try μ-walk enabled for broad reaction-condition grids.
-* Use `scratch_dir` and `traj_write_interval` for production runs on HPC filesystems.
+`GCEMC` adds `slab_indices` and `adsorption_sites` to the static worker fitness arguments. These objects are sent to each worker during startup rather than with every candidate structure.
 
 ```python
 from catemc.gcemc import GCEMC
-from calculate_fitness import get_fitness_kwargs
 from acat.adsorption_sites import SlabAdsorptionSites
-from ase import data
+from ase import data, units
 from ase.io import read
 from collections import Counter
 import math
 import numpy as np
 import pickle
-import sys
-import os
-
-
-def main():
-
-    gpu_devices = [0]
-    procs_per_gpu = 32
-    traj_write_interval = 50 
-    scratch_dir = '/scratch/han0011/catemc_15867815'
-    trim_generation = 100 
-    scratch_sync_interval = 100
-    verbose = True
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_devices[0])
-
-    comp = 'Rh13_MnO'
-    surface = '100'
-    system_name = f'{comp}COH_{surface}'
-    dir_name = f'/scicore/home/goedecke/han0011/projects/RhMnO/{comp}/pet_{surface}'
-    input_pop = read(f'{dir_name}/{system_name}_input_pop.traj', index=':')
-    template = read(f'{dir_name}/Rh13_MnO_100_sym_0.extxyz')
-
-    target_metal_species = ['Mn', 'Rh']
-    target_metal_composition = {'Mn': 0.9326424870466321,
-                                'Rh': 0.06735751295336788}
-    target_nonmetal_species = ['O', 'X']
-    adsorbate_species = ['O', 'H', 'OH', 'C', 'CO', 'CO2', 'CH', 'CH2',
-                         'CH3', 'CHO', 'COH', 'CH3O']
-    other_adsorbate_species = ['OH2', 'H2', 'O2', 'O2H', 'OOH', 'OC', 'OCH3']
-
-    slab_indices = [a.index for a in template]
-    z_fix = template.cell[2][2] * 0.5
-    fix_indices = [a.index for a in template if a.position[2] < z_fix]
-    mut_metal_indices = [a.index for a in template
-                         if (a.position[2] >= z_fix) and (a.symbol in target_metal_species)]
-    mut_nonmetal_indices = [a.index for a in template
-                            if (a.position[2] >= z_fix) and (a.symbol not in target_metal_species)]
-
-    volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * (11 + 3 + 2.5)
-    ct = Counter(template.symbols)
-    volume -= sum([n * 4 / 3 * math.pi * data.covalent_radii[data.atomic_numbers[k]]**3
-                   for k, n in ct.items() if k in target_metal_species])
-
-    E_C = -9.944
-    E_O2 = -8.768 + 0.101
-    E_H2 = -6.773 + 0.267
-    dmu_C = np.arange(1., 3.001, 0.1)
-    dmu_O = np.arange(-4., -2.999, 0.1)
-    dmu_H = np.arange(-1., 0.001, 0.1)
-
-    temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})
-    reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)).T.reshape(-1, 4)
-
-    element_column_map = {'C': 0, 'O': 1, 'H': 2}
-    element_eref_map = {'C': E_C, 'O': E_O2 / 2, 'H': E_H2 / 2}
-    element_y2x_map = {'C': 0., 'O': 1., 'H': 0.}
-    temperature_dmu_map = None
-
-    with open(f'{dir_name}/COH_internal_data.pkl', 'rb') as handle:
-        temperature_species_internal_map = pickle.load(handle)
-
-    adsorption_sites = SlabAdsorptionSites(template,
-                                           surface='autoadsorbate',
-                                           composition_effect=False,
-                                           ignore_sites='bridge')
-
-    emc = GCEMC(system_name,
-               calculation_dir=dir_name,
-               calculation_script='calculate_fitness.py',
-               input_pop=input_pop,
-               fix_indices=fix_indices,
-               trim_generation=trim_generation,
-               md_generation=10,
-               mu_walk_generation=1,
-               exchange_generation=1,
-               bias_starting_step=300,
-               mbar_starting_step=100,
-               mbar_sample_stride=10,
-               crossover_rate=0.1,
-               interswap_rate=0.0,
-               slab_intraswap_rate=0.4,
-               slab_mutation_rate=0.0,
-               adsorbate_insertion_rate=0.125,
-               adsorbate_removal_rate=0.125,
-               adsorbate_displacement_rate=0.125,
-               adsorbate_mutation_rate=0.125,
-               adsorbate_surface_dmax=2.5,
-               adsorbate_adsorbate_dmin=2.,
-               max_adsorbate_species=3,
-               max_adsorbate_coverage=1.,
-               metal_element_pool=target_metal_species,
-               nonmetal_element_pool=target_nonmetal_species,
-               bulk_metal_composition=target_metal_composition,
-               adsorbate_species=adsorbate_species,
-               other_adsorbate_species=other_adsorbate_species,
-               mutable_metal_indices=mut_metal_indices,
-               mutable_nonmetal_indices=mut_nonmetal_indices,
-               slab_indices=slab_indices,
-               volume=volume,
-               reaction_conditions=reaction_conditions,
-               element_column_map=element_column_map,
-               element_eref_map=element_eref_map,
-               element_y2x_map=element_y2x_map,
-               temperature_dmu_map=temperature_dmu_map,
-               temperature_species_internal_map=temperature_species_internal_map,
-               adsorption_sites=adsorption_sites,
-               ignore_sites='bridge',
-               temperature_key='temperature',
-               replica_key='replica',
-               acceptance_key='accepted',
-               raw_score_cutoff=-10000.,
-               gpu_devices=gpu_devices,
-               procs_per_device=procs_per_gpu,
-               use_worker_pool=True,
-               fitness_kwargs=get_fitness_kwargs(),
-               scratch_dir=scratch_dir,
-               scratch_sync_interval=scratch_sync_interval,
-               traj_write_interval=traj_write_interval,
-               verbose=verbose)
-
-    emc.run(starting_step=1, total_steps=4000)
-
-
-if __name__ == '__main__':
-    main()
-```
-
-An accelerated surface calculation script looks like this:
-
-```python
-from catemc.calculation_templates import calculate_surface_fitness
-from catemc.repulsive import RepulsivePotential
-from metatomic_ase import MetatomicCalculator
-from ase import units
-from ase.io import read
-import os
-import pickle
-import sys
 
 
 MODEL_PATH = '/scicore/home/goedecke/han0011/model.pt'
-E_C = -9.944
-E_O2 = -8.768 + 0.101
-E_H2 = -6.773 + 0.267
 TARGET_METAL_SPECIES = ['Mn', 'Rh']
-TARGET_METAL_COMPOSITION = {'Mn': 0.9326424870466321, 'Rh': 0.06735751295336788}
-ALLOWED_ADSORBATE_SPECIES = ['O', 'H', 'OH', 'OH2', 'H2', 'O2', 'O2H', 'OOH',
-                             'C', 'CO', 'OC', 'CO2', 'COH', 'CHO', 'CH', 'CH2',
-                             'CH3', 'CH3O', 'OCH3']
+TARGET_METAL_COMPOSITION = {'Mn': 0.9326424870466321,
+                            'Rh': 0.06735751295336788}
+ALLOWED_ADSORBATE_SPECIES = [
+    'O', 'H', 'OH', 'OH2', 'H2', 'O2', 'O2H', 'OOH', 'C', 'CO', 'OC',
+    'CO2', 'COH', 'CHO', 'CH', 'CH2', 'CH3', 'CH3O', 'OCH3',
+]
 
 
 def create_calculators():
+    from catemc.repulsive import RepulsivePotential
+    from metatomic_ase import MetatomicCalculator
 
-    calc1 = RepulsivePotential()
-    calc2 = MetatomicCalculator(MODEL_PATH,
-                                device='cuda',
-                                variants={'energy': 'react-r2scan'},
-                                extensions_directory=None)
-    return [calc1, calc2]
+    return [
+        RepulsivePotential(),
+        MetatomicCalculator(MODEL_PATH,
+                            device='cuda',
+                            variants={'energy': 'react-r2scan'},
+                            extensions_directory=None),
+    ]
 
 
 def get_fitness_kwargs():
-
+    e_c = -9.944
+    e_o2 = -8.768 + 0.101
+    e_h2 = -6.773 + 0.267
     return dict(
             fmax_list=[0.5, 0.05],
             target_metal_species=TARGET_METAL_SPECIES,
@@ -709,7 +564,7 @@ def get_fitness_kwargs():
             md_write_interval=10,
             temperature_dmu_map=None,
             element_column_map={'C': 0, 'O': 1, 'H': 2},
-            element_eref_map={'C': E_C, 'O': E_O2 / 2, 'H': E_H2 / 2},
+            element_eref_map={'C': e_c, 'O': e_o2 / 2, 'H': e_h2 / 2},
             element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
             adsorbate_surface_dmax=2.5,
             neighbor_cutoff=2.5,
@@ -720,35 +575,130 @@ def get_fitness_kwargs():
 
 
 def main():
+    comp = 'Rh13_MnO'
+    surface = '100'
+    system_name = f'{comp}COH_{surface}'
+    dir_name = f'/scicore/home/goedecke/han0011/projects/RhMnO/{comp}/pet_{surface}'
+    input_pop = read(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', index=':')
+    template = read(f'{dir_name}/Rh13_MnO_100_sym_0.extxyz')
 
-    traj_path = sys.argv[1]
-    run_md = bool(int(sys.argv[2]))
-    gpu_device = sys.argv[3]
-    fix_indices = None if sys.argv[4] == 'None' else [int(i) for i in sys.argv[4].split(',')]
-    slab_indices = None if sys.argv[5] == 'None' else [int(i) for i in sys.argv[5].split(',')]
+    target_nonmetal_species = ['O', 'X']
+    adsorbate_species = ['O', 'H', 'OH', 'C', 'CO', 'CO2', 'CH', 'CH2',
+                         'CH3', 'CHO', 'COH', 'CH3O']
+    other_adsorbate_species = ['OH2', 'H2', 'O2', 'O2H', 'OOH', 'OC', 'OCH3']
+    slab_indices = [atom.index for atom in template]
+    z_fix = template.cell[2][2] * 0.5
+    fix_indices = [atom.index for atom in template if atom.position[2] < z_fix]
+    mutable_metal_indices = [
+        atom.index for atom in template
+        if atom.position[2] >= z_fix and atom.symbol in TARGET_METAL_SPECIES
+    ]
+    mutable_nonmetal_indices = [
+        atom.index for atom in template
+        if atom.position[2] >= z_fix and atom.symbol not in TARGET_METAL_SPECIES
+    ]
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_device)
-    dir_name = '/'.join(traj_path.split('/')[:-1])
-    atoms = read(traj_path, index=-1)
-    atoms.wrap()
+    volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * 16.5
+    composition = Counter(template.symbols)
+    volume -= sum(
+        number * 4 / 3 * math.pi
+        * data.covalent_radii[data.atomic_numbers[element]] ** 3
+        for element, number in composition.items()
+        if element in TARGET_METAL_SPECIES)
 
-    with open(f'{dir_name}/Rh13_MnO_100_sites.pkl', 'rb') as handle:
-        adsorption_sites = pickle.load(handle)
+    temperatures = sorted({
+        atoms.info['key_value_pairs']['temperature'] for atoms in input_pop
+    })
+    dmu_c = np.arange(1., 3.001, 0.1)
+    dmu_o = np.arange(-4., -2.999, 0.1)
+    dmu_h = np.arange(-1., 0.001, 0.1)
+    reaction_conditions = np.array(
+        np.meshgrid(dmu_c, dmu_o, dmu_h, temperatures)
+    ).T.reshape(-1, 4)
 
-    kwargs = get_fitness_kwargs()
-    kwargs['adsorption_sites'] = adsorption_sites
-    kwargs['slab_indices'] = slab_indices
-    calculate_surface_fitness(atoms,
-                              traj_path=traj_path,
-                              calculator_list=create_calculators(),
-                              run_md=run_md,
-                              fix_indices=fix_indices,
-                              **kwargs)
+    with open(f'{dir_name}/COH_internal_data.pkl', 'rb') as handle:
+        temperature_species_internal_map = pickle.load(handle)
+
+    adsorption_sites = SlabAdsorptionSites(
+            template,
+            surface='autoadsorbate',
+            composition_effect=False,
+            ignore_sites='bridge')
+
+    emc = GCEMC(
+            system_name,
+            calculation_dir=dir_name,
+            input_pop=input_pop,
+            calculator_factory=create_calculators,
+            fitness_kwargs=get_fitness_kwargs(),
+            fix_indices=fix_indices,
+            trim_generation=100,
+            md_generation=10,
+            mu_walk_generation=1,
+            exchange_generation=1,
+            bias_starting_step=300,
+            mbar_starting_step=100,
+            mbar_sample_stride=10,
+            crossover_rate=0.1,
+            interswap_rate=0.,
+            slab_intraswap_rate=0.4,
+            slab_mutation_rate=0.,
+            adsorbate_insertion_rate=0.125,
+            adsorbate_removal_rate=0.125,
+            adsorbate_displacement_rate=0.125,
+            adsorbate_mutation_rate=0.125,
+            adsorbate_surface_dmax=2.5,
+            adsorbate_adsorbate_dmin=2.,
+            max_adsorbate_species=3,
+            max_adsorbate_coverage=1.,
+            metal_element_pool=TARGET_METAL_SPECIES,
+            nonmetal_element_pool=target_nonmetal_species,
+            bulk_metal_composition=TARGET_METAL_COMPOSITION,
+            adsorbate_species=adsorbate_species,
+            other_adsorbate_species=other_adsorbate_species,
+            mutable_metal_indices=mutable_metal_indices,
+            mutable_nonmetal_indices=mutable_nonmetal_indices,
+            slab_indices=slab_indices,
+            volume=volume,
+            reaction_conditions=reaction_conditions,
+            element_column_map={'C': 0, 'O': 1, 'H': 2},
+            element_eref_map={'C': -9.944,
+                              'O': (-8.768 + 0.101) / 2,
+                              'H': (-6.773 + 0.267) / 2},
+            element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
+            temperature_dmu_map=None,
+            temperature_species_internal_map=temperature_species_internal_map,
+            adsorption_sites=adsorption_sites,
+            ignore_sites='bridge',
+            temperature_key='temperature',
+            replica_key='replica',
+            acceptance_key='accepted',
+            raw_score_cutoff=-10000.,
+            gpu_devices=[0],
+            procs_per_device=32,
+            worker_startup_timeout=600.,
+            worker_result_timeout=3600.,
+            scratch_dir='/scratch/han0011/catemc_surface',
+            scratch_sync_interval=None,
+            traj_write_interval=50,
+            verbose=True)
+
+    emc.run(total_steps=4000)
 
 
 if __name__ == '__main__':
     main()
 ```
+
+The surface fitness parameters and the GC-EMC thermodynamic parameters must be consistent:
+
+* `target_metal_species` and `target_metal_composition` must match the reference bulk composition;
+* `element_column_map`, `element_eref_map` and `element_y2x_map` must use the same elemental chemical-potential convention in the fitness function and the GC-EMC object;
+* `temperature_dmu_map` is required when metal composition can change;
+* `slab_indices` identifies catalyst atoms, while `fix_indices` controls positional constraints;
+* the final calculator in `create_calculators()` supplies the energy used in the GC acceptance criterion.
+
+The input file can be launched directly by a scheduler with `python -u emc_run.py`. GPU IDs, worker count, scratch path, verbosity and trajectory frequency remain part of the Python input and do not need to be encoded as positional shell arguments.
 
 ---
 

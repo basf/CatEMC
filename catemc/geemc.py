@@ -32,10 +32,6 @@ class GEEMC(EMC):
     calculation_dir: str
         Path of the calculation directory.
 
-    calculation_script: str
-        The name of the Python script for calculating the fitness of each
-        configuration. The script must be inside calculation_dir.
-
     input_pop: list of ase.Atoms objects
         Input population for the EMC run.
 
@@ -116,18 +112,44 @@ class GEEMC(EMC):
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
     procs_per_device: int, default 1
-        The number of processes to run in parallel on each GPU/CPU device. Defaul is 
-        to run in serial.
+        Number of persistent workers assigned to each device.
 
-    batching: bool, default False
-        Whether to run batch relaxation and MD using torch-sim. Default is False.
+    calculator_factory: callable
+        Top-level function returning one calculator or a sequence of calculators.
+        Each persistent worker creates this sequence once and reuses it.
+
+    calculator_factory_kwargs: dict, default None
+        Keyword arguments passed to the calculator factory in every worker.
+
+    fitness_function: callable, default None
+        Function used to evaluate one bulk structure.
+
+    fitness_kwargs: dict, default None
+        Static keyword arguments passed to the fitness function.
+
+    worker_startup_timeout: float, default 300
+        Maximum time in seconds to initialize all workers.
+
+    worker_result_timeout: float, default 3600
+        Maximum time in seconds to wait for the next completed evaluation.
+
+    scratch_dir: str, default None
+        Optional node-local directory for the active ASE database.
+
+    scratch_sync_interval: int, default None
+        Copy the active scratch database to persistent storage every N
+        generations. ``None`` synchronizes at database trims and shutdown.
+
+    traj_write_interval: int, default 1
+        Write one population frame per replica every N generations. ``None`` or
+        a non-positive value disables trajectory writing.
 
     """
 
     def __init__(self, name,
             calculation_dir,
-            calculation_script,
             input_pop,
+            calculator_factory,
             fix_indices=None,
             trim_generation=100,
             pressure=None,
@@ -147,13 +169,11 @@ class GEEMC(EMC):
             replica_key='replica',
             acceptance_key='accepted',
             interswap_within_key=None,
-            gpu_devices=1,
-            procs_per_device=10,
-            batching=False,
+            gpu_devices=None,
+            procs_per_device=1,
             verbose=True,
-            use_worker_pool=True,
-            calculator_factory=None,
             calculator_factory_kwargs=None,
+            fitness_function=None,
             fitness_kwargs=None,
             worker_startup_timeout=300.,
             worker_result_timeout=3600.,
@@ -164,8 +184,8 @@ class GEEMC(EMC):
         super().__init__(
                 name=name, 
                 calculation_dir=calculation_dir,
-                calculation_script=calculation_script,
                 input_pop=input_pop,
+                calculator_factory=calculator_factory,
                 fix_indices=fix_indices,
                 trim_generation=trim_generation,
                 md_generation=md_generation,
@@ -181,11 +201,9 @@ class GEEMC(EMC):
                 category_key=interswap_within_key,
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
-                batching=batching,
                 verbose=verbose,
-                use_worker_pool=use_worker_pool,
-                calculator_factory=calculator_factory,
                 calculator_factory_kwargs=calculator_factory_kwargs,
+                fitness_function=fitness_function,
                 fitness_kwargs=fitness_kwargs,
                 worker_startup_timeout=worker_startup_timeout,
                 worker_result_timeout=worker_result_timeout,
@@ -207,8 +225,8 @@ class GEEMC(EMC):
         Parameters
         ----------
         starting_step: int, default None
-            (Re)starting from a certain EMC step. Default None is to
-            restart from the latest step assuming tmp_* folder exists.
+            (Re)starting from a certain EMC step. Default None continues
+            from the latest generation stored in the ASE database.
 
         total_steps: int, default 10000
             The total number of EMC steps that the algorithm should run.
@@ -222,6 +240,7 @@ class GEEMC(EMC):
         restart = True
         self.pop_size = len(self.input_pop)
         self.set_asedb_path()
+        os.makedirs(f'{self.calculation_dir}/tmp_{self.name}', exist_ok=True)
         self.worker_pool = self.make_worker_pool()
         logger = EMCLogger(verbose=self.verbose, acceptance_key=self.acceptance_key)
         starting_step = self.get_starting_step(starting_step)
@@ -247,11 +266,9 @@ class GEEMC(EMC):
             self.connect_data_with_trim(starting_step=starting_step)
         else:
             self.dc = DataConnection(asedb_path)
-        if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
-            os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
+            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:                  
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
         else:
@@ -295,7 +312,7 @@ class GEEMC(EMC):
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
-                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
+                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
                 for atoms in relaxed_candidates:
                     atoms.info['key_value_pairs'][self.acceptance_key] = 1
                 # Update the population to allow new candidates to enter
@@ -354,8 +371,6 @@ class GEEMC(EMC):
                             desc = 'Double IntraSwap: Parents {0} {1}'.format(parents[0].info['confid'], parents[1].info['confid'])
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
-                        if (self.worker_pool is None) and os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
-                            continue
                         if offsprings[idx] == parents[idx]:
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                         offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
@@ -364,13 +379,9 @@ class GEEMC(EMC):
                             offsprings[idx].info['key_value_pairs'][self.interswap_within_key] = \
                                     parents[idx].info['key_value_pairs'][self.interswap_within_key]
                         unrelaxed_dict[rep] = offsprings[idx]
-                        if self.worker_pool is None:
-                            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
-                    if (self.worker_pool is None) and os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
-                        continue
                     do_metal = False
                     if self.nonmetal_element_pool is None:
                         do_metal = True
@@ -395,15 +406,10 @@ class GEEMC(EMC):
                         offspring.info['key_value_pairs'][self.interswap_within_key] = \
                                 parents[0].info['key_value_pairs'][self.interswap_within_key]
                     unrelaxed_dict[rep] = offspring
-                    if self.worker_pool is None:
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            if self.worker_pool is None:
-                unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
-            else:
-                unrelaxed_offsprings = [unrelaxed_dict[rep] for rep in replicas]
-            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
+            unrelaxed_offsprings = [unrelaxed_dict[rep] for rep in replicas]
+            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False)
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:
@@ -446,11 +452,9 @@ class GEEMC(EMC):
             logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             
             self.write_population_traj(gen_num + gi)
-            if (self.scratch_sync_interval is not None) and ((gen_num + gi) % self.scratch_sync_interval == 0):
-                self.sync_asedb()
+            self.sync_asedb_if_needed(gen_num + gi)
 
             gi += 1
 
         self.sync_asedb()
-        if self.worker_pool is not None:
-            self.worker_pool.close()
+        self.worker_pool.close()

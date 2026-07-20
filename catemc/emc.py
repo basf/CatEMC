@@ -4,6 +4,7 @@
 from .emc_population import EMCPopulation
 from .emc_logger import EMCLogger
 from .worker_pool import WorkerPool
+from .calculation_templates import calculate_bulk_fitness
 from .emc_operators import (
         EMCCutSpliceCrossover,
         EMCIntraSwap)
@@ -13,12 +14,10 @@ from ase.db import connect
 from ase.ga.data import DataConnection, PrepareDB
 from ase.parallel import parprint
 import numpy as np
-import subprocess
 import warnings
 import random
 import shutil
 import time
-import sys
 import os
 
 
@@ -34,10 +33,6 @@ class EMC(object):
 
     calculation_dir: str
         Path of the calculation directory.
-
-    calculation_script: str
-        The name of the Python script for calculating the fitness of each
-        configuration. The script must be inside calculation_dir.
 
     input_pop: list of ase.Atoms objects
         Input population for the EMC run.
@@ -106,18 +101,50 @@ class EMC(object):
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
     procs_per_device: int, default 1
-        The number of processes to run in parallel on each GPU/CPU device. Defaul is 
-        to run in serial.
+        Number of persistent workers assigned to each device. Each worker creates
+        its own calculator sequence once and reuses it throughout the run.
 
-    batching: bool, default False
-        Whether to run batch relaxation and MD using torch-sim. Default is False.
+    calculator_factory: callable
+        Top-level function returning one calculator or a sequence of calculators.
+        Each persistent worker calls this function once, then reuses the returned
+        calculators for the complete simulation. A sequence is applied in order.
+
+    calculator_factory_kwargs: dict, default None
+        Keyword arguments passed to ``calculator_factory`` in every worker.
+
+    fitness_function: callable, default None
+        Function used to evaluate one structure. The bulk fitness template is used
+        by default.
+
+    fitness_kwargs: dict, default None
+        Static keyword arguments passed to the fitness function for every
+        structure.
+
+    worker_startup_timeout: float, default 300
+        Maximum time in seconds to initialize all workers and calculators.
+
+    worker_result_timeout: float, default 3600
+        Maximum time in seconds to wait for the next completed evaluation.
+
+    scratch_dir: str, default None
+        Optional node-local directory for the active ASE database. Trimmed backup
+        databases are copied to ``calculation_dir``.
+
+    scratch_sync_interval: int, default None
+        Copy the active scratch database to ``calculation_dir`` every N
+        generations. ``None`` leaves synchronization to database trimming and
+        the final synchronization.
+
+    traj_write_interval: int, default 1
+        Write one population frame per replica every N generations. ``None`` or
+        a non-positive value disables trajectory writing.
 
     """
 
     def __init__(self, name,
             calculation_dir,
-            calculation_script,
             input_pop,
+            calculator_factory,
             fix_indices=None,
             trim_generation=100,
             pressure=None,
@@ -134,13 +161,11 @@ class EMC(object):
             replica_key='replica',
             acceptance_key='accepted',
             category_key=None,
-            gpu_devices=1,
-            procs_per_device=10,
-            batching=False,
+            gpu_devices=None,
+            procs_per_device=1,
             verbose=True,
-            use_worker_pool=True,
-            calculator_factory=None,
             calculator_factory_kwargs=None,
+            fitness_function=None,
             fitness_kwargs=None,
             worker_startup_timeout=300.,
             worker_result_timeout=3600.,
@@ -150,7 +175,6 @@ class EMC(object):
 
         self.name = name
         self.calculation_dir = calculation_dir
-        self.calculation_script = calculation_script
         self.input_pop = input_pop
         self.fix_indices = fix_indices
         self.trim_generation = trim_generation
@@ -168,14 +192,24 @@ class EMC(object):
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
         self.category_key = category_key
-        self.gpu_devices = [0] if gpu_devices is None else ([gpu_devices] if isinstance(gpu_devices, int) else gpu_devices)
+        if not callable(calculator_factory):
+            raise TypeError('calculator_factory must be callable')
+        if fitness_function is not None and not callable(fitness_function):
+            raise TypeError('fitness_function must be callable')
+        if procs_per_device < 1:
+            raise ValueError('procs_per_device must be at least 1')
+        self.gpu_devices = ([None] if gpu_devices is None else
+                            ([gpu_devices] if isinstance(gpu_devices, int)
+                             else list(gpu_devices)))
+        if len(self.gpu_devices) == 0:
+            raise ValueError('gpu_devices cannot be empty')
         self.procs_per_device = procs_per_device
-        self.batching = batching
         self.verbose = verbose
-        self.use_worker_pool = use_worker_pool
         self.calculator_factory = calculator_factory
-        self.calculator_factory_kwargs = {} if calculator_factory_kwargs is None else calculator_factory_kwargs
-        self.fitness_kwargs = {} if fitness_kwargs is None else fitness_kwargs
+        self.calculator_factory_kwargs = ({} if calculator_factory_kwargs is None
+                                          else dict(calculator_factory_kwargs))
+        self.fitness_function = calculate_bulk_fitness if fitness_function is None else fitness_function
+        self.fitness_kwargs = {} if fitness_kwargs is None else dict(fitness_kwargs)
         self.worker_startup_timeout = worker_startup_timeout
         self.worker_result_timeout = worker_result_timeout
         self.scratch_dir = scratch_dir
@@ -186,33 +220,19 @@ class EMC(object):
         self.persistent_asedb_path = None
 
 
-    def get_fitness_function(self):
-
-        return 'catemc.calculation_templates:calculate_bulk_fitness_inprocess'
-
-    def get_calculator_factory(self):
-
-        if self.calculator_factory is not None:
-            return self.calculator_factory
-        module_name = os.path.splitext(os.path.basename(self.calculation_script))[0]
-        if self.calculation_dir not in sys.path:
-            sys.path.insert(0, self.calculation_dir)
-        return module_name + ':create_calculators'
-
     def get_worker_extra_kwargs(self):
 
         return {}
 
     def make_worker_pool(self):
 
-        if not self.use_worker_pool:
-            return None
         n_workers = len(self.gpu_devices) * self.procs_per_device
         fitness_kwargs = dict(self.fitness_kwargs)
         fitness_kwargs.update(self.get_worker_extra_kwargs())
+        fitness_kwargs['work_dir'] = f'{self.calculation_dir}/tmp_{self.name}'
         return WorkerPool(
-                calculator_factory=self.get_calculator_factory(),
-                fitness_function=self.get_fitness_function(),
+                calculator_factory=self.calculator_factory,
+                fitness_function=self.fitness_function,
                 calculator_factory_kwargs=self.calculator_factory_kwargs,
                 fitness_kwargs=fitness_kwargs,
                 num_workers=n_workers,
@@ -440,115 +460,12 @@ class EMC(object):
         self.dc = DataConnection(asedb_path)
         self.dc.add_more_relaxed_candidates(relaxed_images)
 
-    def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False, add_args=None, batching=False):
+    def get_relaxed_candidates(self, unrelaxed_candidates, run_md=False):
 
-        if self.worker_pool is not None:
-            extra_kwargs = {'work_dir': f'{self.calculation_dir}/tmp_{self.name}'}
-            return self.worker_pool.evaluate(unrelaxed_candidates, run_md=run_md,
-                                             fix_indices=self.fix_indices,
-                                             extra_kwargs=extra_kwargs)
-
-        replicas = [c.info['key_value_pairs'][self.replica_key] for c in unrelaxed_candidates]
-        if self.fix_indices is None:
-            fix_indices_str = 'None'
-        else:
-            fix_indices_str = ','.join(map(str, self.fix_indices))
-        if self.gpu_devices is None:
-            gpu_devices = [0]
-        else:
-            gpu_devices = self.gpu_devices
-        batch_images = []
-        batch_start_index = None
-        gpu_device = gpu_devices[0]
-        procs = []
-        for i, atoms in enumerate(unrelaxed_candidates):
-            rep = atoms.info['key_value_pairs'][self.replica_key]
-            if (self.worker_pool is None) and os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
-                continue
-            if batching:
-                # Append current atoms and decide whether to flush the batch.
-                device_for_current = gpu_devices[(i // self.procs_per_device) % len(gpu_devices)]
-                if not batch_images:     
-                    batch_start_index = i
-                batch_images.append(atoms)
-                is_last = (i == len(unrelaxed_candidates) - 1)
-                device_for_next = None
-                if not is_last:
-                    device_for_next = gpu_devices[((i + 1) // self.procs_per_device) % len(gpu_devices)]
-                if (len(batch_images) >= self.procs_per_device) or (device_for_next is not None and device_for_next != device_for_current) or is_last:
-                    reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
-                    arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}'
-                    if add_args is not None:
-                        for arg in add_args:
-                            arg_str += f' {arg}'
-                    # create a log file per job and launch with Popen so we can poll exit codes
-                    logpath = f'{self.calculation_dir}/tmp_{self.name}/job_{reps_str if "reps_str" in locals() else rep}.log'
-                    cmd = f'python {self.calculation_dir}/{self.calculation_script} {arg_str}'
-                    p = subprocess.Popen(cmd, shell=True, stdout=open(logpath, 'ab'), stderr=subprocess.STDOUT, cwd=self.calculation_dir)
-                    procs.append({'proc': p, 'reps': (reps_list if 'reps_list' in locals() else [rep]), 'log': logpath})
-                    #os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
-                    # reset batch_images for next batch
-                    batch_images = []
-                    batch_start_index = None 
-            else:
-                gpu_device = gpu_devices[(i//self.procs_per_device)%len(self.gpu_devices)]
-                write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', atoms)
-                arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj {int(run_md)} {gpu_device} {fix_indices_str}'
-                if add_args is not None:
-                    for arg in add_args:
-                        arg_str += f' {arg}'
-                # create a log file per job and launch with Popen so we can poll exit codes
-                logpath = f'{self.calculation_dir}/tmp_{self.name}/job_{reps_str if "reps_str" in locals() else rep}.log'
-                cmd = f'python {self.calculation_dir}/{self.calculation_script} {arg_str}'
-                p = subprocess.Popen(cmd, shell=True, stdout=open(logpath, 'ab'), stderr=subprocess.STDOUT, cwd=self.calculation_dir)
-                procs.append({'proc': p, 'reps': (reps_list if 'reps_list' in locals() else [rep]), 'log': logpath})
-                #os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
-            if (i % (len(gpu_devices)*self.procs_per_device) == (len(gpu_devices)*self.procs_per_device-1)
-            ) or (i == len(unrelaxed_candidates) - 1):
-                # wait until all expected relaxed files for this chunk exist, but also
-                # check subprocess exit codes and fail fast if any returned non-zero.
-                while True:
-                    # check whether all expected output files exist for the chunk
-                    files_ok = all(os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{r}.traj')
-                                   for entry in procs for r in entry['reps'])
-                    # check processes for failures
-                    for entry in procs:
-                        ret = entry['proc'].poll()
-                        if ret is not None and ret != 0:
-                            raise RuntimeError(f'Parallel job for replicas {entry["reps"]} failed with exit code {ret}. See log {entry["log"]}')
-                    if files_ok:
-                        break
-                    time.sleep(5)
-                # clear procs for the next chunk
-                procs = []
-
-        # flush any remaining partial batch that wasn't submitted
-        if batching and batch_images:
-            # decide device based on batch_start_index (the index where this batch started)
-            device_for_current = gpu_devices[(batch_start_index // self.procs_per_device) % len(gpu_devices)]
-            reps_str = '_'.join([str(a.info['key_value_pairs'][self.replica_key]) for a in batch_images])
-            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj', batch_images)
-            arg_str = f'{self.calculation_dir}/tmp_{self.name}/atoms_{reps_str}.traj {int(run_md)} {device_for_current} {fix_indices_str}'
-            if add_args is not None:
-                for arg in add_args:
-                    arg_str += f' {arg}'
-            # create a log file per job and launch with Popen so we can poll exit codes
-            logpath = f'{self.calculation_dir}/tmp_{self.name}/job_{reps_str if "reps_str" in locals() else rep}.log'
-            cmd = f'python {self.calculation_dir}/{self.calculation_script} {arg_str}'
-            p = subprocess.Popen(cmd, shell=True, stdout=open(logpath, 'ab'), stderr=subprocess.STDOUT, cwd=self.calculation_dir)
-            procs.append({'proc': p, 'reps': (reps_list if 'reps_list' in locals() else [rep]), 'log': logpath})
-            #os.system(f'nohup python {self.calculation_dir}/{self.calculation_script} ' + arg_str + ' &')
-            batch_images = []
-            batch_start_index = None
-
-        relaxed_candidates = [read(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj', index=-1) for rep in replicas]
-        for rep in replicas:
-            os.remove(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj')
-            if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxation_{rep}.traj'):
-                os.remove(f'{self.calculation_dir}/tmp_{self.name}/relaxation_{rep}.traj')
-
-        return relaxed_candidates
+        return self.worker_pool.evaluate(
+                unrelaxed_candidates,
+                run_md=run_md,
+                fix_indices=self.fix_indices)
 
     def run(self, starting_step=None, total_steps=10000, restart_with_trim=False):
 
@@ -571,6 +488,7 @@ class EMC(object):
         restart = True
         self.pop_size = len(self.input_pop)
         self.set_asedb_path()
+        os.makedirs(f'{self.calculation_dir}/tmp_{self.name}', exist_ok=True)
         self.worker_pool = self.make_worker_pool()
         logger = EMCLogger(verbose=self.verbose, acceptance_key=self.acceptance_key)
         starting_step = self.get_starting_step(starting_step)
@@ -596,11 +514,9 @@ class EMC(object):
             self.connect_data_with_trim(starting_step=starting_step)
         else:
             self.dc = DataConnection(asedb_path)
-        if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
-            os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
-            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
+            relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:                  
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
         else:
@@ -643,7 +559,7 @@ class EMC(object):
             
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
-                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True, batching=self.batching)
+                relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
                 for atoms in relaxed_candidates:
                     atoms.info['key_value_pairs'][self.acceptance_key] = 1
                 # Update the population to allow new candidates to enter
@@ -668,8 +584,6 @@ class EMC(object):
                     offsprings, desc = operator.get_new_individual(parents)
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
-                        if (self.worker_pool is None) and os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
-                            continue
                         if offsprings[idx] == parents[idx]:
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                         offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
@@ -678,13 +592,9 @@ class EMC(object):
                             offsprings[idx].info['key_value_pairs'][self.category_key] = \
                                     parents[idx].info['key_value_pairs'][self.category_key]
                         unrelaxed_dict[rep] = offsprings[idx]
-                        if self.worker_pool is None:
-                            write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
 
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
-                    if (self.worker_pool is None) and os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
-                        continue
                     do_metal = False
                     if self.nonmetal_element_pool is None:
                         do_metal = True
@@ -709,15 +619,10 @@ class EMC(object):
                         offspring.info['key_value_pairs'][self.category_key] = \
                                 parents[0].info['key_value_pairs'][self.category_key]
                     unrelaxed_dict[rep] = offspring
-                    if self.worker_pool is None:
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
 
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            if self.worker_pool is None:
-                unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
-            else:
-                unrelaxed_offsprings = [unrelaxed_dict[rep] for rep in replicas]
-            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False, batching=self.batching)
+            unrelaxed_offsprings = [unrelaxed_dict[rep] for rep in replicas]
+            relaxed_offsprings = self.get_relaxed_candidates(unrelaxed_offsprings, run_md=False)
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:
@@ -755,5 +660,4 @@ class EMC(object):
             gi += 1
 
         self.sync_asedb()
-        if self.worker_pool is not None:
-            self.worker_pool.close()
+        self.worker_pool.close()

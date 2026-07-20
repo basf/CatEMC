@@ -1,132 +1,171 @@
-#!/usr/bin/env python3
+from catemc.gcemc import GCEMC
+from acat.adsorption_sites import SlabAdsorptionSites
+from ase import data, units
+from ase.io import read
+from collections import Counter
+import math
+import numpy as np
+import pickle
 
-import os
-import sys
+
+MODEL_PATH = '/scicore/home/goedecke/han0011/model.pt'
+TARGET_METAL_SPECIES = ['Mn', 'Rh']
+TARGET_METAL_COMPOSITION = {'Mn': 0.9326424870466321,
+                            'Rh': 0.06735751295336788}
+ALLOWED_ADSORBATE_SPECIES = [
+    'O', 'H', 'OH', 'OH2', 'H2', 'O2', 'O2H', 'OOH', 'C', 'CO', 'OC',
+    'CO2', 'COH', 'CHO', 'CH', 'CH2', 'CH3', 'CH3O', 'OCH3',
+]
+
+
+def create_calculators():
+    from catemc.repulsive import RepulsivePotential
+    from metatomic_ase import MetatomicCalculator
+
+    return [
+        RepulsivePotential(),
+        MetatomicCalculator(MODEL_PATH,
+                            device='cuda',
+                            variants={'energy': 'react-r2scan'},
+                            extensions_directory=None),
+    ]
+
+
+def get_fitness_kwargs():
+    e_c = -9.944
+    e_o2 = -8.768 + 0.101
+    e_h2 = -6.773 + 0.267
+    return dict(
+            fmax_list=[0.5, 0.05],
+            target_metal_species=TARGET_METAL_SPECIES,
+            target_metal_composition=TARGET_METAL_COMPOSITION,
+            allowed_adsorbate_species=ALLOWED_ADSORBATE_SPECIES,
+            md_timestep=1 * units.fs,
+            md_taut=500 * units.fs,
+            md_steps=50,
+            md_write_interval=10,
+            temperature_dmu_map=None,
+            element_column_map={'C': 0, 'O': 1, 'H': 2},
+            element_eref_map={'C': e_c, 'O': e_o2 / 2, 'H': e_h2 / 2},
+            element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
+            adsorbate_surface_dmax=2.5,
+            neighbor_cutoff=2.5,
+            update_relaxed_positions=False,
+            raw_score_cutoff=-10000.,
+            temperature_key='temperature',
+            replica_key='replica')
 
 
 def main():
-
-    from catemc.gcemc import GCEMC
-    from calculate_fitness import get_fitness_kwargs
-    from ase import data
-    from ase.io import read
-    from acat.adsorption_sites import SlabAdsorptionSites
-    from collections import Counter
-    import numpy as np
-    import pickle
-    import math
-
-    gpu_devices = [int(di) for di in sys.argv[1].split(',')]
-    ppg = int(sys.argv[2])
-    trim_generation = int(sys.argv[3]) if len(sys.argv) > 3 else 100
-    scratch_dir = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != 'None' else None
-    traj_write_interval = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] not in ['None', '0'] else 1
-    verbose = True
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_devices[0])
-
     comp = 'Rh13_MnO'
     surface = '100'
     system_name = f'{comp}COH_{surface}'
     dir_name = f'/scicore/home/goedecke/han0011/projects/RhMnO/{comp}/pet_{surface}'
-    input_pop_fname = f'{dir_name}/{comp}COH_{surface}_input_pop.traj'
-    input_pop = read(input_pop_fname, index=':')
+    input_pop = read(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', index=':')
     template = read(f'{dir_name}/Rh13_MnO_100_sym_0.extxyz')
-    target_metal_species = ['Mn','Rh']
-    target_metal_composition = {'Mn': 0.9326424870466321, 'Rh': 0.06735751295336788}
-    target_nonmetal_species = ['O','X']
-    adsorbate_species = ['O','H','OH','C','CO','CO2','CH','CH2','CH3','CHO','COH','CH3O']
-    other_adsorbate_species = ['OH2','H2','O2','O2H','OOH','OC','OCH3']
-    slab_indices = [a.index for a in template]
+
+    target_nonmetal_species = ['O', 'X']
+    adsorbate_species = ['O', 'H', 'OH', 'C', 'CO', 'CO2', 'CH', 'CH2',
+                         'CH3', 'CHO', 'COH', 'CH3O']
+    other_adsorbate_species = ['OH2', 'H2', 'O2', 'O2H', 'OOH', 'OC', 'OCH3']
+    slab_indices = [atom.index for atom in template]
     z_fix = template.cell[2][2] * 0.5
-    fix_indices = [a.index for a in template if a.position[2] < z_fix]
-    mut_metal_indices = [a.index for a in template if (a.position[2] >= z_fix) and (a.symbol in target_metal_species)]
-    mut_nonmetal_indices = [a.index for a in template if (a.position[2] >= z_fix) and (a.symbol not in target_metal_species)]
-    volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * (11 + 3 + 2.5)
-    ct = Counter(template.symbols)
-    volume -= sum([n*4/3*math.pi*(data.covalent_radii[data.atomic_numbers[k]])**3
-                   for k, n in ct.items() if k in target_metal_species])
+    fix_indices = [atom.index for atom in template if atom.position[2] < z_fix]
+    mutable_metal_indices = [
+        atom.index for atom in template
+        if atom.position[2] >= z_fix and atom.symbol in TARGET_METAL_SPECIES
+    ]
+    mutable_nonmetal_indices = [
+        atom.index for atom in template
+        if atom.position[2] >= z_fix and atom.symbol not in TARGET_METAL_SPECIES
+    ]
 
-    E_C = -9.944
-    E_O2 = -8.768 + 0.101
-    E_H2 = -6.773 + 0.267
+    volume = np.linalg.norm(np.cross(template.cell[0], template.cell[1])) * 16.5
+    composition = Counter(template.symbols)
+    volume -= sum(
+        number * 4 / 3 * math.pi
+        * data.covalent_radii[data.atomic_numbers[element]] ** 3
+        for element, number in composition.items()
+        if element in TARGET_METAL_SPECIES)
 
-    dmu_C = np.arange(1, 3.001, 0.1)
-    dmu_O = np.arange(-4., -2.999, 0.1)
-    dmu_H = np.arange(-1.0, 0.001, 0.1)
-
-    temperatures = sorted({atoms.info['key_value_pairs']['temperature'] for atoms in input_pop})
-    reaction_conditions = np.array(np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)).T.reshape(-1, 4)
-    element_column_map = {'C': 0, 'O': 1, 'H': 2}
-    element_eref_map = {'C': E_C, 'O': E_O2/2, 'H': E_H2/2}
-    element_y2x_map = {'C': 0., 'O': 1., 'H': 0.}
-
-    tdmu_map = None
+    temperatures = sorted({
+        atoms.info['key_value_pairs']['temperature'] for atoms in input_pop
+    })
+    dmu_c = np.arange(1., 3.001, 0.1)
+    dmu_o = np.arange(-4., -2.999, 0.1)
+    dmu_h = np.arange(-1., 0.001, 0.1)
+    reaction_conditions = np.array(
+        np.meshgrid(dmu_c, dmu_o, dmu_h, temperatures)
+    ).T.reshape(-1, 4)
 
     with open(f'{dir_name}/COH_internal_data.pkl', 'rb') as handle:
-       tsi_map = pickle.load(handle)
+        temperature_species_internal_map = pickle.load(handle)
 
-    sas = SlabAdsorptionSites(template, surface='autoadsorbate',
-                             composition_effect=False,
-                             ignore_sites='bridge')
+    adsorption_sites = SlabAdsorptionSites(
+            template,
+            surface='autoadsorbate',
+            composition_effect=False,
+            ignore_sites='bridge')
 
-    with open(f'{dir_name}/{comp}_{surface}_sites.pkl', 'wb') as handle:
-       pickle.dump(sas, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    emc = GCEMC(
+            system_name,
+            calculation_dir=dir_name,
+            input_pop=input_pop,
+            calculator_factory=create_calculators,
+            fitness_kwargs=get_fitness_kwargs(),
+            fix_indices=fix_indices,
+            trim_generation=100,
+            md_generation=10,
+            mu_walk_generation=1,
+            exchange_generation=1,
+            bias_starting_step=300,
+            mbar_starting_step=100,
+            mbar_sample_stride=10,
+            crossover_rate=0.1,
+            interswap_rate=0.,
+            slab_intraswap_rate=0.4,
+            slab_mutation_rate=0.,
+            adsorbate_insertion_rate=0.125,
+            adsorbate_removal_rate=0.125,
+            adsorbate_displacement_rate=0.125,
+            adsorbate_mutation_rate=0.125,
+            adsorbate_surface_dmax=2.5,
+            adsorbate_adsorbate_dmin=2.,
+            max_adsorbate_species=3,
+            max_adsorbate_coverage=1.,
+            metal_element_pool=TARGET_METAL_SPECIES,
+            nonmetal_element_pool=target_nonmetal_species,
+            bulk_metal_composition=TARGET_METAL_COMPOSITION,
+            adsorbate_species=adsorbate_species,
+            other_adsorbate_species=other_adsorbate_species,
+            mutable_metal_indices=mutable_metal_indices,
+            mutable_nonmetal_indices=mutable_nonmetal_indices,
+            slab_indices=slab_indices,
+            volume=volume,
+            reaction_conditions=reaction_conditions,
+            element_column_map={'C': 0, 'O': 1, 'H': 2},
+            element_eref_map={'C': -9.944,
+                              'O': (-8.768 + 0.101) / 2,
+                              'H': (-6.773 + 0.267) / 2},
+            element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
+            temperature_dmu_map=None,
+            temperature_species_internal_map=temperature_species_internal_map,
+            adsorption_sites=adsorption_sites,
+            ignore_sites='bridge',
+            temperature_key='temperature',
+            replica_key='replica',
+            acceptance_key='accepted',
+            raw_score_cutoff=-10000.,
+            gpu_devices=[0],
+            procs_per_device=32,
+            worker_startup_timeout=600.,
+            worker_result_timeout=3600.,
+            scratch_dir='/scratch/han0011/catemc_surface',
+            scratch_sync_interval=None,
+            traj_write_interval=50,
+            verbose=True)
 
-    emc = GCEMC(system_name,
-               calculation_dir=dir_name,
-               calculation_script='calculate_fitness.py',
-               input_pop=input_pop,
-               fix_indices=fix_indices,
-               trim_generation=trim_generation,
-               md_generation=10,
-               mu_walk_generation=1,
-               exchange_generation=1,
-               bias_starting_step=300,
-               mbar_starting_step=100,
-               mbar_sample_stride=10,
-               crossover_rate=0.1,
-               interswap_rate=0.0,
-               slab_intraswap_rate=0.4,
-               slab_mutation_rate=0.0,
-               adsorbate_insertion_rate=0.125,
-               adsorbate_removal_rate=0.125,
-               adsorbate_displacement_rate=0.125,
-               adsorbate_mutation_rate=0.125,
-               adsorbate_surface_dmax=2.5,
-               adsorbate_adsorbate_dmin=2.,
-               max_adsorbate_species=3,
-               max_adsorbate_coverage=1.,
-               metal_element_pool=target_metal_species,
-               nonmetal_element_pool=target_nonmetal_species,
-               bulk_metal_composition=target_metal_composition,
-               adsorbate_species=adsorbate_species,
-               other_adsorbate_species=other_adsorbate_species,
-               mutable_metal_indices=mut_metal_indices,
-               mutable_nonmetal_indices=mut_nonmetal_indices,
-               slab_indices=slab_indices,
-               volume=volume,
-               reaction_conditions=reaction_conditions,
-               element_column_map=element_column_map,
-               element_eref_map=element_eref_map,
-               element_y2x_map=element_y2x_map,
-               temperature_dmu_map=tdmu_map,
-               temperature_species_internal_map=tsi_map,
-               adsorption_sites=sas,
-               ignore_sites='bridge',
-               temperature_key='temperature',
-               replica_key='replica',
-               acceptance_key='accepted',
-               raw_score_cutoff=-10000.,
-               gpu_devices=gpu_devices,
-               procs_per_device=ppg,
-               use_worker_pool=True,
-               fitness_kwargs=get_fitness_kwargs(),
-               scratch_dir=scratch_dir,
-               scratch_sync_interval=None,
-               traj_write_interval=traj_write_interval,
-               verbose=verbose)
-
-    emc.run(starting_step=1, total_steps=4000)
+    emc.run(total_steps=4000)
 
 
 if __name__ == '__main__':
