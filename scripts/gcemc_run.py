@@ -32,9 +32,9 @@ def create_calculators():
 
 
 def get_fitness_kwargs():
-    e_c = -9.944
-    e_o2 = -8.768 + 0.101
-    e_h2 = -6.773 + 0.267
+    E_C = -9.944
+    E_O2 = -8.768 + 0.101
+    E_H2 = -6.773 + 0.267
     return dict(
             fmax_list=[0.5, 0.05],
             target_metal_species=TARGET_METAL_SPECIES,
@@ -46,7 +46,7 @@ def get_fitness_kwargs():
             md_write_interval=10,
             temperature_dmu_map=None,
             element_column_map={'C': 0, 'O': 1, 'H': 2},
-            element_eref_map={'C': e_c, 'O': e_o2 / 2, 'H': e_h2 / 2},
+            element_eref_map={'C': E_C, 'O': E_O2 / 2, 'H': E_H2 / 2},
             element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
             adsorbate_surface_dmax=2.5,
             neighbor_cutoff=2.5,
@@ -60,7 +60,8 @@ def main():
     comp = 'Rh13_MnO'
     surface = '100'
     system_name = f'{comp}COH_{surface}'
-    dir_name = f'/scicore/home/goedecke/han0011/projects/RhMnO/{comp}/pet_{surface}'
+    dir_name = f'/scicore/home/goedecke/han0011/projects/RhMnO/{comp}/fast_pet_{surface}'
+    scratch_dir_name = f'/scratch/han0011/catemc_15867815'
     input_pop = read(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', index=':')
     template = read(f'{dir_name}/Rh13_MnO_100_sym_0.extxyz')
 
@@ -91,11 +92,15 @@ def main():
     temperatures = sorted({
         atoms.info['key_value_pairs']['temperature'] for atoms in input_pop
     })
-    dmu_c = np.arange(1., 3.001, 0.1)
-    dmu_o = np.arange(-4., -2.999, 0.1)
-    dmu_h = np.arange(-1., 0.001, 0.1)
+
+    E_C = -9.944
+    E_O2 = -8.768 + 0.101
+    E_H2 = -6.773 + 0.267
+    dmu_C = np.arange(1., 3.001, 0.1)
+    dmu_O = np.arange(-4., -2.999, 0.1)
+    dmu_H = np.arange(-1., 0.001, 0.1)
     reaction_conditions = np.array(
-        np.meshgrid(dmu_c, dmu_o, dmu_h, temperatures)
+        np.meshgrid(dmu_C, dmu_O, dmu_H, temperatures)
     ).T.reshape(-1, 4)
 
     with open(f'{dir_name}/COH_internal_data.pkl', 'rb') as handle:
@@ -144,9 +149,7 @@ def main():
             volume=volume,
             reaction_conditions=reaction_conditions,
             element_column_map={'C': 0, 'O': 1, 'H': 2},
-            element_eref_map={'C': -9.944,
-                              'O': (-8.768 + 0.101) / 2,
-                              'H': (-6.773 + 0.267) / 2},
+            element_eref_map={'C': E_C, 'O': E_O2 / 2, 'H': E_H2 / 2},
             element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
             temperature_dmu_map=None,
             temperature_species_internal_map=temperature_species_internal_map,
@@ -157,15 +160,15 @@ def main():
             acceptance_key='accepted',
             raw_score_cutoff=-10000.,
             gpu_devices=[0],
-            procs_per_device=32,
+            procs_per_device=16,
             worker_startup_timeout=600.,
             worker_result_timeout=3600.,
-            scratch_dir='/scratch/han0011/catemc_surface',
-            scratch_sync_interval=None,
+            scratch_dir=scratch_dir_name,
+            scratch_sync_interval=100,
             traj_write_interval=50,
             verbose=True)
 
-    emc.run(total_steps=4000)
+    emc.run(total_steps=5000)
 
 
 if __name__ == '__main__':
