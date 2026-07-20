@@ -26,25 +26,7 @@ A minimal accelerated job has the following pieces:
 * optional `scratch_dir`: a node-local directory used for database I/O during the run.
 * optional `traj_write_interval`: frequency for writing the EMC trajectory.
 
-The accelerated launch command used by the scripts in this repository is:
-
-```bash
-python -u gcemc_run.py 0 16 100 /scratch/$USER/catemc_gcemc 50
-```
-
-or for bulk GE-EMC:
-
-```bash
-python -u geemc_run.py 0 16 100 /scratch/$USER/catemc_geemc 50
-```
-
-The positional arguments are:
-
-```text
-gpu_devices procs_per_gpu traj_write_interval scratch_dir scratch_sync_interval verbose
-```
-
-Use `None` for `scratch_dir` or `scratch_sync_interval` when you want to disable them. The final `1` sets `verbose=True`, which prints detailed move diagnostics in addition to per-generation acceptance summaries.
+Use `None` for `scratch_dir` or `scratch_sync_interval` when you want to disable scratch acceleration.
 
 ---
 

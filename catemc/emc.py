@@ -138,7 +138,7 @@ class EMC(object):
             procs_per_device=10,
             batching=False,
             verbose=True,
-            use_worker_pool=False,
+            use_worker_pool=True,
             calculator_factory=None,
             calculator_factory_kwargs=None,
             fitness_kwargs=None,
