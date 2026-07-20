@@ -63,7 +63,7 @@ A typical GC/GE-EMC campaign follows these steps:
 
 ---
 
-## Accelerated execution model
+## How CatEMC runs
 
 CatEMC uses persistent worker processes for every fitness evaluation. Each worker sets its assigned device, calls `create_calculators()` once, and reuses the resulting calculator sequence for all structures handled by that worker. Calculator initialization therefore scales with the number of workers rather than the number of EMC moves. Separate workers require separate calculator instances; this is necessary for process-safe parallel evaluation.
 
