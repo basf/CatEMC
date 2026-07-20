@@ -282,7 +282,7 @@ def main():
             worker_startup_timeout=600.,
             worker_result_timeout=3600.,
             scratch_dir='/scratch/han0011/catemc_bulk',
-            scratch_sync_interval=None,
+            scratch_sync_interval=100,
             traj_write_interval=50,
             verbose=True)
 
@@ -679,7 +679,7 @@ def main():
             worker_startup_timeout=600.,
             worker_result_timeout=3600.,
             scratch_dir='/scratch/han0011/catemc_surface',
-            scratch_sync_interval=None,
+            scratch_sync_interval=100,
             traj_write_interval=50,
             verbose=True)
 
