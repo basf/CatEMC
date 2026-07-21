@@ -40,10 +40,61 @@ def calculate_bulk_fitness(
         neighbor_cutoff=2.5,
         _emc_context=None):
 
-    """Evaluate and optionally relax a bulk EMC candidate.
+    """Calculate the fitness of a bulk EMC candidate.
 
-    ``fitness_kwargs`` only contains calculator, relaxation and MD settings.
-    EMC-owned settings are supplied internally through ``_emc_context``.
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Bulk structure to evaluate.
+    calculator_list : list of ase.calculators.calculator.Calculator
+        Calculators applied sequentially. The final calculator is used for
+        molecular dynamics, the final relaxation and the reported energy.
+    fmax_list : list of float or None
+        Force-convergence thresholds corresponding to ``calculator_list``.
+        A value of ``None`` skips relaxation with that calculator.
+    md_timestep : float
+        Molecular-dynamics time step in ASE time units.
+    md_taut : float
+        Temperature-coupling time constant in ASE time units.
+    md_steps : int
+        Number of molecular-dynamics steps.
+    md_write_interval : int
+        Interval between frames in the optional molecular-dynamics trajectory.
+    run_md : bool, default False
+        Run molecular dynamics before the final relaxation.
+    md_type : {"berendsen", "langevin"}, default "berendsen"
+        Molecular-dynamics thermostat.
+    md_friction : float or None, default None
+        Langevin friction coefficient. Used only when ``md_type="langevin"``.
+    md_taup : float, default 1000 * ase.units.fs
+        Pressure-coupling time constant for NPT molecular dynamics.
+    compressibility : float, default 5e-5 / ase.units.bar
+        Isothermal compressibility in ASE units for NPT molecular dynamics.
+    max_relax_steps : int, default 300
+        Maximum number of optimization steps for each relaxation.
+    write_relax_traj : bool, default False
+        Write temporary relaxation trajectories.
+    write_md_traj : bool, default False
+        Write temporary molecular-dynamics trajectories and logs.
+    optimize_cell : bool, default False
+        Relax the cell together with atomic positions when a target pressure is
+        defined by the EMC calculation.
+    update_md_positions : bool, default True
+        Use the post-MD coordinates when constructing the returned candidate.
+    update_relaxed_positions : bool, default False
+        Use the fully relaxed coordinates in the returned candidate. Otherwise,
+        relaxation is used only to evaluate its fitness.
+    neighbor_cutoff : float, default 2.5
+        Neighbor cutoff in angstrom used to map vacancies after atomic motion.
+    _emc_context : dict or None, default None
+        Internal EMC state supplied by the simulation driver. It contains the
+        thermodynamic, indexing and output settings that are intentionally not
+        part of ``fitness_kwargs``.
+
+    Returns
+    -------
+    ase.Atoms
+        Evaluated candidate with its potential energy, volume and raw score.
     """
 
     if _emc_context is None:
@@ -188,10 +239,54 @@ def calculate_surface_fitness(
         neighbor_cutoff=2.5,
         _emc_context=None):
 
-    """Evaluate and optionally relax a surface GC-EMC candidate.
+    """Calculate the fitness of a surface GC-EMC candidate.
 
-    ``fitness_kwargs`` only contains calculator, relaxation and MD settings.
-    GCEMC-owned settings are supplied internally through ``_emc_context``.
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Surface structure to evaluate.
+    calculator_list : list of ase.calculators.calculator.Calculator
+        Calculators applied sequentially. The final calculator is used for
+        molecular dynamics, the final relaxation and the reported energy.
+    fmax_list : list of float or None
+        Force-convergence thresholds corresponding to ``calculator_list``.
+        A value of ``None`` skips relaxation with that calculator.
+    md_timestep : float
+        Molecular-dynamics time step in ASE time units.
+    md_taut : float
+        Temperature-coupling time constant in ASE time units.
+    md_steps : int
+        Number of molecular-dynamics steps.
+    md_write_interval : int
+        Interval between frames in the optional molecular-dynamics trajectory.
+    run_md : bool, default False
+        Run molecular dynamics before the final relaxation.
+    md_type : {"berendsen", "langevin"}, default "berendsen"
+        Molecular-dynamics thermostat.
+    md_friction : float or None, default None
+        Langevin friction coefficient. Used only when ``md_type="langevin"``.
+    max_relax_steps : int, default 300
+        Maximum number of optimization steps for each relaxation.
+    write_relax_traj : bool, default False
+        Write temporary relaxation trajectories.
+    write_md_traj : bool, default False
+        Write temporary molecular-dynamics trajectories and logs.
+    update_md_positions : bool, default True
+        Use the post-MD coordinates when constructing the returned candidate.
+    update_relaxed_positions : bool, default False
+        Use the fully relaxed coordinates in the returned candidate. Otherwise,
+        relaxation is used only to evaluate its fitness.
+    neighbor_cutoff : float, default 2.5
+        Neighbor cutoff in angstrom used to map vacancies after atomic motion.
+    _emc_context : dict or None, default None
+        Internal GCEMC state supplied by the simulation driver. It contains the
+        thermodynamic, structural and output settings that are intentionally not
+        part of ``fitness_kwargs``.
+
+    Returns
+    -------
+    ase.Atoms
+        Evaluated candidate with its potential energy and raw score.
     """
 
     if _emc_context is None:
