@@ -12,11 +12,6 @@ MODEL_PATH = '/scicore/home/goedecke/han0011/model.pt'
 TARGET_METAL_SPECIES = ['Mn', 'Rh']
 TARGET_METAL_COMPOSITION = {'Mn': 0.9326424870466321,
                             'Rh': 0.06735751295336788}
-ALLOWED_ADSORBATE_SPECIES = [
-    'O', 'H', 'OH', 'OH2', 'H2', 'O2', 'O2H', 'OOH', 'C', 'CO', 'OC',
-    'CO2', 'COH', 'CHO', 'CH', 'CH2', 'CH3', 'CH3O', 'OCH3',
-]
-
 
 def create_calculators():
     from catemc.repulsive import RepulsivePotential
@@ -32,28 +27,14 @@ def create_calculators():
 
 
 def get_fitness_kwargs():
-    E_C = -9.944
-    E_O2 = -8.768 + 0.101
-    E_H2 = -6.773 + 0.267
     return dict(
             fmax_list=[0.5, 0.05],
-            target_metal_species=TARGET_METAL_SPECIES,
-            target_metal_composition=TARGET_METAL_COMPOSITION,
-            allowed_adsorbate_species=ALLOWED_ADSORBATE_SPECIES,
             md_timestep=1 * units.fs,
             md_taut=500 * units.fs,
             md_steps=50,
             md_write_interval=10,
-            temperature_dmu_map=None,
-            element_column_map={'C': 0, 'O': 1, 'H': 2},
-            element_eref_map={'C': E_C, 'O': E_O2 / 2, 'H': E_H2 / 2},
-            element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
-            adsorbate_surface_dmax=2.5,
             neighbor_cutoff=2.5,
-            update_relaxed_positions=False,
-            raw_score_cutoff=-10000.,
-            temperature_key='temperature',
-            replica_key='replica')
+            update_relaxed_positions=False)
 
 
 def main():

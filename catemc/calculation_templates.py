@@ -22,7 +22,6 @@ def calculate_bulk_fitness(
         atoms,
         calculator_list,
         fmax_list,
-        target_metal_species,
         md_timestep,
         md_taut,
         md_steps,
@@ -30,10 +29,8 @@ def calculate_bulk_fitness(
         run_md=False,
         md_type='berendsen',
         md_friction=None,
-        pressure=None,
         md_taup=1000*units.fs,
         compressibility=5e-5/units.bar,
-        fix_indices=None,
         max_relax_steps=300,
         write_relax_traj=False,
         write_md_traj=False,
@@ -41,80 +38,23 @@ def calculate_bulk_fitness(
         update_md_positions=True,
         update_relaxed_positions=False,
         neighbor_cutoff=2.5,
-        raw_score_cutoff=-10000.,
-        temperature_key='temperature',
-        replica_key='replica',
-        work_dir=None):
+        _emc_context=None):
 
+    """Evaluate and optionally relax a bulk EMC candidate.
+
+    ``fitness_kwargs`` only contains calculator, relaxation and MD settings.
+    EMC-owned settings are supplied internally through ``_emc_context``.
     """
-    A template function for calculating the fitness of a bulk 
-    structure using some calculators in the GE-EMC simulation.
 
-    Parameters
-    ----------
-    atoms: ase.Atoms
-        Bulk structure to be calculated.
-
-    calculator_list: list of ase.calculators.Calculator objects
-        All calculators that are used to evaluate the structure
-        in sequence. The last calculator should be the main
-        calculator to perform MD / energy minimization.
-
-    fmax_list: list of floats/None
-        The fmax convergence criteria for the relaxation using
-        each calculator in the same order. Use None if you don't
-        want to use that calculator to relax the structure.
-
-    target_metal_species: list of strs
-        Target metal elements in the bulk structure.
-
-    run_md: bool
-        Whether to run molecular dynamics or not.
-
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup, md_type, md_friction: 
-        MD parameters and type (only support 'berendsen' and 
-        'langevin' so far).
-
-    pressure: float, default None
-        Target pressure in atomic unit (eV/Å^3) for running NPT 
-        and cell relaxation. Running NVT MD and fixed-cell 
-        relaxation if this is not set.
-
-    compressibility: float, default 5e-5/bar
-        The compressibility of the material in atomic unit (Å^3/eV).
-        Only relevant for NPT MD.
-
-    optimize_cell: bool, default False
-        Whether to also relax the cell. Note that NPT MD always 
-        changes the cell, this parameter only controls relaxation.
-
-    max_relax_steps: int, default 300
-        Maximum number of ionic steps to perform on relaxing the
-        structure until giving up and reject the structure.
-
-    write_relax_traj: bool, default False
-        Whether to write temporary relaxation trajectories.
-
-    write_md_traj: bool, default False
-        Whether to write temporary MD trajectories and logs.
-
-    work_dir: str, default None
-        Directory for optional temporary trajectory and log files.
-
-    update_md_positions: bool, default True
-        Whether to update the atom positions of the trajectory after
-        molecular dynamics. Recommended to set to True.
-
-    update_relaxed_positions: bool, default False
-        Wheter to update the atom position of the trajectory after
-        geometry relaxation. Recommended to set to False. Useful to
-        set to True for e.g. generating relaxed structures.
-
-    neighbor_cutoff: float, default 2.5
-        Cutoff (Å) for identify neighboring metal atoms to track
-        vacancy movement.
-
-    """
+    if _emc_context is None:
+        raise ValueError('Missing EMC fitness context')
+    target_metal_species = _emc_context['target_metal_species']
+    pressure = _emc_context['pressure']
+    fix_indices = _emc_context['fix_indices']
+    raw_score_cutoff = _emc_context['raw_score_cutoff']
+    temperature_key = _emc_context['temperature_key']
+    replica_key = _emc_context['replica_key']
+    dir_name = _emc_context['work_dir']
 
     if len(calculator_list) != len(fmax_list):
         raise ValueError('calculator_list and fmax_list must have the same length')
@@ -122,7 +62,6 @@ def calculate_bulk_fitness(
         raise ValueError("md_type must be 'berendsen' or 'langevin'")
     if len(calculator_list) == 0:
         raise ValueError('calculator_list cannot be empty')
-    dir_name = work_dir if work_dir is not None else '.'
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
     atoms = rattle_close_atoms(atoms.copy(), min_distance=0.1)
@@ -234,14 +173,6 @@ def calculate_surface_fitness(
         atoms,
         calculator_list,
         fmax_list,
-        target_metal_species,
-        target_metal_composition,
-        allowed_adsorbate_species,
-        element_column_map,
-        element_eref_map,
-        element_y2x_map,
-        adsorption_sites, 
-        slab_indices,
         md_timestep,
         md_taut,
         md_steps,
@@ -249,94 +180,38 @@ def calculate_surface_fitness(
         run_md=False,
         md_type='berendsen',
         md_friction=None,
-        fix_indices=None,
-        temperature_dmu_map=None,
         max_relax_steps=300,
         write_relax_traj=False,
         write_md_traj=False,
         update_md_positions=True,
         update_relaxed_positions=False,
-        adsorbate_surface_dmax=2.5,
         neighbor_cutoff=2.5,
-        raw_score_cutoff=-10000.,
-        temperature_key='temperature',
-        replica_key='replica',
-        work_dir=None):
+        _emc_context=None):
 
+    """Evaluate and optionally relax a surface GC-EMC candidate.
+
+    ``fitness_kwargs`` only contains calculator, relaxation and MD settings.
+    GCEMC-owned settings are supplied internally through ``_emc_context``.
     """
-    A template function for calculating the fitness of a surface 
-    structure using some calculators in the GC-EMC simulation.
 
-    Parameters
-    ----------
-    atoms: ase.Atoms
-        Surface structure to be calculated.
-
-    calculator_list: list of ase.calculators.Calculator objects
-        All calculators that are used to evaluate the structure
-        in sequence. The last calculator should be the main
-        calculator to perform MD / energy minimization.
-
-    fmax_list: list of floats/None
-        The fmax convergence criteria for the relaxation using
-        each calculator in the same order. Use None if you don't
-        want to use that calculator to relax the structure.
-
-    target_metal_species: list of strs
-        Target metal elements in the surface structure.
-
-    target_metal_composition: dict of (str, float) pairs
-        Target metal composition of the reference bulk structure.
-
-    allowed_adsorbate_species: list of strs
-        All possible adsorbate species allowed to exist in the EMC.
-        This only accepts ACAT regularized strings.
-
-    run_md: bool
-        Whether to run molecular dynamics or not.
-
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup, md_type, md_friction:
-        MD parameters and type (only support 'berendsen' and 
-        'langevin' so far).
-
-    temperature_dmu_map: dict of (float, float) pairs, default None
-        A dictionary that maps each temperature to the estimated the 
-        chemical potential difference between all metal pairs (e.g. 
-        obtained from bulk GE-EMC simulations). Note that the keys 
-        must be in the form of 'A2B' which represents mu_B - mu_A, 
-        must consider all possible metal pairs, and the metal element 
-        order must follow the order in the metal_element_pool. Only 
-        needed if the free energy bias weight is applied. Default is 
-        None, which is only suitable for surface EMC simulations with 
-        fixed surface metal composition.
-
-    max_relax_steps: int, default 300
-        Maximum number of ionic steps to perform on relaxing the
-        structure until giving up and reject the structure.
-
-    write_relax_traj: bool, default False
-        Whether to write temporary relaxation trajectories.
-
-    write_md_traj: bool, default False
-        Whether to write temporary MD trajectories and logs.
-
-    work_dir: str, default None
-        Directory for optional temporary trajectory and log files.
-
-    update_md_positions: bool, default True
-        Whether to update the atom positions of the trajectory after
-        molecular dynamics. Recommended to set to True.
-
-    update_relaxed_positions: bool, default False
-        Wheter to update the atom position of the trajectory after
-        geometry relaxation. Recommended to set to False. Useful to
-        set to True for e.g. generating relaxed structures.
-
-    neighbor_cutoff: float, default 2.5
-        Cutoff (Å) for identify neighboring metal atoms to track
-        vacancy movement.
-
-    """
+    if _emc_context is None:
+        raise ValueError('Missing GCEMC fitness context')
+    target_metal_species = _emc_context['target_metal_species']
+    target_metal_composition = _emc_context['target_metal_composition']
+    allowed_adsorbate_species = _emc_context['allowed_adsorbate_species']
+    element_column_map = _emc_context['element_column_map']
+    element_eref_map = _emc_context['element_eref_map']
+    element_y2x_map = _emc_context['element_y2x_map']
+    adsorption_sites = _emc_context['adsorption_sites']
+    slab_indices = _emc_context['slab_indices']
+    fix_indices = _emc_context['fix_indices']
+    temperature_dmu_map = _emc_context['temperature_dmu_map']
+    adsorbate_surface_dmax = _emc_context['adsorbate_surface_dmax']
+    raw_score_cutoff = _emc_context['raw_score_cutoff']
+    temperature_key = _emc_context['temperature_key']
+    replica_key = _emc_context['replica_key']
+    ignore_sites = _emc_context['ignore_sites']
+    dir_name = _emc_context['work_dir']
 
     if len(calculator_list) != len(fmax_list):
         raise ValueError('calculator_list and fmax_list must have the same length')
@@ -344,7 +219,6 @@ def calculate_surface_fitness(
         raise ValueError("md_type must be 'berendsen' or 'langevin'")
     if len(calculator_list) == 0:
         raise ValueError('calculator_list cannot be empty')
-    dir_name = work_dir if work_dir is not None else '.'
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
     sas = adsorption_sites
@@ -423,7 +297,7 @@ def calculate_surface_fitness(
         try:
             nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate',
                                        composition_effect=False,
-                                       ignore_sites='bridge')
+                                       ignore_sites=ignore_sites)
             sas = nsas
         except:
             penalize = True

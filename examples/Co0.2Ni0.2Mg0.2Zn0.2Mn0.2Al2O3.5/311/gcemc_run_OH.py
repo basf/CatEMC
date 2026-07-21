@@ -13,8 +13,6 @@ MODEL_PATH_2 = '/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mac
 TARGET_METAL_SPECIES = ['Co', 'Ni', 'Mg', 'Zn', 'Mn', 'Al']
 TARGET_METAL_COMPOSITION = {'Co': 0.2, 'Ni': 0.2, 'Mg': 0.2,
                             'Zn': 0.2, 'Mn': 0.2, 'Al': 2}
-ALLOWED_ADSORBATE_SPECIES = ['O', 'H', 'OH', 'OH2', 'H2', 'O2', 'O2H', 'OOH']
-
 
 def create_calculators():
     from catemc.repulsive import RepulsivePotential
@@ -33,27 +31,14 @@ def create_calculators():
     ]
 
 
-def get_fitness_kwargs(temperature_dmu_map):
-    e_o2 = -8.768 + 0.101
-    e_h2 = -6.773 + 0.267
+def get_fitness_kwargs():
     return dict(
             fmax_list=[0.5, 0.25, 0.05],
-            target_metal_species=TARGET_METAL_SPECIES,
-            target_metal_composition=TARGET_METAL_COMPOSITION,
-            allowed_adsorbate_species=ALLOWED_ADSORBATE_SPECIES,
             md_timestep=1 * units.fs,
             md_taut=500 * units.fs,
             md_steps=400,
             md_write_interval=10,
-            temperature_dmu_map=temperature_dmu_map,
-            element_column_map={'O': 0, 'H': 1},
-            element_eref_map={'O': e_o2 / 2, 'H': e_h2 / 2},
-            element_y2x_map={'O': 3.5 / 3, 'H': 0.},
-            adsorbate_surface_dmax=2.5,
-            neighbor_cutoff=2.5,
-            raw_score_cutoff=-10000.,
-            temperature_key='temperature',
-            replica_key='replica')
+            neighbor_cutoff=2.5)
 
 
 def main():
@@ -112,7 +97,7 @@ def main():
             calculation_dir=dir_name,
             input_pop=input_pop,
             calculator_factory=create_calculators,
-            fitness_kwargs=get_fitness_kwargs(temperature_dmu_map),
+            fitness_kwargs=get_fitness_kwargs(),
             fix_indices=fix_indices,
             trim_generation=100,
             md_generation=10,

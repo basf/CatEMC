@@ -25,7 +25,7 @@ A run directory normally contains:
 The input file has three parts:
 
 1. `create_calculators()` returns one ASE calculator or a list of calculators. When several calculators are returned, `calculate_bulk_fitness` or `calculate_surface_fitness` applies them in sequence using the corresponding `fmax_list`.
-2. `get_fitness_kwargs()` defines relaxation, MD and scoring parameters.
+2. `get_fitness_kwargs()` defines only calculator, relaxation and MD settings. EMC parameters such as pressure, element pools, thermodynamic maps and metadata keys are taken directly from the EMC object.
 3. `main()` constructs `EMC`, `GEEMC` or `GCEMC` and calls `run()`.
 
 The calculator factory must be defined at module level, and the executable code must be protected by `if __name__ == '__main__':` because the persistent workers use Python's `spawn` multiprocessing context.
@@ -74,7 +74,7 @@ The worker-related constructor parameters are:
 * `calculator_factory` — a top-level callable returning one calculator or a sequence of calculators;
 * `calculator_factory_kwargs` — optional keyword arguments passed to the factory in each worker;
 * `fitness_function` — optional custom fitness callable; bulk EMC/GE-EMC uses `calculate_bulk_fitness` by default and GC-EMC uses `calculate_surface_fitness`;
-* `fitness_kwargs` — static keyword arguments passed to the fitness function;
+* `fitness_kwargs` — calculator, relaxation and MD arguments passed to the fitness function; EMC-owned parameters are supplied automatically;
 * `gpu_devices` — device identifiers assigned to workers round-robin;
 * `procs_per_device` — number of persistent workers per device;
 * `worker_startup_timeout` — maximum time allowed for all workers and calculators to initialize;
@@ -103,6 +103,8 @@ def get_fitness_kwargs():
 ```
 
 The first calculator pre-relaxes to `fmax=0.5` and the second calculator performs the final MD/relaxation to `fmax=0.05`. A `None` entry in `fmax_list` evaluates that stage without relaxation.
+
+The built-in fitness templates reject duplicated EMC-owned entries in `fitness_kwargs`. Set `pressure`, element pools, metadata keys, score cutoffs and GC thermodynamic data once in the `EMC`, `GEEMC` or `GCEMC` constructor.
 
 Database and trajectory I/O are controlled independently:
 
@@ -234,18 +236,13 @@ def create_calculators():
 def get_fitness_kwargs():
     return dict(
             fmax_list=[0.5, 0.05],
-            target_metal_species=TARGET_METAL_SPECIES,
             md_timestep=1 * units.fs,
             md_taut=500 * units.fs,
             md_steps=400,
             md_write_interval=10,
-            pressure=1.01325 * units.bar,
             md_taup=1000 * units.fs,
             compressibility=5e-5 / units.bar,
-            neighbor_cutoff=3.5,
-            raw_score_cutoff=-10000.,
-            temperature_key='temperature',
-            replica_key='replica')
+            neighbor_cutoff=3.5)
 
 
 def main():
@@ -296,7 +293,7 @@ if __name__ == '__main__':
 Important points:
 
 * `calculator_factory=create_calculators` passes the function itself; CatEMC does not import a calculation script by filename.
-* `fitness_kwargs=get_fitness_kwargs()` is copied once to each worker and reused for every task.
+* `fitness_kwargs=get_fitness_kwargs()` contains only evaluator settings and is copied once to each worker. Class-owned values such as `pressure`, `metal_element_pool`, `raw_score_cutoff`, `temperature_key` and `replica_key` are supplied internally.
 * `emc.run(total_steps=5000)` automatically continues from the latest database generation when a restart database is found.
 * `scratch_sync_interval=None` still synchronizes every database trim and at clean shutdown.
 * Set `scratch_dir=None` when node-local scratch is not available.
@@ -513,7 +510,7 @@ write(f'{dir_name}/{comp}COH_{surface}_input_pop.traj', assigned_input_pop)
 
 GC-EMC uses the same one-file pattern. In addition to the calculator and fitness settings, the input defines the mutable slab region, reaction-condition grid, adsorption sites, bulk metal chemical potentials and internal partition data.
 
-`GCEMC` adds `slab_indices` and `adsorption_sites` to the static worker fitness arguments. These objects are sent to each worker during startup rather than with every candidate structure.
+`GCEMC` supplies its slab definition, adsorption sites, element maps, metal composition, chemical-potential data and metadata keys to each worker during startup. They are not repeated in `fitness_kwargs` or sent with every candidate structure.
 
 ```python
 from catemc.gcemc import GCEMC
@@ -530,10 +527,6 @@ MODEL_PATH = '/scicore/home/goedecke/han0011/model.pt'
 TARGET_METAL_SPECIES = ['Mn', 'Rh']
 TARGET_METAL_COMPOSITION = {'Mn': 0.9326424870466321,
                             'Rh': 0.06735751295336788}
-ALLOWED_ADSORBATE_SPECIES = [
-    'O', 'H', 'OH', 'OH2', 'H2', 'O2', 'O2H', 'OOH', 'C', 'CO', 'OC',
-    'CO2', 'COH', 'CHO', 'CH', 'CH2', 'CH3', 'CH3O', 'OCH3',
-]
 
 
 def create_calculators():
@@ -550,28 +543,14 @@ def create_calculators():
 
 
 def get_fitness_kwargs():
-    e_c = -9.944
-    e_o2 = -8.768 + 0.101
-    e_h2 = -6.773 + 0.267
     return dict(
             fmax_list=[0.5, 0.05],
-            target_metal_species=TARGET_METAL_SPECIES,
-            target_metal_composition=TARGET_METAL_COMPOSITION,
-            allowed_adsorbate_species=ALLOWED_ADSORBATE_SPECIES,
             md_timestep=1 * units.fs,
             md_taut=500 * units.fs,
             md_steps=50,
             md_write_interval=10,
-            temperature_dmu_map=None,
-            element_column_map={'C': 0, 'O': 1, 'H': 2},
-            element_eref_map={'C': e_c, 'O': e_o2 / 2, 'H': e_h2 / 2},
-            element_y2x_map={'C': 0., 'O': 1., 'H': 0.},
-            adsorbate_surface_dmax=2.5,
             neighbor_cutoff=2.5,
-            update_relaxed_positions=False,
-            raw_score_cutoff=-10000.,
-            temperature_key='temperature',
-            replica_key='replica')
+            update_relaxed_positions=False)
 
 
 def main():
@@ -690,10 +669,11 @@ if __name__ == '__main__':
     main()
 ```
 
-The surface fitness parameters and the GC-EMC thermodynamic parameters must be consistent:
+The GC thermodynamic and structural parameters are defined once in `GCEMC` and passed automatically to the built-in surface fitness function:
 
-* `target_metal_species` and `target_metal_composition` must match the reference bulk composition;
-* `element_column_map`, `element_eref_map` and `element_y2x_map` must use the same elemental chemical-potential convention in the fitness function and the GC-EMC object;
+* `metal_element_pool` and `bulk_metal_composition` define the reference bulk composition;
+* `adsorbate_species` and `other_adsorbate_species` together define the allowed surface fragments;
+* `element_column_map`, `element_eref_map` and `element_y2x_map` define the elemental chemical-potential convention;
 * `temperature_dmu_map` is required when metal composition can change;
 * `slab_indices` identifies catalyst atoms, while `fix_indices` controls positional constraints;
 * the final calculator in `create_calculators()` supplies the energy used in the GC acceptance criterion.

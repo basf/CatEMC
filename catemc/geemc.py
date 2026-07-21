@@ -125,7 +125,9 @@ class GEEMC(EMC):
         Function used to evaluate one bulk structure.
 
     fitness_kwargs: dict, default None
-        Static keyword arguments passed to the fitness function.
+        Calculator, relaxation and MD keyword arguments passed to the fitness
+        function. Parameters already defined by ``GEEMC`` are supplied
+        automatically.
 
     worker_startup_timeout: float, default 300
         Maximum time in seconds to initialize all workers.
@@ -188,6 +190,7 @@ class GEEMC(EMC):
                 calculator_factory=calculator_factory,
                 fix_indices=fix_indices,
                 trim_generation=trim_generation,
+                pressure=pressure,
                 md_generation=md_generation,
                 exchange_generation=exchange_generation,
                 metal_element_pool=metal_element_pool,
@@ -211,7 +214,6 @@ class GEEMC(EMC):
                 scratch_sync_interval=scratch_sync_interval,
                 traj_write_interval=traj_write_interval)
 
-        self.pressure = pressure
         self.bias_starting_step = bias_starting_step
         self.crossover_rate = crossover_rate
         self.metal_interswap_rate = metal_interswap_rate

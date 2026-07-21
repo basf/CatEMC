@@ -29,10 +29,9 @@ def _worker_loop(task_queue, result_queue, worker_id, gpu_device,
         if task is None:
             return
 
-        task_id, atoms, run_md, fix_indices = task
+        task_id, atoms, run_md = task
         kwargs = dict(fitness_kwargs)
         kwargs['run_md'] = run_md
-        kwargs['fix_indices'] = fix_indices
         try:
             relaxed = fitness_function(
                     atoms,
@@ -139,7 +138,7 @@ class WorkerPool(object):
                 self.close()
                 raise RuntimeError(msg[2])
 
-    def evaluate(self, atoms_list, run_md=False, fix_indices=None):
+    def evaluate(self, atoms_list, run_md=False):
         """Evaluate structures and return results in input order.
 
         Parameters
@@ -148,9 +147,6 @@ class WorkerPool(object):
             Structures to evaluate.
         run_md : bool, default False
             Whether the fitness function should perform its MD stage.
-        fix_indices : sequence of int, optional
-            Atom indices constrained during evaluation.
-
         Returns
         -------
         list of ase.Atoms
@@ -163,7 +159,7 @@ class WorkerPool(object):
             return []
 
         for task_id, atoms in enumerate(atoms_list):
-            self.task_queue.put((task_id, atoms, run_md, fix_indices))
+            self.task_queue.put((task_id, atoms, run_md))
 
         relaxed_atoms = [None] * len(atoms_list)
         n_done = 0

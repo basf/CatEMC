@@ -245,7 +245,9 @@ class GCEMC(EMC):
         Function used to evaluate one surface structure.
 
     fitness_kwargs: dict, default None
-        Static keyword arguments passed to the fitness function.
+        Calculator, relaxation and MD keyword arguments passed to the fitness
+        function. Parameters already defined by ``GCEMC`` are supplied
+        automatically.
 
     worker_startup_timeout: float, default 300
         Maximum time in seconds to initialize all workers.
@@ -383,10 +385,37 @@ class GCEMC(EMC):
         self.ignore_sites = ignore_sites
 
 
-    def get_worker_extra_kwargs(self):
+    def uses_builtin_fitness(self):
 
-        return {'slab_indices': self.slab_indices,
-                'adsorption_sites': self.adsorption_sites}
+        return self.fitness_function is calculate_surface_fitness
+
+    def get_fitness_context(self):
+
+        context = super().get_fitness_context()
+        context.update({
+            'target_metal_composition': self.bulk_metal_composition,
+            'allowed_adsorbate_species': list(dict.fromkeys(
+                (self.adsorbate_species or [])
+                + (self.other_adsorbate_species or []))),
+            'element_column_map': self.element_column_map,
+            'element_eref_map': self.element_eref_map,
+            'element_y2x_map': self.element_y2x_map,
+            'adsorption_sites': self.adsorption_sites,
+            'slab_indices': self.slab_indices,
+            'temperature_dmu_map': self.tdmu_map,
+            'adsorbate_surface_dmax': self.adsorbate_surface_dmax,
+            'ignore_sites': self.ignore_sites,
+        })
+        return context
+
+    def get_reserved_fitness_kwargs(self):
+
+        return super().get_reserved_fitness_kwargs() | {
+            'target_metal_composition', 'allowed_adsorbate_species',
+            'element_column_map', 'element_eref_map', 'element_y2x_map',
+            'adsorption_sites', 'slab_indices', 'temperature_dmu_map',
+            'adsorbate_surface_dmax', 'ignore_sites',
+        }
 
     def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=1e-3):
 

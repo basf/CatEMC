@@ -19,16 +19,11 @@ def create_calculators():
 def get_fitness_kwargs():
     return dict(
             fmax_list=[0.05],
-            target_metal_species=TARGET_METAL_SPECIES,
             md_timestep=1 * units.fs,
             md_taut=500 * units.fs,
             md_steps=400,
             md_write_interval=10,
-            pressure=None,
-            neighbor_cutoff=3.5,
-            raw_score_cutoff=-10000.,
-            temperature_key='temperature',
-            replica_key='replica')
+            neighbor_cutoff=3.5)
 
 
 def main():

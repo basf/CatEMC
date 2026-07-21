@@ -117,8 +117,9 @@ class EMC(object):
         by default.
 
     fitness_kwargs: dict, default None
-        Static keyword arguments passed to the fitness function for every
-        structure.
+        Calculator, relaxation and MD keyword arguments passed to the fitness
+        function. Parameters already defined by the EMC class are supplied
+        automatically.
 
     worker_startup_timeout: float, default 300
         Maximum time in seconds to initialize all workers and calculators.
@@ -220,16 +221,46 @@ class EMC(object):
         self.persistent_asedb_path = None
 
 
-    def get_worker_extra_kwargs(self):
+    def uses_builtin_fitness(self):
 
-        return {}
+        return self.fitness_function is calculate_bulk_fitness
+
+    def get_fitness_context(self):
+
+        return {
+            'target_metal_species': [m for m in (self.metal_element_pool or [])
+                                     if m != 'X'],
+            'pressure': self.pressure,
+            'fix_indices': self.fix_indices,
+            'raw_score_cutoff': self.raw_score_cutoff,
+            'temperature_key': self.temperature_key,
+            'replica_key': self.replica_key,
+            'work_dir': f'{self.calculation_dir}/tmp_{self.name}',
+        }
+
+    def get_reserved_fitness_kwargs(self):
+
+        return {
+            'target_metal_species', 'pressure', 'fix_indices',
+            'raw_score_cutoff', 'temperature_key', 'replica_key',
+            'work_dir', '_emc_context',
+        }
 
     def make_worker_pool(self):
 
         n_workers = len(self.gpu_devices) * self.procs_per_device
         fitness_kwargs = dict(self.fitness_kwargs)
-        fitness_kwargs.update(self.get_worker_extra_kwargs())
-        fitness_kwargs['work_dir'] = f'{self.calculation_dir}/tmp_{self.name}'
+        if self.uses_builtin_fitness():
+            duplicated = self.get_reserved_fitness_kwargs() & fitness_kwargs.keys()
+            if duplicated:
+                raise ValueError(
+                    'Remove EMC-owned entries from fitness_kwargs: {}'.format(
+                        ', '.join(sorted(duplicated))))
+            fitness_kwargs['_emc_context'] = self.get_fitness_context()
+        else:
+            fitness_kwargs.setdefault('fix_indices', self.fix_indices)
+            fitness_kwargs.setdefault(
+                'work_dir', f'{self.calculation_dir}/tmp_{self.name}')
         return WorkerPool(
                 calculator_factory=self.calculator_factory,
                 fitness_function=self.fitness_function,
@@ -464,8 +495,7 @@ class EMC(object):
 
         return self.worker_pool.evaluate(
                 unrelaxed_candidates,
-                run_md=run_md,
-                fix_indices=self.fix_indices)
+                run_md=run_md)
 
     def run(self, starting_step=None, total_steps=10000, restart_with_trim=False):
 

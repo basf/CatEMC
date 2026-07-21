@@ -12,8 +12,6 @@ MODEL_PATH = '/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model'
 TARGET_METAL_SPECIES = ['Co', 'Mo', 'Fe', 'Ni', 'Cu']
 TARGET_METAL_COMPOSITION = {'Co': 0.25, 'Mo': 0.45, 'Fe': 0.1,
                             'Ni': 0.1, 'Cu': 0.1}
-ALLOWED_ADSORBATE_SPECIES = ['H', 'N', 'NH', 'NH2', 'N2', 'H2', 'NH3']
-
 
 def create_calculators():
     from mace.calculators.mace import MACECalculator
@@ -24,27 +22,14 @@ def create_calculators():
                            default_dtype='float64')]
 
 
-def get_fitness_kwargs(temperature_dmu_map):
-    e_n2 = -16.293 + 0.155
-    e_h2 = -6.984 + 0.269
+def get_fitness_kwargs():
     return dict(
             fmax_list=[0.05],
-            target_metal_species=TARGET_METAL_SPECIES,
-            target_metal_composition=TARGET_METAL_COMPOSITION,
-            allowed_adsorbate_species=ALLOWED_ADSORBATE_SPECIES,
             md_timestep=1 * units.fs,
             md_taut=500 * units.fs,
             md_steps=400,
             md_write_interval=10,
-            temperature_dmu_map=temperature_dmu_map,
-            element_column_map={'N': 0, 'H': 1},
-            element_eref_map={'N': e_n2 / 2, 'H': e_h2 / 2},
-            element_y2x_map={'N': 0., 'H': 0.},
-            adsorbate_surface_dmax=2.5,
-            neighbor_cutoff=2.5,
-            raw_score_cutoff=-10000.,
-            temperature_key='temperature',
-            replica_key='replica')
+            neighbor_cutoff=2.5)
 
 
 def main():
@@ -97,7 +82,7 @@ def main():
             calculation_dir=dir_name,
             input_pop=input_pop,
             calculator_factory=create_calculators,
-            fitness_kwargs=get_fitness_kwargs(temperature_dmu_map),
+            fitness_kwargs=get_fitness_kwargs(),
             fix_indices=fix_indices,
             trim_generation=100,
             md_generation=10,
