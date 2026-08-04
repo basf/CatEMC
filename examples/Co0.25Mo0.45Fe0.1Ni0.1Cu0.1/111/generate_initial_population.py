@@ -145,7 +145,7 @@ if __name__ == '__main__':
     assigned_input_pop = assign_mu_windows(
             input_images, reaction_conditions=grid,
             element_column_map=element_column_map,
-            center_round_decimals=2)
+            round_decimals=2)
 
     for img_idx, img in enumerate(assigned_input_pop):
         mu_rep = img.info['data']['mu']
