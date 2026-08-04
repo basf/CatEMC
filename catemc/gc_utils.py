@@ -57,6 +57,7 @@ def compute_intramove_prefactor(
 
     species = set(list(fct1.keys()) + list(fct2.keys()) + list(ect1.keys()) + list(ect2.keys()))
     prefactor = 1
+    m, n = None, None
     for k in species:
         if k in nonmetal_species:
             delta_Nk = fct2[k] - fct1[k]
@@ -86,7 +87,6 @@ def compute_intramove_prefactor(
                 except:
                     prefactor *= (np.exp(stirling(fct1[k]) - stirling(fct2[k])) * frac)
         else:
-            m, n = None, None
             if ect2[k] - ect1[k] == 1:
                 n = k
             if ect1[k] - ect2[k] == 1:
@@ -156,8 +156,8 @@ def compute_crossover_prefactor(
     if temperature_species_internal_map is None:
         fct11, fct12, fct21, fct22 = ect11, ect12, ect21, ect22        
     else:
-        ads11 = atoms2.info['data']['fragments']
-        ads12 = trial_atoms2.info['data']['fragments']
+        ads11 = atoms1.info['data']['fragments']
+        ads12 = trial_atoms1.info['data']['fragments']
         ads21 = atoms2.info['data']['fragments']
         ads22 = trial_atoms2.info['data']['fragments']
         fct11, fct12 = Counter(ads11), Counter(ads12)
@@ -206,7 +206,7 @@ def compute_crossover_prefactor(
                     frac2 = temperature_species_internal_map[T2][k] / beta2**1.5
                     if no_internal_indices is not None:
                         delta_Nk1 = nfct12[k] - nfct11[k]
-                        delta_NK2 = nfct22[k] - nfct21[k]
+                        delta_Nk2 = nfct22[k] - nfct21[k]
                 try:
                     prefactor *= (math.factorial(fct11[k]) / math.factorial(fct12[k]) * math.factorial(fct21[k]) 
                                   / math.factorial(fct22[k]) * frac1**delta_Nk1 * frac2**delta_Nk2)
@@ -225,7 +225,6 @@ def compute_crossover_prefactor(
 
 def compute_exchange_prefactor(
         atoms1, atoms2, 
-        reaction_conditions=None, 
         element_column_map=None, 
         temperature_species_internal_map=None,
         no_internal_indices=None,
@@ -282,12 +281,8 @@ def compute_exchange_prefactor(
             for k in set(list(ect1.keys()) + list(ect2.keys())):
                 if k in element_column_map:
                     col = element_column_map[k]
-                    if reaction_conditions is None:
-                        mu1 = atoms1.info['data']['mu'][col]
-                        mu2 = atoms2.info['data']['mu'][col]
-                    else:
-                        mu1 = reaction_conditions[:, col]
-                        mu2 = reaction_conditions[:, col]
+                    mu1 = atoms1.info['data']['mu'][col]
+                    mu2 = atoms2.info['data']['mu'][col]
                     exponent += (beta1*ect2[k] - beta2*ect1[k]) * (mu2 - mu1)
     prefactor /= np.exp(exponent)
 

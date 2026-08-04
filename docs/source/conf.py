@@ -1,71 +1,44 @@
+from pathlib import Path
 import sys
-import os
 
-# -- Path setup --------------------------------------------------------------
-# Add the repo root so Sphinx can import `catemc` (installed in editable mode)
-sys.path.insert(0, os.path.abspath('../..'))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
-
-# -- Project information -----------------------------------------------------
 project = 'CatEMC'
 author = 'Shuang Han'
 release = '1.0.0'
 version = release
 
-
-# -- General configuration ---------------------------------------------------
 extensions = [
-'sphinx.ext.autodoc',
-'sphinx.ext.autosummary',
-'sphinx.ext.napoleon',
-'sphinx.ext.viewcode',
-'sphinx.ext.todo',
-'sphinx_autodoc_typehints',
-'sphinxcontrib.programoutput',
-'sphinx_wagtail_theme',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
+    'sphinx_copybutton',
 ]
-
 
 autosummary_generate = True
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
-napoleon_include_init_with_doc = False
-napoleon_use_admonition_for_examples = True
+autodoc_member_order = 'bysource'
+autodoc_typehints = 'description'
 
-
-# Mock imports to avoid heavy deps failing the docs build (CI-friendly)
-# Adjust list if you know other heavy modules that Sphinx cannot import on the build host
 autodoc_mock_imports = [
-'mace',
-'acat',
-'autoadsorbate',
+    'acat',
+    'autoadsorbate',
+    'mace',
+    'metatomic_ase',
+    'pymbar',
 ]
 
-
-# Source and templates
-source_suffix = {'.rst': 'restructuredtext'}
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-
-# -- HTML options ------------------------------------------------------------
-html_theme = 'sphinx_wagtail_theme'
-html_theme_options = {
-'navigation_depth': 3,
-'show_related': True,
-}
+html_theme = 'furo'
+html_title = 'CatEMC'
 html_static_path = ['_static']
 html_css_files = ['custom.css']
-
-
-# show todos
-todo_include_todos = True
-
-
-# autodoc options
-autodoc_typehints = 'both'
-autodoc_member_order = 'bysource'
-
-
-# last updated
-html_last_updated_fmt = '%b %d, %Y'
+html_theme_options = {
+    'navigation_with_keys': True,
+    'sidebar_hide_name': False,
+}

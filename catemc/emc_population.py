@@ -15,6 +15,18 @@ import warnings
 import random
 
 
+def log_prefactor_value(prefactor):
+
+    if prefactor is None or prefactor <= 0:
+        return -np.inf
+    return np.log(prefactor)
+
+
+def metropolis_accept_log(ln_ratio):
+
+    return (ln_ratio >= 0.) or (np.log(np.random.uniform()) < ln_ratio)
+
+
 class EMCPopulation(Population):
     """The EMC population instance that evolves based on
     the Metropolis-Hastings algorithm individually.
@@ -173,6 +185,7 @@ class EMCPopulation(Population):
                                 sorted_parents[0], sorted_parents[1],
                                 offsprings[sorted_oids[0]], offsprings[sorted_oids[1]])
 
+                ln_prefactor = log_prefactor_value(prefactor)
                 if pressure is not None:
                     V11 = sorted_parents[0].info['key_value_pairs']['volume']
                     V12 = sorted_offsprings[0].info['key_value_pairs']['volume']
@@ -185,10 +198,9 @@ class EMCPopulation(Population):
                     lnV = N12*np.log(V12) - N11*np.log(V11) + N22*np.log(V22) - N21*np.log(V21)
                     df1 += pressure * (V12 - V11)
                     df2 += pressure * (V22 - V21)
-                    lnC = np.log(prefactor) + lnV
-                    prefactor = np.exp(lnC)
-                p_acc = min([1, prefactor * np.exp(df1 / (kB*T1) + df2/ (kB*T2))])
-                accept = p_acc > np.random.uniform()
+                    ln_prefactor += lnV
+                ln_p_acc = ln_prefactor + df1 / (kB*T1) + df2 / (kB*T2)
+                accept = metropolis_accept_log(ln_p_acc)
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " + 
                          f"parents: {[sorted_parents[0].get_chemical_formula(), sorted_parents[1].get_chemical_formula()]}, " +
@@ -198,11 +210,13 @@ class EMCPopulation(Population):
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
                 offsprings[1].info['key_value_pairs'][self.ak] = 1
-                parprint(f'Replicas {rep1} {rep2} inter move accepted!')
+                if self.verbose:
+                    parprint(f'Replicas {rep1} {rep2} inter move accepted!')
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
                 offsprings[1].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replicas {rep1} {rep2} inter move rejected!')
+                if self.verbose:
+                    parprint(f'Replicas {rep1} {rep2} inter move rejected!')
             if self.store_delta:
                 offsprings[sorted_oids[0]].info['key_value_pairs']['delta'] = df1
                 offsprings[sorted_oids[1]].info['key_value_pairs']['delta'] = df2
@@ -236,6 +250,7 @@ class EMCPopulation(Population):
                             no_internal_indices,
                             metal_species_probabilities,
                             temperature_key=self.tk)
+                ln_prefactor = log_prefactor_value(prefactor)
                 if pressure is not None:
                     V1 = parents[0].info['key_value_pairs']['volume']
                     V2 = offsprings[0].info['key_value_pairs']['volume']
@@ -243,10 +258,9 @@ class EMCPopulation(Population):
                     N2 = len([a for a in offsprings[0] if a.symbol != 'X'])
                     lnV = N2*np.log(V2) - N1*np.log(V1)
                     df += pressure * (V2 - V1)
-                    lnC = np.log(prefactor) + lnV
-                    prefactor = np.exp(lnC)
-                p_acc = min([1, prefactor * np.exp(df / (kB*T))])
-                accept = p_acc > np.random.uniform()
+                    ln_prefactor += lnV
+                ln_p_acc = ln_prefactor + df / (kB*T)
+                accept = metropolis_accept_log(ln_p_acc)
             if self.verbose:
                 parprint(f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, " +
                          f"offspring: {offsprings[0].get_chemical_formula()}, " + 
@@ -254,10 +268,12 @@ class EMCPopulation(Population):
                          f"prefactor: {prefactor}.")
             if accept:
                 offsprings[0].info['key_value_pairs'][self.ak] = 1
-                parprint(f'Replica {rep} intra move accepted!')
+                if self.verbose:
+                    parprint(f'Replica {rep} intra move accepted!')
             else:
                 offsprings[0].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replica {rep} intra move rejected!')
+                if self.verbose:
+                    parprint(f'Replica {rep} intra move rejected!')
             if self.store_delta:
                 offsprings[0].info['key_value_pairs']['delta'] = df
                 if pressure is not None:
@@ -328,103 +344,119 @@ class EMCPopulation(Population):
 
         return cand_pairs
 
+    def _sorted_by_replica(self, candidates):
+
+        return sorted(candidates, key=lambda c: c.info['key_value_pairs'][self.rk])
+
+    def _linear_exchange_pairs(self, candidates, offset=0):
+
+        candidates = self._sorted_by_replica(candidates)
+        pairs = []
+        if offset == 1 and candidates:
+            pairs.append((candidates[0],))
+        i = offset
+        while i + 1 < len(candidates):
+            pairs.append((candidates[i], candidates[i + 1]))
+            i += 2
+        if i < len(candidates):
+            pairs.append((candidates[i],))
+        return pairs
+
+    def _indexed_exchange_pairs(self, candidates1, candidates2, shift=0):
+
+        candidates1 = self._sorted_by_replica(candidates1)
+        candidates2 = self._sorted_by_replica(candidates2)
+        used1 = set()
+        used2 = set()
+        pairs = []
+        for i, c1 in enumerate(candidates1):
+            j = i + shift
+            if 0 <= j < len(candidates2):
+                pairs.append((c1, candidates2[j]))
+                used1.add(i)
+                used2.add(j)
+        pairs += [(c,) for i, c in enumerate(candidates1) if i not in used1]
+        pairs += [(c,) for j, c in enumerate(candidates2) if j not in used2]
+        return pairs
+
+    def _composition_exchange_pairs(self, candidates):
+
+        options = self._sorted_by_replica(candidates)
+        pairs = []
+        while options:
+            c1 = options.pop(0)
+            formula1 = c1.get_chemical_formula()
+            valid_partner_ids = [i for i, c in enumerate(options)
+                                 if c.get_chemical_formula() == formula1]
+            if valid_partner_ids:
+                i2 = random.choice(valid_partner_ids)
+                pairs.append((c1, options.pop(i2)))
+            else:
+                pairs.append((c1,))
+        return pairs
+
+    def _check_exchange_pairs(self, cand_pairs):
+
+        expected = sorted(c.info['key_value_pairs'][self.rk] for c in self.pop)
+        seen = []
+        for pair in cand_pairs:
+            if len(pair) not in (1, 2):
+                raise RuntimeError('Exchange pair must contain one or two replicas')
+            seen.extend(c.info['key_value_pairs'][self.rk] for c in pair)
+        if sorted(seen) != expected:
+            raise RuntimeError(f'Exchange pair coverage mismatch: expected {expected}, got {sorted(seen)}')
+
     def get_exchange_pairs_between_replicas(self, keep_composition=False):
 
         temp_cand_dict = defaultdict(list)
         for c in self.pop:
             temp_cand_dict[c.info['key_value_pairs'][self.tk]].append(c)
-        dicts = [deepcopy(temp_cand_dict), deepcopy(temp_cand_dict)]
         keys = sorted(temp_cand_dict.keys())
+
+        if keep_composition:
+            cand_pairs = self._composition_exchange_pairs(self.pop)
+            if all(len(pair) != 2 for pair in cand_pairs):
+                cand_pairs = self.get_exchange_pairs_within_composition(temp_cand_dict)
+            self._check_exchange_pairs(cand_pairs)
+            return cand_pairs
+
         if len(keys) == 1:
-            prioritize_odd = False
+            offset = random.randrange(2) if len(temp_cand_dict[keys[0]]) > 2 else 0
+            cand_pairs = self._linear_exchange_pairs(temp_cand_dict[keys[0]], offset=offset)
+            self._check_exchange_pairs(cand_pairs)
+            return cand_pairs
+
+        strat = random.choice(['within_temperature', 'same_condition', 'cross_left', 'cross_right'])
+        cand_pairs = []
+        if strat == 'within_temperature':
+            for T in keys:
+                offset = random.randrange(2) if len(temp_cand_dict[T]) > 2 else 0
+                cand_pairs += self._linear_exchange_pairs(temp_cand_dict[T], offset=offset)
         else:
-            prioritize_odd = random.choice([True, False])
-        if prioritize_odd:
-            first_temps = keys[1:]
-            second_temps = keys
-        else:
-            first_temps = keys
-            second_temps = keys[1:]
-        change_strat = True
-        for idx, temps in enumerate([first_temps, second_temps]):
-            cand_pairs = []
-            for T12 in [temps[i:i+2] for i in range(0, len(temps), 2)]:
-                if len(T12) == 1:
-                    temp_cands = dicts[idx][T12[0]]
-                    cand_pairs += [tuple(temp_cands[i:i+2]) for i in 
-                                   range(0, len(temp_cands), 2)]
-                    if idx == 0:
-                        change_strat = False
+            offset = random.randrange(2) if len(keys) > 2 else 0
+            key_pairs = []
+            if offset == 1 and keys:
+                key_pairs.append((keys[0],))
+            i = offset
+            while i + 1 < len(keys):
+                key_pairs.append((keys[i], keys[i + 1]))
+                i += 2
+            if i < len(keys):
+                key_pairs.append((keys[i],))
+            for pair in key_pairs:
+                if len(pair) == 1:
+                    T = pair[0]
+                    cand_pairs += self._linear_exchange_pairs(temp_cand_dict[T], offset=0)
                     continue
-                T1, T2 = T12
-                if keep_composition:                                                                          
-                    options = dicts[idx][T1] + dicts[idx][T2]
-                    while options:
-                        i1 = random.randrange(0, len(options))
-                        c1 = options.pop(i1)
-                        formula1 = c1.get_chemical_formula()
-                        valid_partner_ids = [j for j, c in enumerate(options) if
-                                             c.get_chemical_formula() == formula1]
-                        if valid_partner_ids:
-                            i2 = random.choice(valid_partner_ids)
-                            c2 = options.pop(i2)
-                            cand_pairs.append((c1, c2))
-                            if idx == 0:
-                                change_strat = False
-                        else:
-                            cand_pairs.append((c1,))
-                else:
-                    strat = random.choice(['vertical','horizontal','cross_left','cross_right'])
-                    lst2, lst1 = sorted([dicts[idx][T1], dicts[idx][T2]], key=lambda x: len(x))
-                    if strat == 'vertical':
-                        for i1, c1 in enumerate(lst1):
-                            try:
-                                c2 = lst2[i1]
-                                cand_pairs.append((c1, c2))
-                            except:
-                                cand_pairs.append((c1,))
-                    elif strat == 'horizontal':
-                        for T in [T1, T2]:
-                            temp_cands = dicts[idx][T]
-                            cand_pairs += [tuple(temp_cands[i:i+2]) for i in
-                                           range(0, len(temp_cands), 2)]
-                    elif strat == 'cross_left':
-                        for i1, c1 in enumerate(lst1):
-                            if i1 == 0:
-                                cand_pairs.append((c1,))
-                                if len(lst2) == len(lst1):
-                                    c2 = lst2[-1]
-                                    cand_pairs.append((c2,))
-                            else:
-                                try:
-                                    c2 = lst2[i1-1]
-                                    cand_pairs.append((c1, c2))
-                                except:
-                                    cand_pairs.append((c1,))
-                    elif strat == 'cross_right':
-                        for i1, c1 in enumerate(lst1):
-                            if i1 == len(lst1) - 1:
-                                cand_pairs.append((c1,))
-                                c2 = lst2[0]
-                                cand_pairs.append((c2,))
-                            else:
-                                try:
-                                    c2 = lst2[i1+1]
-                                    cand_pairs.append((c1, c2))
-                                except:
-                                    cand_pairs.append((c1,))
-                    if idx == 0:
-                        change_strat = False
-            if (idx == 0) and (not change_strat):
-                break
-        if prioritize_odd and (not change_strat):
-            cand_pairs += [(c,) for c in dicts[0][keys[0]]]
-        elif (not prioritize_odd) and change_strat:
-            cand_pairs += [(c,) for c in dicts[1][keys[0]]]
+                T1, T2 = pair
+                if strat == 'same_condition':
+                    cand_pairs += self._indexed_exchange_pairs(temp_cand_dict[T1], temp_cand_dict[T2], shift=0)
+                elif strat == 'cross_left':
+                    cand_pairs += self._indexed_exchange_pairs(temp_cand_dict[T1], temp_cand_dict[T2], shift=-1)
+                elif strat == 'cross_right':
+                    cand_pairs += self._indexed_exchange_pairs(temp_cand_dict[T1], temp_cand_dict[T2], shift=1)
 
-        if keep_composition and all([len(pair) != 2 for pair in cand_pairs]):
-            cand_pairs = self.get_exchange_pairs_within_composition(temp_cand_dict)
-
+        self._check_exchange_pairs(cand_pairs)
         return cand_pairs
 
     def get_exchange_pairs_within_composition(self, temp_cand_dict=None):
@@ -457,8 +489,8 @@ class EMCPopulation(Population):
         return cand_pairs
 
     def exchange(self, keep_composition=False, cand_pairs=None,
-                 exchange_within_temperature=False, prefactor=1,
-                 reaction_conditions=None, element_column_map=None,
+                 exchange_within_temperature=False, 
+                 prefactor=1, element_column_map=None, 
                  temperature_species_internal_map=None,
                  no_internal_indices=None):
 
@@ -471,6 +503,10 @@ class EMCPopulation(Population):
         new_pop = []
         for c12 in cand_pairs:
             if len(c12) == 1:
+                c = c12[0]
+                if self.verbose:
+                    rep = c.info['key_value_pairs'][self.rk]
+                    parprint(f'Replica {rep} exchange skipped: no valid partner in this exchange sweep.')
                 new_pop += list(c12)
                 continue
             c1, c2 = c12
@@ -482,21 +518,21 @@ class EMCPopulation(Population):
             T2 = c2.info['key_value_pairs'][self.tk]
             if prefactor == 'gc':
                 c12_prefactor = compute_exchange_prefactor(
-                        c1, c2, reaction_conditions, 
-                        element_column_map, 
+                        c1, c2, element_column_map, 
                         temperature_species_internal_map,
                         no_internal_indices,
                         temperature_key=self.tk)
             else:
                 c12_prefactor = prefactor
             df = f1 - f2
-            p_acc = min([1, c12_prefactor * np.exp((1/(kB*T2)-1/(kB*T1))*df)])
-            accept = p_acc > np.random.uniform()
+            ln_prefactor = np.log(c12_prefactor) if c12_prefactor > 0 else -np.inf
+            ln_p_acc = ln_prefactor + (1/(kB*T2)-1/(kB*T1))*df
+            accept = (ln_p_acc >= 0) or (np.log(np.random.uniform()) < ln_p_acc)
 
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " + 
                          f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
-                         f"operation: exchange, delta: {df}, prefactor: {c12_prefactor}.")
+                         f"operation: Exchange, delta: {df}, prefactor: {c12_prefactor}.")
             if accept:
                 c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
                         c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]
@@ -511,9 +547,11 @@ class EMCPopulation(Population):
                 if 'mu_window' in c1.info['data']:
                     c1.info['data']['mu_window'], c2.info['data']['mu_window'] = \
                             c2.info['data']['mu_window'], c1.info['data']['mu_window']
-                parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
+                if self.verbose:
+                    parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
             else:
-                parprint(f'Replicas {rep1} and {rep2} exchange move rejected!')
+                if self.verbose:
+                    parprint(f'Replicas {rep1} and {rep2} exchange move rejected!')
             new_pop += [c1, c2]
 
         new_pop.sort(key=lambda x: x.info['key_value_pairs'][self.rk])
@@ -604,9 +642,11 @@ class EMCPopulation(Population):
 
             if accept:
                 c.info['data']['mu'] = trial_mu
-                parprint(f'Replica {rep} mu-walk move accepted!')
+                if self.verbose:
+                    parprint(f'Replica {rep} mu-walk move accepted!')
             else:
-                parprint(f'Replica {rep} mu-walk move rejected!')
+                if self.verbose:
+                    parprint(f'Replica {rep} mu-walk move rejected!')
             new_pop.append(c)
 
         self.pop = new_pop
@@ -740,239 +780,3 @@ class EMCPopulation(Population):
         all_parents.sort(key=lambda x: x[0].info['key_value_pairs'][self.rk])
 
         return all_parents
-
-
-class MixtureEMCPopulation(EMCPopulation):
-
-    """The mixture EMC population instance that evolves based on
-    Metropolis-Hastings algorithm as a whole.
-
-    Parameters
-    ----------
-    population_size: int
-        Size of the EMC population.
-
-    num_tasks: int
-        The number of tasks.
-
-    """
-
-    def __init__(self, data_connection, population_size, num_tasks, 
-                 logfile=None, temperature_key='temperature', 
-                 replica_key='replica', acceptance_key='accepted', 
-                 use_extinct=False, store_delta=False, verbose=False, 
-                 rng=np.random):
-        # The current fitness is set at each update of the population
-        self.current_fitness = None
-        self.num_tasks = num_tasks
-
-        EMCPopulation.__init__(self, data_connection, population_size, logfile, 
-                               temperature_key, replica_key, acceptance_key, 
-                               use_extinct, store_delta, verbose=verbose, rng=rng)
-
-    def evaluate_offsprings(self, parents, offsprings, prefactor=1, volume=None,
-                            nonmetal_species=None, temperature_species_internal_map=None,
-                            no_internal_indices=None, metal_species_probabilities=None, 
-                            mutable_indices=None, raw_score_cutoff=-10000.):
-
-        if len(parents) == 2:
-            # Crossover or interswap
-            assert len(offsprings) == 2
-            switch_to_crossover = False
-            if mutable_indices is not None:
-                ctp = Counter([a.symbol for a in parents[0] if a.index not in mutable_indices])
-                cto = Counter([a.symbol for a in offsprings[0] if a.index not in mutable_indices])
-                if ctp != cto:
-                    switch_to_crossover = True
-
-            T1 = parents[0].info['key_value_pairs'][self.tk]
-            T2 = parents[1].info['key_value_pairs'][self.tk]
-            rep1 = parents[0].info['key_value_pairs'][self.rk]
-            rep2 = parents[1].info['key_value_pairs'][self.rk]
-            pscores1 = parents[0].info['data']['raw_scores']
-            pscores2 = parents[1].info['data']['raw_scores']
-            oscores1 = offsprings[0].info['data']['raw_scores']
-            oscores2 = offsprings[1].info['data']['raw_scores']
-            # 4 cases: (P1,O1)/(P2,O2)/(P1,O2)/(P2,O1) being the fitter pair
-            # 2 assignments: a: (P1,O1) + (P2,O2) / b: (P1,O2) + (P2,O1)
-            if (parents[0].info['data']['for_operation'] == 'crossover') or switch_to_crossover:
-                lnSp1 = logsumexp(pscores1 / (kB*T1)) # np.sum(np.exp(pscores1 / (kB*T1)))
-                lnSp2 = logsumexp(pscores2 / (kB*T2)) # np.sum(np.exp(pscores2 / (kB*T2)))
-                lnSo1a = logsumexp(oscores1 / (kB*T1)) # np.sum(np.exp(oscores1 / (kB*T1)))
-                lnSo2a = logsumexp(oscores2 / (kB*T2)) # np.sum(np.exp(oscores2 / (kB*T2)))
-                lnSo1b = logsumexp(oscores1 / (kB*T2)) # np.sum(np.exp(oscores1 / (kB*T2)))
-                lnSo2b = logsumexp(oscores2 / (kB*T1)) # np.sum(np.exp(oscores2 / (kB*T1)))
-                if lnSo1a + lnSo2a >= lnSo1b + lnSo2b:
-                    lnSo1 = lnSo1b
-                    lnSo2 = lnSo2b
-                    assignment = 'a'
-                else:
-                    lnSo1 = lnSo1a
-                    lnSo2 = lnSo2a
-                    assignment = 'b'
-            elif parents[0].info['data']['for_operation'] == 'interswap':
-                lnSp1 = logsumexp(pscores1 / (kB*T1)) # np.sum(np.exp(pscores1 / kB*T1))
-                lnSp2 = logsumexp(pscores2 / (kB*T2)) # np.sum(np.exp(pscores2 / kB*T2))
-                lnSo1 = logsumexp(oscores1 / (kB*T1)) # np.sum(np.exp(oscores1 / kB*T1))
-                lnSo2 = logsumexp(oscores2 / (kB*T2)) # np.sum(np.exp(oscores2 / kB*T2))
-                assignment = 'a'
-
-            if assignment == 'a':
-                offsprings[0].info['key_value_pairs'][self.rk] = parents[0].info['key_value_pairs'][self.rk] 
-                offsprings[0].info['key_value_pairs'][self.tk] = parents[0].info['key_value_pairs'][self.tk] 
-                offsprings[1].info['key_value_pairs'][self.rk] = parents[1].info['key_value_pairs'][self.rk] 
-                offsprings[1].info['key_value_pairs'][self.tk] = parents[1].info['key_value_pairs'][self.tk]
-                if self.store_delta:
-                    offsprings[0].info['data']['delta'] = oscores1 - pscores1
-                    offsprings[1].info['data']['delta'] = oscores2 - pscores2
-                if prefactor == 'gc':
-                    if (parents[0].info['data']['for_operation'] == 'crossover') or switch_to_crossover:
-                        prefactor = compute_crossover_prefactor(
-                                parents[0], parents[1], offsprings[0], offsprings[1],
-                                nonmetal_species, temperature_species_internal_map,
-                                no_internal_indices, temperature_key=self.tk)
-                    elif parents[0].info['data']['for_operation'] == 'interswap':
-                        prefactor = compute_interswap_prefactor(
-                                parents[0], parents[1], offsprings[0], offsprings[1])
-            elif assignment == 'b':
-                offsprings[0].info['key_value_pairs'][self.rk] = parents[1].info['key_value_pairs'][self.rk] 
-                offsprings[0].info['key_value_pairs'][self.tk] = parents[1].info['key_value_pairs'][self.tk] 
-                offsprings[1].info['key_value_pairs'][self.rk] = parents[0].info['key_value_pairs'][self.rk] 
-                offsprings[1].info['key_value_pairs'][self.tk] = parents[0].info['key_value_pairs'][self.tk]
-                if self.store_delta:
-                    offsprings[0].info['data']['delta'] = oscores1 - pscores2
-                    offsprings[1].info['data']['delta'] = oscores2 - pscores1
-                if prefactor == 'gc':
-                    prefactor = compute_crossover_prefactor(
-                            parents[0], parents[1], offsprings[1], offsprings[0],
-                            nonmetal_species, temperature_species_internal_map,
-                            no_internal_indices, temperature_key=self.tk)
-
-            if any(o for o in offsprings if get_raw_score(o) <= raw_score_cutoff):
-                prefactor = None
-                accept = False
-            else:    
-                p_acc = min([1, prefactor * np.exp(lnSo1 - lnSp1 + lnSo2 - lnSp2)])
-                accept = p_acc > np.random.uniform()
-
-            if self.verbose:
-                if assignment == 'a':
-                    parprint(f"Replicas: {[rep1, rep2]}, " + 
-                             f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, " + 
-                             f"offsprings: {[offsprings[0].get_chemical_formula(), offsprings[1].get_chemical_formula()]}, " +
-                             f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
-                             f"prefactor: {prefactor}.")
-                elif assignment == 'b':
-                    parprint(f"Replicas: {[rep1, rep2]}, " + 
-                             f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, " + 
-                             f"offsprings: {[offsprings[1].get_chemical_formula(), offsprings[0].get_chemical_formula()]}, " +
-                             f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
-                             f"prefactor: {prefactor}.")
-            if accept:
-                offsprings[0].info['key_value_pairs'][self.ak] = 1
-                offsprings[1].info['key_value_pairs'][self.ak] = 1                
-                parprint(f'Replicas {rep1} {rep2} inter move accepted!')
-            else:
-                offsprings[0].info['key_value_pairs'][self.ak] = 0
-                offsprings[1].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replicas {rep1} {rep2} inter move rejected!')
-
-        elif len(parents) == 1:
-            # Mutation
-            rep = parents[0].info['key_value_pairs'][self.rk]
-            T = parents[0].info['key_value_pairs'][self.tk]
-            pscores = parents[0].info['data']['raw_scores']
-            oscores = offsprings[0].info['data']['raw_scores']
-            if any(o for o in offsprings if get_raw_score(o) <= raw_score_cutoff):
-                prefactor = None
-                accept = False
-            else:    
-                lnSp = logsumexp(pscores / (kB*T)) # np.sum(np.exp(pscores / (kB*T)))
-                lnSo = logsumexp(oscores / (kB*T)) # np.sum(np.exp(oscores / (kB*T)))
-                if prefactor == 'gc':
-                    prefactor = compute_intramove_prefactor(
-                            parents[0], offsprings[0], 
-                            volume, nonmetal_species, 
-                            temperature_species_internal_map,
-                            no_internal_indices,
-                            metal_species_probabilities,
-                            temperature_key=self.tk)
-             
-                p_acc = min([1, prefactor * np.exp(lnSo - lnSp)])
-                accept = p_acc > np.random.uniform()
-            offsprings[0].info['key_value_pairs'][self.rk] = rep 
-            offsprings[0].info['key_value_pairs'][self.tk] = T
-            if self.store_delta:
-                offsprings[0].info['data']['delta'] = oscores - pscores
-            if self.verbose:
-                parprint(f"Replica: {rep}, parent: {parents[0].get_chemical_formula()}, " +
-                         f"offspring: {offsprings[0].get_chemical_formula()}, " + 
-                         f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
-                         f"prefactor: {prefactor}.")
-            if accept:
-                offsprings[0].info['key_value_pairs'][self.ak] = 1
-                parprint(f'Replica {rep} intra move accepted!') 
-            else:
-                offsprings[0].info['key_value_pairs'][self.ak] = 0
-                parprint(f'Replica {rep} intra move rejected!') 
-                    
-        return offsprings 
-
-    def exchange(self, keep_composition=False, cand_pairs=None,
-                 exchange_within_temperature=False, prefactor=1,
-                 reaction_conditions=None, element_column_map=None,
-                 temperature_species_internal_map=None, 
-                 no_internal_indices=None):
-
-        if cand_pairs is None:
-            if exchange_within_temperature:
-                cand_pairs = self.get_exchange_pairs_between_replicas(keep_composition)
-            else:
-                cand_pairs = self.get_exchange_pairs_between_temperatures(keep_composition)
-
-        new_pop = []
-        for c12 in cand_pairs:
-            if len(c12) == 1:
-                new_pop += list(c12)
-                continue
-            c1, c2 = c12
-            rep1 = c1.info['key_value_pairs'][self.rk]
-            rep2 = c2.info['key_value_pairs'][self.rk]
-            T1 = c1.info['key_value_pairs'][self.tk]
-            T2 = c2.info['key_value_pairs'][self.tk]
-            f1 = c1.info['data']['raw_scores']
-            f2 = c2.info['data']['raw_scores']
-            if prefactor == 'gc':
-                c12_prefactor = compute_exchange_prefactor(
-                        c1, c2, reaction_conditions, 
-                        element_column_map,
-                        temperature_species_internal_map,
-                        no_internal_indices,
-                        temperature_key=self.tk,
-                        exponent=0)
-            else:
-                c12_prefactor = prefactor
-
-            lnS1T1 = logsumexp(f1 / (kB*T1))
-            lnS1T2 = logsumexp(f1 / (kB*T2))
-            lnS2T1 = logsumexp(f2 / (kB*T1))
-            lnS2T2 = logsumexp(f2 / (kB*T2))
-            p_acc = min([1, c12_prefactor * np.exp(lnS2T1 - lnS1T1 + lnS1T2 - lnS2T2)])
-            accept = p_acc > np.random.uniform()
-
-            if self.verbose:
-                parprint(f"Replicas: {[rep1, rep2]}, " +
-                         f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
-                         f"operation: exchange, prefactor: {c12_prefactor}.")
-            if accept:
-                c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
-                        c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]
-                c1.info['key_value_pairs'][self.tk], c2.info['key_value_pairs'][self.tk] = \
-                        c2.info['key_value_pairs'][self.tk], c1.info['key_value_pairs'][self.tk]
-                parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
-            else:
-                parprint(f'Replicas {rep1} and {rep2} exchange move rejected!')
-            new_pop += [c1, c2]
-
-        new_pop.sort(key=lambda x: x.info['key_value_pairs'][self.rk])
-        self.pop = new_pop

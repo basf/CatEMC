@@ -3,7 +3,6 @@
 from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.adsorbate_coverage import SlabAdsorbateCoverage
-from ase.io import write
 from ase import units
 from ase.neighborlist import NeighborList
 from ase.constraints import FixAtoms
@@ -15,113 +14,108 @@ from ase.md.nptberendsen import NPTBerendsen
 from ase.md.langevin import Langevin
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.parallel import parprint
-import importlib
-import importlib.util
 import numpy as np
-import multiprocessing
 import copy
 
 
 def calculate_bulk_fitness(
         atoms,
-        traj_path,
         calculator_list,
         fmax_list,
-        target_metal_species,
-        run_md,
         md_timestep,
         md_taut,
         md_steps,
         md_write_interval,
+        run_md=False,
         md_type='berendsen',
         md_friction=None,
-        pressure=None,
         md_taup=1000*units.fs,
         compressibility=5e-5/units.bar,
-        fix_indices=None,
         max_relax_steps=300,
         write_relax_traj=False,
+        write_md_traj=False,
         optimize_cell=False,
         update_md_positions=True,
         update_relaxed_positions=False,
         neighbor_cutoff=2.5,
-        raw_score_cutoff=-10000.,
-        temperature_key='temperature',
-        replica_key='replica'):
+        _emc_context=None):
 
-    """
-    A template function for calculating the fitness of a bulk 
-    structure using some calculators in the GE-EMC simulation.
+    """Calculate the fitness of a bulk EMC candidate.
 
     Parameters
     ----------
-    atoms: ase.Atoms
-        Bulk structure to be calculated.
+    atoms : ase.Atoms
+        Bulk structure to evaluate.
+    calculator_list : list of ase.calculators.calculator.Calculator
+        Calculators applied sequentially. The final calculator is used for
+        molecular dynamics, the final relaxation and the reported energy.
+    fmax_list : list of float or None
+        Force-convergence thresholds corresponding to ``calculator_list``.
+        A value of ``None`` skips relaxation with that calculator.
+    md_timestep : float
+        Molecular-dynamics time step in ASE time units.
+    md_taut : float
+        Temperature-coupling time constant in ASE time units.
+    md_steps : int
+        Number of molecular-dynamics steps.
+    md_write_interval : int
+        Interval between frames in the optional molecular-dynamics trajectory.
+    run_md : bool, default False
+        Run molecular dynamics before the final relaxation.
+    md_type : {"berendsen", "langevin"}, default "berendsen"
+        Molecular-dynamics thermostat.
+    md_friction : float or None, default None
+        Langevin friction coefficient. Used only when ``md_type="langevin"``.
+    md_taup : float, default 1000 * ase.units.fs
+        Pressure-coupling time constant for NPT molecular dynamics.
+    compressibility : float, default 5e-5 / ase.units.bar
+        Isothermal compressibility in ASE units for NPT molecular dynamics.
+    max_relax_steps : int, default 300
+        Maximum number of optimization steps for each relaxation.
+    write_relax_traj : bool, default False
+        Write temporary relaxation trajectories.
+    write_md_traj : bool, default False
+        Write temporary molecular-dynamics trajectories and logs.
+    optimize_cell : bool, default False
+        Relax the cell together with atomic positions when a target pressure is
+        defined by the EMC calculation.
+    update_md_positions : bool, default True
+        Use the post-MD coordinates when constructing the returned candidate.
+    update_relaxed_positions : bool, default False
+        Use the fully relaxed coordinates in the returned candidate. Otherwise,
+        relaxation is used only to evaluate its fitness.
+    neighbor_cutoff : float, default 2.5
+        Neighbor cutoff in angstrom used to map vacancies after atomic motion.
+    _emc_context : dict or None, default None
+        Internal EMC state supplied by the simulation driver. It contains the
+        thermodynamic, indexing and output settings that are intentionally not
+        part of ``fitness_kwargs``.
 
-    traj_path: str
-        The path to the atoms.traj file.
-
-    calculator_list: list of ase.calculators.Calcuator objects
-        All calculators that are used to evaluate the structure
-        in sequence. The last calculator should be the main
-        calculator to perform MD / energy minimization.
-
-    fmax_list: list of floats/None
-        The fmax convergence criteria for the relaxation using
-        each calculator in the same order. Use None if you don't
-        want to use that calculator to relax the structure.
-
-    target_metal_species: list of strs
-        Target metal elements in the bulk structure.
-
-    run_md: bool
-        Whether to run molecular dynamics or not.
-
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup, md_type, md_friction: 
-        MD parameters and type (only support 'berendsen' and 
-        'langevin' so far).
-
-    pressure: float, default None
-        Target pressure in atomic unit (eV/Å^3) for running NPT 
-        and cell relaxation. Running NVT MD and fixed-cell 
-        relaxation if this is not set.
-
-    compressibility: float, default 5e-5/bar
-        The compressibility of the material in atomic unit (Å^3/eV).
-        Only relevant for NPT MD.
-
-    optimize_cell: bool, default False
-        Whether to also relax the cell. Note that NPT MD always 
-        changes the cell, this parameter only controls relaxation.
-
-    max_relax_steps: int, default 300
-        Maximum number of ionic steps to perform on relaxing the
-        structure until giving up and reject the structure.
-
-    write_relax_traj: bool, default False
-        Whether to write temporary relaxation trajectory for each
-        replica which will be removed by the end of each generation.
-
-    update_md_positions: bool, default True
-        Whether to update the atom positions of the trajectory after
-        molecular dynamics. Recommended to set to True.
-
-    update_relaxed_positions: bool, default False
-        Wheter to update the atom position of the trajectory after
-        geometry relaxation. Recommended to set to False. Useful to
-        set to True for e.g. generating relaxed structures.
-
-    neighbor_cutoff: float, default 2.5
-        Cutoff (Å) for identify neighboring metal atoms to track
-        vacancy movement.
-
+    Returns
+    -------
+    ase.Atoms
+        Evaluated candidate with its potential energy, volume and raw score.
     """
 
-    assert len(calculator_list) == len(fmax_list), 'calculator_list and fmax_list must match length'
-    dir_name = '/'.join(traj_path.split('/')[:-1])
+    if _emc_context is None:
+        raise ValueError('Missing EMC fitness context')
+    target_metal_species = _emc_context['target_metal_species']
+    pressure = _emc_context['pressure']
+    fix_indices = _emc_context['fix_indices']
+    raw_score_cutoff = _emc_context['raw_score_cutoff']
+    temperature_key = _emc_context['temperature_key']
+    replica_key = _emc_context['replica_key']
+    dir_name = _emc_context['work_dir']
+
+    if len(calculator_list) != len(fmax_list):
+        raise ValueError('calculator_list and fmax_list must have the same length')
+    if run_md and md_type not in ('berendsen', 'langevin'):
+        raise ValueError("md_type must be 'berendsen' or 'langevin'")
+    if len(calculator_list) == 0:
+        raise ValueError('calculator_list cannot be empty')
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
-    atoms = rattle_close_atoms(atoms, min_distance=0.1)
+    atoms = rattle_close_atoms(atoms.copy(), min_distance=0.1)
     md_atoms = None
     if fix_indices is None:
         fix_indices = []
@@ -140,15 +134,11 @@ def calculate_bulk_fitness(
     for i, calc in enumerate(calculator_list):
         fmax = fmax_list[i]
         if i < len(calculator_list) - 1:
-            try:
-                tmp_atoms.calc = calc
-                if fmax is not None:
-                    opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
-                    opt.run(fmax=fmax, steps=max_relax_steps)
-                E0 = tmp_atoms.get_potential_energy()
-            except:
-                tmp_atoms = atoms[real_indices].copy()
-                continue
+            tmp_atoms.calc = calc
+            if fmax is not None:
+                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt.run(fmax=fmax, steps=max_relax_steps)
+            E0 = tmp_atoms.get_potential_energy()
             if np.isinf(E0):
                 penalize = True
                 break
@@ -160,33 +150,38 @@ def calculate_bulk_fitness(
                 break
             if run_md:
                 tag = f"{dir_name}/md"
+                md_logfile = tag + f'_{rep}.log' if write_md_traj else None
+                md_trajfile = tag + f'_{rep}.traj' if write_md_traj else None
                 MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
                 Stationary(tmp_atoms)
-                if pressure is None:                                                              
+                if pressure is None:
                     if md_type == 'berendsen':
-                        dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
-                                           taut=md_taut, logfile=tag+f'_{rep}.log',
-                                           trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                        dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                           taut=md_taut, logfile=md_logfile,
+                                           trajectory=None, append_trajectory=False)
                     elif md_type == 'langevin':
                         dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
-                                       friction=md_friction, logfile=tag+f'_{rep}.log',
-                                       trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                                       friction=md_friction, logfile=md_logfile,
+                                       trajectory=None, append_trajectory=False)
                 else:
                     if md_type == 'berendsen':
                         dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
                                            taut=md_taut, pressure_au=pressure,
                                            taup=md_taup, compressibility_au=compressibility,
-                                           logfile=tag+f'_{rep}.log', trajectory=tag+f'_{rep}.traj', 
-                                           append_trajectory=True)
+                                           logfile=md_logfile, trajectory=None,
+                                           append_trajectory=False)
                     elif md_type == 'langevin':
                         from ase.md.langevinbaoab import LangevinBAOAB
                         dyn = LangevinBAOAB(tmp_atoms, timestep=md_timestep, temperature_K=T,
                                             T_tau=md_taut, hydrostatic=True, externalstress=pressure,
-                                            P_tau=md_taup, logfile=tag+f'_{rep}.log', 
-                                            trajectory=tag+f'_{rep}.traj', append_trajectory=True)
-                traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
-                dyn.attach(traj.write, interval=md_write_interval)
+                                            P_tau=md_taup, logfile=md_logfile,
+                                            trajectory=None, append_trajectory=False)
+                if write_md_traj:
+                    traj = Trajectory(md_trajfile, 'a', tmp_atoms)
+                    dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
+                if write_md_traj:
+                    traj.close()
                 if update_md_positions:
                     md_atoms = tmp_atoms.copy()
             penalize = False
@@ -222,121 +217,108 @@ def calculate_bulk_fitness(
     pseudo_atoms.info['key_value_pairs']['volume'] = volume
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
     
-    write(f"{dir_name}/relaxed_{traj_path.split('/')[-1]}", [atoms, pseudo_atoms])
+    return pseudo_atoms
 
 
 def calculate_surface_fitness(
         atoms,
-        traj_path,
         calculator_list,
         fmax_list,
-        target_metal_species,
-        target_metal_composition,
-        allowed_adsorbate_species,
-        element_column_map,
-        element_eref_map,
-        element_y2x_map,
-        adsorption_sites, 
-        slab_indices,
-        run_md,
         md_timestep,
         md_taut,
         md_steps,
         md_write_interval,
+        run_md=False,
         md_type='berendsen',
         md_friction=None,
-        fix_indices=None,
-        temperature_dmu_map=None,
         max_relax_steps=300,
         write_relax_traj=False,
+        write_md_traj=False,
         update_md_positions=True,
         update_relaxed_positions=False,
-        adsorbate_surface_dmax=2.5,
         neighbor_cutoff=2.5,
-        raw_score_cutoff=-10000.,
-        temperature_key='temperature',
-        replica_key='replica'):
+        _emc_context=None):
 
-    """
-    A template function for calculating the fitness of a surface 
-    structure using some calculators in the GC-EMC simulation.
+    """Calculate the fitness of a surface GC-EMC candidate.
 
     Parameters
     ----------
-    atoms: ase.Atoms
-        Surface structure to be calculated.
+    atoms : ase.Atoms
+        Surface structure to evaluate.
+    calculator_list : list of ase.calculators.calculator.Calculator
+        Calculators applied sequentially. The final calculator is used for
+        molecular dynamics, the final relaxation and the reported energy.
+    fmax_list : list of float or None
+        Force-convergence thresholds corresponding to ``calculator_list``.
+        A value of ``None`` skips relaxation with that calculator.
+    md_timestep : float
+        Molecular-dynamics time step in ASE time units.
+    md_taut : float
+        Temperature-coupling time constant in ASE time units.
+    md_steps : int
+        Number of molecular-dynamics steps.
+    md_write_interval : int
+        Interval between frames in the optional molecular-dynamics trajectory.
+    run_md : bool, default False
+        Run molecular dynamics before the final relaxation.
+    md_type : {"berendsen", "langevin"}, default "berendsen"
+        Molecular-dynamics thermostat.
+    md_friction : float or None, default None
+        Langevin friction coefficient. Used only when ``md_type="langevin"``.
+    max_relax_steps : int, default 300
+        Maximum number of optimization steps for each relaxation.
+    write_relax_traj : bool, default False
+        Write temporary relaxation trajectories.
+    write_md_traj : bool, default False
+        Write temporary molecular-dynamics trajectories and logs.
+    update_md_positions : bool, default True
+        Use the post-MD coordinates when constructing the returned candidate.
+    update_relaxed_positions : bool, default False
+        Use the fully relaxed coordinates in the returned candidate. Otherwise,
+        relaxation is used only to evaluate its fitness.
+    neighbor_cutoff : float, default 2.5
+        Neighbor cutoff in angstrom used to map vacancies after atomic motion.
+    _emc_context : dict or None, default None
+        Internal GCEMC state supplied by the simulation driver. It contains the
+        thermodynamic, structural and output settings that are intentionally not
+        part of ``fitness_kwargs``.
 
-    traj_path: str
-        The path to the atoms.traj file.
-
-    calculator_list: list of ase.calculators.Calcuator objects
-        All calculators that are used to evaluate the structure
-        in sequence. The last calculator should be the main
-        calculator to perform MD / energy minimization.
-
-    fmax_list: list of floats/None
-        The fmax convergence criteria for the relaxation using
-        each calculator in the same order. Use None if you don't
-        want to use that calculator to relax the structure.
-
-    target_metal_species: list of strs
-        Target metal elements in the surface structure.
-
-    target_metal_composition: dict of (str, float) pairs
-        Target metal composition of the reference bulk structure.
-
-    allowed_adsorbate_species: list of strs
-        All possible adsorbate species allowed to exist in the EMC.
-        This only accepts ACAT regularized strings.
-
-    run_md: bool
-        Whether to run molecular dynamics or not.
-
-    md_timestep, md_taut, md_steps, md_write_interval, md_taup, md_type, md_friction:
-        MD parameters and type (only support 'berendsen' and 
-        'langevin' so far).
-
-    temperature_dmu_map: dict of (float, float) pairs, default None
-        A dictionary that maps each temperature to the estimated the 
-        chemical potential difference between all metal pairs (e.g. 
-        obtained from bulk GE-EMC simulations). Note that the keys 
-        must be in the form of 'A2B' which represents mu_B - mu_A, 
-        must consider all possible metal pairs, and the metal element 
-        order must follow the order in the metal_element_pool. Only 
-        needed if the free energy bias weight is applied. Default is 
-        None, which is only suitable for surface EMC simulations with 
-        fixed surface metal composition.
-
-    max_relax_steps: int, default 300
-        Maximum number of ionic steps to perform on relaxing the
-        structure until giving up and reject the structure.
-
-    write_relax_traj: bool, default False
-        Whether to write temporary relaxation trajectory for each
-        replica which will be removed by the end of each generation.
-
-    update_md_positions: bool, default True
-        Whether to update the atom positions of the trajectory after
-        molecular dynamics. Recommended to set to True.
-
-    update_relaxed_positions: bool, default False
-        Wheter to update the atom position of the trajectory after
-        geometry relaxation. Recommended to set to False. Useful to
-        set to True for e.g. generating relaxed structures.
-
-    neighbor_cutoff: float, default 2.5
-        Cutoff (Å) for identify neighboring metal atoms to track
-        vacancy movement.
-
+    Returns
+    -------
+    ase.Atoms
+        Evaluated candidate with its potential energy and raw score.
     """
 
-    assert len(calculator_list) == len(fmax_list), 'calculator_list and fmax_list must match length'
-    dir_name = '/'.join(traj_path.split('/')[:-1])
+    if _emc_context is None:
+        raise ValueError('Missing GCEMC fitness context')
+    target_metal_species = _emc_context['target_metal_species']
+    target_metal_composition = _emc_context['target_metal_composition']
+    allowed_adsorbate_species = _emc_context['allowed_adsorbate_species']
+    element_column_map = _emc_context['element_column_map']
+    element_eref_map = _emc_context['element_eref_map']
+    element_y2x_map = _emc_context['element_y2x_map']
+    adsorption_sites = _emc_context['adsorption_sites']
+    slab_indices = _emc_context['slab_indices']
+    fix_indices = _emc_context['fix_indices']
+    temperature_dmu_map = _emc_context['temperature_dmu_map']
+    adsorbate_surface_dmax = _emc_context['adsorbate_surface_dmax']
+    raw_score_cutoff = _emc_context['raw_score_cutoff']
+    temperature_key = _emc_context['temperature_key']
+    replica_key = _emc_context['replica_key']
+    ignore_sites = _emc_context['ignore_sites']
+    dir_name = _emc_context['work_dir']
+
+    if len(calculator_list) != len(fmax_list):
+        raise ValueError('calculator_list and fmax_list must have the same length')
+    if run_md and md_type not in ('berendsen', 'langevin'):
+        raise ValueError("md_type must be 'berendsen' or 'langevin'")
+    if len(calculator_list) == 0:
+        raise ValueError('calculator_list cannot be empty')
     T = atoms.info['key_value_pairs'][temperature_key]
     rep = atoms.info['key_value_pairs'][replica_key]
     sas = adsorption_sites
     mu = atoms.info['data'].get('mu', None)
-    atoms = rattle_close_atoms(atoms, min_distance=0.1)
+    atoms = rattle_close_atoms(atoms.copy(), min_distance=0.1)
     md_atoms = None
     if fix_indices is None:
         fix_indices = []
@@ -357,15 +339,11 @@ def calculate_surface_fitness(
     for i, calc in enumerate(calculator_list):
         fmax = fmax_list[i]
         if i < len(calculator_list) - 1:
-            try:
-                tmp_atoms.calc = calc
-                if fmax is not None:
-                    opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
-                    opt.run(fmax=fmax, steps=max_relax_steps)
-                E0 = tmp_atoms.get_potential_energy()                
-            except:
-                tmp_atoms = atoms[real_indices].copy()
-                continue
+            tmp_atoms.calc = calc
+            if fmax is not None:
+                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt.run(fmax=fmax, steps=max_relax_steps)
+            E0 = tmp_atoms.get_potential_energy()
             if np.isinf(E0):
                 penalize = True
                 break
@@ -377,19 +355,24 @@ def calculate_surface_fitness(
                 break
             if run_md:
                 tag = f"{dir_name}/md"
+                md_logfile = tag + f'_{rep}.log' if write_md_traj else None
+                md_trajfile = tag + f'_{rep}.traj' if write_md_traj else None
                 MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=T, force_temp=True)
                 Stationary(tmp_atoms)
                 if md_type == 'berendsen':
-                    dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T, 
-                                       taut=md_taut, logfile=tag+f'_{rep}.log',
-                                       trajectory=tag+f'_{rep}.traj', append_trajectory=True)
+                    dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=T,
+                                       taut=md_taut, logfile=md_logfile,
+                                       trajectory=None, append_trajectory=False)
                 elif md_type == 'langevin':
                     dyn = Langevin(tmp_atoms, timestep=md_timestep, temperature_K=T,
-                                   friction=md_friction, logfile=tag+f'_{rep}.log',
-                                   trajectory=tag+f'_{rep}.traj', append_trajectory=True)
-                traj = Trajectory(tag+f'_{rep}.traj', 'a', tmp_atoms)
-                dyn.attach(traj.write, interval=md_write_interval)
+                                   friction=md_friction, logfile=md_logfile,
+                                   trajectory=None, append_trajectory=False)
+                if write_md_traj:
+                    traj = Trajectory(md_trajfile, 'a', tmp_atoms)
+                    dyn.attach(traj.write, interval=md_write_interval)
                 dyn.run(md_steps)
+                if write_md_traj:
+                    traj.close()
                 if update_md_positions:
                     md_atoms = tmp_atoms.copy()
 
@@ -409,7 +392,7 @@ def calculate_surface_fitness(
         try:
             nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate',
                                        composition_effect=False,
-                                       ignore_sites='bridge')
+                                       ignore_sites=ignore_sites)
             sas = nsas
         except:
             penalize = True
@@ -460,7 +443,9 @@ def calculate_surface_fitness(
     if penalize:
         pseudo_atoms = copy.deepcopy(atoms)
         pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
-        fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()] 
+        fragments = ([] if element_column_map is None else
+                     [a.symbol for a in pseudo_atoms
+                      if a.symbol in element_column_map])
     else:
         if (md_atoms is not None) and not update_relaxed_positions:
             pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
@@ -489,7 +474,7 @@ def calculate_surface_fitness(
     pseudo_atoms.info['data']['fragments'] = fragments
     pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot
 
-    write(f"{dir_name}/relaxed_{traj_path.split('/')[-1]}", [atoms, pseudo_atoms])
+    return pseudo_atoms
 
 
 def insert_vacancies(atoms, relaxed_atoms, target_metal_species, neighbor_cutoff=2.5):
@@ -647,547 +632,3 @@ def rattle_close_atoms(atoms, min_distance=0.1):
     atoms.set_positions(pos)
 
     return atoms
-
-
-def detect_and_get_model(calc):
-    """
-    Exclusive detection of a short whitelist of MLIP calculators.
-    Returns (True, model_obj) when `calc` is recognized and the expected
-    attribute exists (non-None). Otherwise returns (False, None).
-
-    """
-    import torch
-    SUPPORTED = {
-        'fairchem.core.calculate.ase_calculator': ('FAIRChemCalculator', ('predictor', 'model')),
-        'sevenn.calculator': ('SevenNetCalculator', ('model',)),
-        'orb_models.forcefield.calculator': ('ORBCalculator', ('model',)),
-        'mattersim.forcefield.potential': ('MatterSimCalculator', ('model',)),
-        'graph_pes.utils.calculator': ('GraphPESCalculator', ('model',)),
-        'metatomic_torch.metatomic.torch.ase_calculator': ('MetatomicCalculator', ('model',)),
-    }
-    mod = getattr(calc.__class__, '__module__', '') or ''
-    name = getattr(calc.__class__, '__name__', '') or ''
-    mod_l = mod.lower()
-    name_l = name.lower()
-
-    # 1) explicit, reliable MACE subclass detection
-    if importlib.util.find_spec('mace.calculators.mace') is not None:
-        mace_mod = importlib.import_module('mace.calculators.mace')
-        MACECalculator = getattr(mace_mod, 'MACECalculator', None)
-        if MACECalculator is not None and isinstance(calc, MACECalculator):
-            from torch_sim.models.mace import MaceModel
-            ts_model = MaceModel(
-                    model=calc.models[0],
-                    device=torch.device(calc.device),
-                    dtype=getattr(torch, calc.default_dtype),
-                    compute_forces=True,
-                    compute_stress=True,
-                    enable_cueq=calc.enable_cueq)
-            return True, ts_model 
-
-    # 2) other explicit supported wrappers: match module substring OR class name,
-    #    and return the first expected attribute that is non-None
-    for mod_substr, (_cls_name, attrs) in SUPPORTED.items():
-        if (mod_substr.lower() in mod_l) or (_cls_name.lower() == name_l):
-            for a in attrs:
-                model_obj = getattr(calc, a, None)
-                if model_obj is not None:
-                    return True, model_obj
-            # matched wrapper identity but expected attributes missing -> not supported
-            return False, None
-
-    # 3) not supported
-    return False, None
-
-
-def _relax_worker(args):
-    (tmp_atoms, calc, fmax, is_last_calc, run_md_flag, md_timestep, md_taut, md_steps, md_write_interval, 
-     pressure, md_taup, temperature, max_relax_steps, optimize_cell, compressibility) = args
-    tmp_atoms.calc = calc
-    if is_last_calc and run_md_flag:
-        # run MD as in serial function
-        tag = 'md_worker'
-        MaxwellBoltzmannDistribution(tmp_atoms, temperature_K=temperature, force_temp=True)
-        Stationary(tmp_atoms)
-        if pressure is None:
-            dyn = NVTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=temperature,
-                               taut=md_taut, logfile=None, trajectory=None, append_trajectory=False)
-        else:
-            dyn = NPTBerendsen(tmp_atoms, timestep=md_timestep, temperature_K=temperature,
-                               taut=md_taut, pressure_au=pressure,
-                               taup=md_taup, compressibility_au=compressibility,
-                               logfile=None, trajectory=None, append_trajectory=False)
-        dyn.run(md_steps)
-    if fmax is not None:
-        # perform LBFGS relaxation like serial code
-        if (pressure is None) or not optimize_cell:
-            opt = LBFGS(tmp_atoms, logfile=None)
-        else:
-            ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
-            opt = LBFGS(ucf, logfile=None)
-        opt.run(fmax=fmax, steps=max_relax_steps)
-
-    return tmp_atoms
-
-
-def _postprocess_bulk_worker(args):
-    (dir_name, atoms, tmp_atoms, md_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md,
-     update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot) = args
-
-    T = atoms.info['key_value_pairs'].get(temperature_key)
-    rep = atoms.info['key_value_pairs'][replica_key]
-    atoms = rattle_close_atoms(atoms, min_distance=0.1)
-    if fix_indices is None:
-        fix_indices_local = []
-    else:
-        atoms.set_constraint(FixAtoms(indices=fix_indices))
-
-    mut_metal_indices = [a.index for a in atoms if (a.index not in (fix_indices or []))
-                         and (a.symbol in target_metal_species)]
-    vac_indices = [a.index for a in atoms if a.symbol == 'X']
-    real_indices = [a.index for a in atoms if a.symbol != 'X']
-
-    penalize = False
-    if epot is None or np.isinf(epot):
-        penalize = True
-
-    if penalize:
-        pseudo_atoms = copy.deepcopy(atoms)
-        volume = atoms.get_volume()
-        pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
-    else:
-        if (md_atoms is not None) and update_md_positions and not update_relaxed_positions:
-            pseudo_atoms = insert_vacancies(atoms, md_atoms, target_metal_species, neighbor_cutoff)
-        elif update_relaxed_positions:
-            pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
-        else:
-            pseudo_atoms = copy.deepcopy(atoms)
-        volume = tmp_atoms.get_volume() 
-        pseudo_atoms.info['key_value_pairs']['raw_score'] = -epot
-
-        if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
-            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
-            pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
-
-    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
-    pseudo_atoms.info['key_value_pairs']['volume'] = volume
-    write(f'{dir_name}/relaxed_atoms_{atoms.info["key_value_pairs"][replica_key]}.traj', [atoms, pseudo_atoms])
-
-    return None
-
-
-def _postprocess_surface_worker(args):
-    (dir_name, atoms, tmp_atoms, md_atoms, sas, target_metal_species, target_metal_composition,
-     allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map, slab_indices, 
-     neighbor_cutoff, run_md, max_relax_steps, update_md_positions, update_relaxed_positions,
-     adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot) = args
-
-    T = atoms.info['key_value_pairs'][temperature_key]
-    rep = atoms.info['key_value_pairs'][replica_key]
-    mu = atoms.info['data'].get('mu', None)
-    md_atoms_local = md_atoms
-
-    atoms = rattle_close_atoms(atoms, min_distance=0.1)
-    if fix_indices is None:
-        fix_indices_local = []
-    else:
-        atoms.set_constraint(FixAtoms(indices=fix_indices))
-
-    mut_metal_indices = [a.index for a in atoms if (a.index not in (fix_indices or []))
-                         and (a.symbol in target_metal_species)]
-    vac_indices = [a.index for a in atoms if a.symbol == 'X']
-    real_indices = [a.index for a in atoms if a.symbol != 'X']
-    tmp_slab_indices = [a.index for a in tmp_atoms if real_indices[a.index] in slab_indices]
-
-    penalize = False
-    if epot is None or np.isinf(epot):
-        penalize = True
-
-    if not penalize:
-        if any(a for a in tmp_atoms if a.position[2] < atoms.positions[:, 2].min()):
-            penalize = True
-        if any(a for a in tmp_atoms if (a.symbol in target_metal_species) and (
-        adsorbate_surface_dmax is not None) and (
-        a.position[2] > atoms.positions[:,2].max() + adsorbate_surface_dmax)):
-            penalize = True
-        try:
-            nsas = SlabAdsorptionSites(tmp_atoms, surface='autoadsorbate',
-                                       composition_effect=False,
-                                       ignore_sites='bridge')
-            sas = nsas
-        except Exception:
-            penalize = True
-
-    fragments = []
-    adsorbates = []
-    adsorbate_indices = []
-    if not penalize:
-        sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas,
-                                    dmax=adsorbate_surface_dmax,
-                                    adsorbate_indices=[a.index for a in tmp_atoms if
-                                                       a.index not in tmp_slab_indices])
-        adsorbate_tuples = sac.get_adsorbates(allowed_adsorbate_species)
-        adsorbates = [t[0] for t in adsorbate_tuples]
-        adsorbate_ids = set(); rm_adsorbate_ids = set()
-        for t in adsorbate_tuples:
-            adsorbate_ids.update(t[1])
-            if t[0] not in allowed_adsorbate_species:
-                rm_adsorbate_ids.update(list(t[1]))
-        adsorbate_indices = [real_indices[i] for i in sorted(adsorbate_ids - rm_adsorbate_ids)]
-        new_atoms = tmp_atoms[[a.index for a in tmp_atoms if real_indices[a.index] in (slab_indices + adsorbate_indices)]]
-        if len(new_atoms) < len(tmp_atoms):
-            if md_atoms_local is not None:
-                md_atoms_local = md_atoms_local[[a.index for a in md_atoms_local if
-                                                 real_indices[a.index] in (slab_indices + adsorbate_indices)]]
-            atoms = atoms[[a.index for a in atoms if a.index in (slab_indices + adsorbate_indices)]]
-            real_indices = [a.index for a in atoms if a.symbol != 'X']
-            vac_indices = [a.index for a in atoms if a.symbol == 'X']
-            if fix_indices is not None:
-                atoms.set_constraint(FixAtoms(indices=fix_indices))
-            tmp_atoms = new_atoms.copy()
-            tmp_atoms.calc = tmp_atoms.calc if hasattr(tmp_atoms, 'calc') else None
-            if True:
-                try:
-                    opt = LBFGS(tmp_atoms, logfile=None)
-                    opt.run(fmax=None, steps=max_relax_steps)
-                except Exception:
-                    pass
-            try:
-                sas.update(tmp_atoms)
-                sac = SlabAdsorbateCoverage(tmp_atoms, adsorption_sites=sas, dmax=adsorbate_surface_dmax,
-                                            adsorbate_indices=[a.index for a in tmp_atoms if a.index not in tmp_slab_indices])
-                adsorbate_tuples = sac.get_adsorbates(allowed_adsorbate_species)
-                adsorbates = [t[0] for t in adsorbate_tuples]
-                adsorbate_ids = set()
-                for t in adsorbate_tuples:
-                    adsorbate_ids.update(t[1])
-                adsorbate_indices = [real_indices[i] for i in sorted(adsorbate_ids)]
-            except Exception:
-                penalize = True
-
-    if penalize:
-        pseudo_atoms = copy.deepcopy(atoms)
-        pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
-        fragments = [a.symbol for a in pseudo_atoms if a.symbol in element_column_map.keys()]
-    else:
-        nonmetal_species = [] if (element_column_map is None) else list(element_column_map.keys())
-        num_dict = dict((m, len([a for a in tmp_atoms if a.symbol==m])) 
-                        for m in target_metal_species + nonmetal_species)
-        num_metal = len([a for a in tmp_atoms if a.symbol in target_metal_species])
-        if mu is None:
-            cond_arr = np.array([T])
-        else:
-            cond_arr = np.array([np.append(mu, T)])
-        phi = compute_phi(num_dict, target_metal_species, target_metal_composition, temperature_dmu_map, cond_arr,
-                          element_column_map, element_eref_map, element_y2x_map, num_metal, epot, dimensionless=False)[0]
-
-        if (md_atoms_local is not None) and update_md_positions and not update_relaxed_positions:
-            pseudo_atoms = insert_vacancies(atoms, md_atoms_local, target_metal_species, neighbor_cutoff)
-        elif update_relaxed_positions:
-            pseudo_atoms = insert_vacancies(atoms, tmp_atoms, target_metal_species, neighbor_cutoff)
-        else:
-            pseudo_atoms = copy.deepcopy(atoms)
-
-        pseudo_atoms.info['key_value_pairs']['raw_score'] = -phi
-        fragments = adsorbates
-        if element_column_map is not None:
-            fragments += [a.symbol for a in tmp_atoms if (a.symbol in element_column_map.keys())
-                          and (real_indices[a.index] not in adsorbate_indices)]                       
-        if any(a for a in pseudo_atoms[mut_metal_indices] if a.symbol not in target_metal_species):
-            parprint(f'Something wrong with replica {rep}, where metal indices are mutated into non-metals')
-            pseudo_atoms.info['key_value_pairs']['raw_score'] = raw_score_cutoff
-
-    pseudo_atoms.info['data'] = pseudo_atoms.info.get('data', {})
-    pseudo_atoms.info['data']['fragments'] = fragments
-    pseudo_atoms.info['key_value_pairs']['potential_energy'] = epot if epot is not None else raw_score_cutoff
-
-    write(f'{dir_name}/relaxed_atoms_{atoms.info["key_value_pairs"][replica_key]}.traj', [atoms, pseudo_atoms])
-
-    return None
-
-
-def calculate_batch_bulk_fitness(
-        atoms_list,
-        traj_path,
-        calculator_list,
-        fmax_list,
-        target_metal_species,
-        run_md,
-        md_timestep,
-        md_taut,
-        md_steps,
-        md_write_interval,
-        pressure=None,
-        md_taup=1000*units.fs,
-        compressibility=5e-5/units.bar,
-        fix_indices=None,
-        optimize_cell=False,
-        max_relax_steps=300,
-        update_md_positions=True,
-        update_relaxed_positions=False,
-        neighbor_cutoff=2.5,
-        raw_score_cutoff=-10000.,
-        temperature_key='temperature',
-        replica_key='replica',
-        temperature_dmu_map=None):
-
-    import torch_sim as ts
-    dir_name = '/'.join(traj_path.split('/')[:-1])
-    tmp_atoms_list = []
-    temps = []
-    for atoms in atoms_list:
-        atoms = rattle_close_atoms(atoms.copy(), min_distance=0.1)
-        if fix_indices:
-            atoms.set_constraint(FixAtoms(indices=fix_indices))
-        real_indices = [a.index for a in atoms if a.symbol != 'X']
-        tmp_atoms = atoms[real_indices].copy()
-        tmp_atoms_list.append(tmp_atoms)
-        temps.append(atoms.info['key_value_pairs'][temperature_key])
-
-    last_relaxed_state = None
-    md_atoms_list = None
-    for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
-        supported, ts_model = detect_and_get_model(calc)
-        is_last = (idx == len(calculator_list) - 1)
-
-        if supported and (fmax is not None) and (ts_model is not None):
-            # MD via torch-sim
-            if run_md:
-                timestep_ps = float(md_timestep / units.fs) * 1e-3
-                tag = f'{dir_name}/md'
-                if pressure is None:
-                    integ_kwargs = dict(
-                        system=tmp_atoms_list,
-                        model=ts_model,
-                        n_steps=int(md_steps),
-                        temperature=temps,
-                        timestep=timestep_ps,
-                        integrator=ts.integrators.nvt_langevin,
-                        autobatcher=False,
-                        trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
-                                                 state_frequency=int(md_write_interval)),
-                    )
-                else:
-                    integ_kwargs = dict(
-                        system=tmp_atoms_list,
-                        model=ts_model,
-                        n_steps=int(md_steps),
-                        temperature=temps,
-                        timestep=timestep_ps,
-                        integrator=ts.integrators.npt_langevin,
-                        pressure=pressure,
-                        autobatcher=False,
-                        trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
-                                                 state_frequency=int(md_write_interval)),
-                    )
-                ts.integrate(**integ_kwargs)
-                if update_md_positions:
-                    md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
-
-            # Relaxation via torch-sim
-            conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
-            if pressure is None:
-                last_relaxed_state = ts.optimize(
-                    system=tmp_atoms_list,
-                    model=ts_model,
-                    optimizer=ts.Optimizer.fire,
-                    convergence_fn=conv,
-                    autobatcher=False,
-                )
-            else:
-                last_relaxed_state = ts.optimize(
-                    system=tmp_atoms_list,
-                    model=ts_model,
-                    optimizer=ts.Optimizer.fire,
-                    convergence_fn=conv,
-                    autobatcher=False,
-                    init_kwargs=dict(cell_filter=ts.CellFilter.frechet, pressure=pressure),
-                )
-
-            if hasattr(last_relaxed_state, 'to_atoms'):
-                tmp_atoms_list = last_relaxed_state.to_atoms()
-            elif isinstance(last_relaxed_state, (list, tuple)):
-                tmp_atoms_list = list(last_relaxed_state)
-
-        else:
-            # Fallback to ASE LBFGS
-            if fmax is None and not is_last:
-                continue
-            ctx = multiprocessing.get_context('spawn')
-            pool = ctx.Pool(min(len(tmp_atoms_list), multiprocessing.cpu_count()))
-            work_args = []
-            for tmp, temp in zip(tmp_atoms_list, temps):
-                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep, 
-                                  md_taut, md_steps, md_write_interval, pressure, md_taup, 
-                                  temp, max_relax_steps, optimize_cell, compressibility))
-            results = pool.map(_relax_worker, work_args)
-            pool.close()
-            pool.join()
-            tmp_atoms_list = results
-            if run_md and update_md_positions:
-                md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
-
-    energies = None
-    if last_relaxed_state is not None:
-        energies = getattr(last_relaxed_state, 'energies', None) or getattr(last_relaxed_state, 'energy', None)
-    final_calc = calculator_list[-1]
-    ctx = multiprocessing.get_context('spawn')
-    pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
-    post_args = []
-    for idx, (atoms, tmp_atoms) in enumerate(zip(atoms_list, tmp_atoms_list)):
-        epot = None
-        if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
-            tmp_atoms.calc = final_calc
-            epot = tmp_atoms.get_potential_energy()
-        if epot is None and energies is not None:
-            if hasattr(energies, '__len__'):
-                if len(energies) > 0:
-                    epot = float(energies[0])
-                    try:
-                        energies = energies[1:]
-                    except Exception:
-                        pass
-            else:
-                epot = float(energies)
-        md_atoms = (md_atoms_list[idx] if (md_atoms_list is not None) else None)
-        post_args.append((dir_name, atoms, tmp_atoms, md_atoms, target_metal_species, fix_indices, neighbor_cutoff, run_md, 
-                          update_md_positions, update_relaxed_positions, raw_score_cutoff, replica_key, temperature_key, epot))
-
-    pool.map(_postprocess_bulk_worker, post_args)
-    pool.close()
-    pool.join()
-
-
-def calculate_batch_surface_fitness(
-        atoms_list,
-        traj_path,
-        calculator_list,
-        fmax_list,
-        target_metal_species,
-        target_metal_composition,
-        allowed_adsorbate_species,
-        run_md,
-        md_timestep,
-        md_taut,
-        md_steps,
-        md_write_interval,
-        element_column_map,
-        element_eref_map,
-        element_y2x_map,
-        adsorption_sites_list,
-        slab_indices,
-        fix_indices=None,
-        temperature_dmu_map=None,
-        max_relax_steps=300,
-        update_md_positions=True,
-        update_relaxed_positions=False,
-        adsorbate_surface_dmax=2.5,
-        neighbor_cutoff=2.5,
-        raw_score_cutoff=-10000.,
-        temperature_key='temperature',
-        replica_key='replica'):
-
-    import torch_sim as ts
-    dir_name = '/'.join(traj_path.split('/')[:-1])
-    tmp_atoms_list = []
-    temps = []
-    for atoms in atoms_list:
-        atoms = rattle_close_atoms(atoms.copy(), min_distance=0.1)
-        if fix_indices:
-            atoms.set_constraint(FixAtoms(indices=fix_indices))
-        real_indices = [a.index for a in atoms if a.symbol != 'X']
-        tmp_atoms = atoms[real_indices].copy()
-        tmp_atoms_list.append(tmp_atoms)
-        temps.append(atoms.info['key_value_pairs'][temperature_key])
-
-    last_relaxed_state = None
-    md_atoms_list = None
-
-    for idx, (calc, fmax) in enumerate(zip(calculator_list, fmax_list)):
-        supported, ts_model = detect_and_get_model(calc)
-        is_last = (idx == len(calculator_list) - 1)
-
-        if supported and (fmax is not None) and (ts_model is not None):
-            # MD via torch-sim
-            if run_md:
-                timestep_ps = float(md_timestep / units.fs) * 1e-3
-                tag = f'{dir_name}/md'
-                integ_kwargs = dict(
-                    system=tmp_atoms_list,
-                    model=ts_model,
-                    n_steps=int(md_steps),
-                    temperature=temps,
-                    timestep=timestep_ps,
-                    integrator=ts.integrators.nvt_langevin,
-                    autobatcher=False,
-                    trajectory_reporter=dict(filenames=[f'{tag}_{i}.traj' for i in range(len(tmp_atoms_list))],
-                                             state_frequency=int(md_write_interval)),
-                )
-                ts.integrate(**integ_kwargs)
-
-                if update_md_positions:
-                    md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
-
-            # Relaxation via torch-sim
-            conv = ts.generate_force_convergence_fn(force_tol=fmax, include_cell_forces=False)
-            last_relaxed_state = ts.optimize(
-                system=tmp_atoms_list,
-                model=ts_model,
-                optimizer=ts.Optimizer.fire,
-                convergence_fn=conv,
-                autobatcher=False,
-            )
-            if hasattr(last_relaxed_state, 'to_atoms'):
-                tmp_atoms_list = last_relaxed_state.to_atoms()
-            elif isinstance(last_relaxed_state, (list, tuple)):
-                tmp_atoms_list = list(last_relaxed_state)
-
-        else:
-            # Fallback to ASE LBFGS
-            if fmax is None and not is_last:
-                continue
-            ctx = multiprocessing.get_context('spawn')
-            pool = ctx.Pool(min(len(tmp_atoms_list), multiprocessing.cpu_count()))
-            work_args = []
-            for tmp, temp in zip(tmp_atoms_list, temps):
-                work_args.append((tmp.copy(), calc, fmax, is_last, run_md, md_timestep,
-                                  md_taut, md_steps, md_write_interval, None, None, temp,
-                                  max_relax_steps, False, 0.))
-            results = pool.map(_relax_worker, work_args)
-            pool.close()
-            pool.join()
-            tmp_atoms_list = results
-
-            if run_md and update_md_positions:
-                md_atoms_list = [copy.deepcopy(a) for a in tmp_atoms_list]
-
-    energies = None
-    if last_relaxed_state is not None:
-        energies = getattr(last_relaxed_state, 'energies', None) or getattr(last_relaxed_state, 'energy', None)
-    final_calc = calculator_list[-1]
-    ctx = multiprocessing.get_context('spawn')
-    pool = ctx.Pool(min(len(atoms_list), multiprocessing.cpu_count()))
-    post_args = []
-    for idx, (atoms, tmp_atoms, sas) in enumerate(zip(atoms_list, tmp_atoms_list, adsorption_sites_list)):
-        epot = None
-        if hasattr(final_calc, 'get_potential_energy') or hasattr(final_calc, 'implemented_properties'):
-            tmp_atoms.calc = final_calc
-            epot = tmp_atoms.get_potential_energy()
-        if epot is None and energies is not None:
-            if hasattr(energies, '__len__'):
-                if len(energies) > 0:
-                    epot = float(energies[0])
-                    try:
-                        energies = energies[1:]
-                    except Exception:
-                        pass
-            else:
-                epot = float(energies)
-        md_atoms = (md_atoms_list[idx] if (md_atoms_list is not None) else None)
-        post_args.append((dir_name, atoms, tmp_atoms, md_atoms, sas, target_metal_species, target_metal_composition,
-                          allowed_adsorbate_species, element_column_map, element_eref_map, element_y2x_map, slab_indices, 
-                          neighbor_cutoff, run_md, max_relax_steps, update_md_positions, update_relaxed_positions,
-                          adsorbate_surface_dmax, raw_score_cutoff, temperature_dmu_map, temperature_key, replica_key, epot))
-    pool.map(_postprocess_surface_worker, post_args)
-    pool.close()
-    pool.join()

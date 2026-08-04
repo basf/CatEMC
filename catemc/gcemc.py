@@ -8,6 +8,8 @@ from .emc_operators import (
         EMCIntraSwap,
         EMCMutation)
 from .emc import EMC
+from .calculation_templates import calculate_surface_fitness
+from .emc_logger import EMCLogger
 from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.ga.adsorbate_operators import (
@@ -46,10 +48,6 @@ class GCEMC(EMC):
     calculation_dir: str
         Path of the calculation directory.
 
-    calculation_script: str
-        The name of the Python script for calculating the fitness of each
-        configuration. The script must be inside calculation_dir.
-    
     input_pop: list of ase.Atoms objects
         Input population for the EMC run.
     
@@ -95,7 +93,7 @@ class GCEMC(EMC):
         The rate of performing intraswap operations in the catalyst slab.
 
     slab_mutation_rate: float, default 0.
-        The rate of performing intraswap operations in the catalyst slab.
+        The rate of performing mutation operations in the catalyst slab.
 
     adsorbate_insertion_rate: float, default 0.
         The rate of adding an adsorbate fragment to the catalyst surface.
@@ -234,18 +232,46 @@ class GCEMC(EMC):
         The list of GPU devices to use. Default is to use a single GPU/CPU device.
 
     procs_per_device: int, default 1
-        The number of processes to run in parallel on each GPU/CPU device. Defaul is 
-        to run in serial.
+        Number of persistent workers assigned to each device.
 
-    batching: bool, default False
-        Whether to run batch relaxation and MD using torch-sim. Default is False.
+    calculator_factory: callable
+        Top-level function returning one calculator or a sequence of calculators.
+        Each persistent worker creates this sequence once and reuses it.
+
+    calculator_factory_kwargs: dict, default None
+        Keyword arguments passed to the calculator factory in every worker.
+
+    fitness_function: callable, default None
+        Function used to evaluate one surface structure.
+
+    fitness_kwargs: dict, default None
+        Calculator, relaxation and MD keyword arguments passed to the fitness
+        function. Parameters already defined by ``GCEMC`` are supplied
+        automatically.
+
+    worker_startup_timeout: float, default 300
+        Maximum time in seconds to initialize all workers.
+
+    worker_result_timeout: float, default 3600
+        Maximum time in seconds to wait for the next completed evaluation.
+
+    scratch_dir: str, default None
+        Optional node-local directory for the active ASE database.
+
+    scratch_sync_interval: int, default None
+        Copy the active scratch database to persistent storage every N
+        generations. ``None`` synchronizes at database trims and shutdown.
+
+    traj_write_interval: int, default 1
+        Write one population frame per replica every N generations. ``None`` or
+        a non-positive value disables trajectory writing.
 
     """
 
     def __init__(self, name,
             calculation_dir,
-            calculation_script,
             input_pop,
+            calculator_factory,
             fix_indices=None,
             trim_generation=100,
             md_generation=10,
@@ -289,14 +315,21 @@ class GCEMC(EMC):
             acceptance_key='accepted',
             gpu_devices=None,
             procs_per_device=1,
-            batching=False,
-            verbose=True):
+            verbose=True,
+            calculator_factory_kwargs=None,
+            fitness_function=None,
+            fitness_kwargs=None,
+            worker_startup_timeout=300.,
+            worker_result_timeout=3600.,
+            scratch_dir=None,
+            scratch_sync_interval=None,
+            traj_write_interval=1):
 
         super().__init__(
                 name=name, 
                 calculation_dir=calculation_dir,
-                calculation_script=calculation_script,
                 input_pop=input_pop,
+                calculator_factory=calculator_factory,
                 fix_indices=fix_indices,
                 trim_generation=trim_generation,
                 md_generation=md_generation,
@@ -311,8 +344,15 @@ class GCEMC(EMC):
                 acceptance_key=acceptance_key,
                 gpu_devices=gpu_devices,
                 procs_per_device=procs_per_device,
-                batching=batching,
-                verbose=verbose)
+                verbose=verbose,
+                calculator_factory_kwargs=calculator_factory_kwargs,
+                fitness_function=(calculate_surface_fitness if fitness_function is None else fitness_function),
+                fitness_kwargs=fitness_kwargs,
+                worker_startup_timeout=worker_startup_timeout,
+                worker_result_timeout=worker_result_timeout,
+                scratch_dir=scratch_dir,
+                scratch_sync_interval=scratch_sync_interval,
+                traj_write_interval=traj_write_interval)
 
         self.mu_walk_generation = mu_walk_generation
         self.bias_starting_step = bias_starting_step
@@ -344,6 +384,39 @@ class GCEMC(EMC):
         self.adsorption_sites = adsorption_sites
         self.ignore_sites = ignore_sites
 
+
+    def uses_builtin_fitness(self):
+
+        return self.fitness_function is calculate_surface_fitness
+
+    def get_fitness_context(self):
+
+        context = super().get_fitness_context()
+        context.update({
+            'target_metal_composition': self.bulk_metal_composition,
+            'allowed_adsorbate_species': list(dict.fromkeys(
+                (self.adsorbate_species or [])
+                + (self.other_adsorbate_species or []))),
+            'element_column_map': self.element_column_map,
+            'element_eref_map': self.element_eref_map,
+            'element_y2x_map': self.element_y2x_map,
+            'adsorption_sites': self.adsorption_sites,
+            'slab_indices': self.slab_indices,
+            'temperature_dmu_map': self.tdmu_map,
+            'adsorbate_surface_dmax': self.adsorbate_surface_dmax,
+            'ignore_sites': self.ignore_sites,
+        })
+        return context
+
+    def get_reserved_fitness_kwargs(self):
+
+        return super().get_reserved_fitness_kwargs() | {
+            'target_metal_composition', 'allowed_adsorbate_species',
+            'element_column_map', 'element_eref_map', 'element_y2x_map',
+            'adsorption_sites', 'slab_indices', 'temperature_dmu_map',
+            'adsorbate_surface_dmax', 'ignore_sites',
+        }
+
     def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=1e-3):
 
         from pymbar import MBAR
@@ -352,13 +425,14 @@ class GCEMC(EMC):
         def create_energy_list():
             return [None for _ in range(ending_step)]
         energy_data = {T: defaultdict(create_energy_list) for T in sim_temperatures}
+        db_dir = os.path.dirname(self.asedb_path)
         n = 0
-        while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
+        while os.path.isfile(f'{db_dir}/{self.name}_bak{n}.db'):
             n += 1
         for i in range(n):
             if (i+1) * self.trim_generation <= starting_step:
                 continue
-            db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
+            db = connect(f'{db_dir}/{self.name}_bak{i}.db')
             for i, row in enumerate(db.select('relaxed=1')):
                 if row.emc_step >= starting_step:
                     T = row.temperature
@@ -459,8 +533,8 @@ class GCEMC(EMC):
         Parameters
         ----------
         starting_step: int, default None
-            (Re)starting from a certain EMC step. Default None is to
-            restart from the latest step assuming tmp_* folder exists.
+            (Re)starting from a certain EMC step. Default None continues
+            from the latest generation stored in the ASE database.
                                                
         total_steps: int, default 10000
             The total number of EMC steps that the algorithm should run.
@@ -473,14 +547,13 @@ class GCEMC(EMC):
              
         restart = True
         self.pop_size = len(self.input_pop)
-        if starting_step is None:
-            if os.path.isfile(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj'):
-                atoms0 = read(f'{self.calculation_dir}/tmp_{self.name}/emc_0.traj', index=-1)
-                starting_step = atoms0.info['key_value_pairs']['emc_step'] + 1
-            else:
-                starting_step = 1
+        self.set_asedb_path()
+        os.makedirs(f'{self.calculation_dir}/tmp_{self.name}', exist_ok=True)
+        self.worker_pool = self.make_worker_pool()
+        logger = EMCLogger(verbose=self.verbose, acceptance_key=self.acceptance_key)
+        starting_step = self.get_starting_step(starting_step)
         # Connect to the ase db
-        asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
+        asedb_path = self.asedb_path
         if not os.path.isfile(asedb_path):
             restart = False
             asedb = PrepareDB(asedb_path, population_size=self.pop_size)
@@ -499,16 +572,10 @@ class GCEMC(EMC):
             self.connect_data_with_trim(starting_step=starting_step)
         else:
             self.dc = DataConnection(asedb_path)
-        if not os.path.isdir(f'{self.calculation_dir}/tmp_{self.name}'):
-            os.mkdir(f'{self.calculation_dir}/tmp_{self.name}')
-        if self.slab_indices is None:
-            slab_indices_str = 'None'
-        else:
-            slab_indices_str = ','.join(map(str, self.slab_indices)) 
         if not restart:
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(
-                    unrelaxed_candidates, run_md=True, add_args=[slab_indices_str], batching=self.batching)
+                    unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:
                 rep = atoms.info['key_value_pairs'][self.replica_key]
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
@@ -547,11 +614,7 @@ class GCEMC(EMC):
         self.dc.add_more_relaxed_candidates(relaxed_candidates)
         self.pop.update()
         if not restart:
-            for atoms in self.pop.pop:
-                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                traj.write(atoms)
+            self.write_population_traj(0)
         if restart_with_trim:
             for atoms in self.pop.pop:
                 rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -582,7 +645,7 @@ class GCEMC(EMC):
             if (gen_num + gi) % self.md_generation == 0:
                 unrelaxed_candidates = self.pop.pop
                 relaxed_candidates = self.get_relaxed_candidates(
-                        unrelaxed_candidates, run_md=True, add_args=[slab_indices_str], batching=self.batching)
+                        unrelaxed_candidates, run_md=True)
                 relaxed_candidates.sort(key=lambda c: c.info['key_value_pairs'][self.replica_key])
                 for atoms in relaxed_candidates:
                     rep = atoms.info['key_value_pairs'][self.replica_key]
@@ -604,6 +667,7 @@ class GCEMC(EMC):
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs,
                                                    interswap_within_temperature=True)
             
+            unrelaxed_dict = {}
             for parents in all_parents:
                 if len(parents) == 2:
                     if parents[0].info['data']['for_operation'] == 'crossover':
@@ -614,8 +678,6 @@ class GCEMC(EMC):
                     offsprings, desc = operator.get_new_individual(parents)
                     for idx in range(2):
                         rep = parents[idx].info['key_value_pairs'][self.replica_key]
-                        if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
-                            continue
                         if offsprings[idx] == parents[idx]:
                             warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                         offsprings[idx].info['key_value_pairs'][self.temperature_key] = parents[idx].info['key_value_pairs'][self.temperature_key]
@@ -624,12 +686,10 @@ class GCEMC(EMC):
                             offsprings[idx].info['data']['mu'] = parents[idx].info['data']['mu']
                         if 'mu_window' in parents[idx].info['data']:
                             offsprings[idx].info['data']['mu_window'] = parents[idx].info['data']['mu_window']
-                        write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offsprings[idx])
+                        unrelaxed_dict[rep] = offsprings[idx]
             
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
-                    if os.path.exists(f'{self.calculation_dir}/tmp_{self.name}/relaxed_atoms_{rep}.traj'):
-                        continue
                     T = parents[0].info['key_value_pairs'][self.temperature_key]
                     species_probabilities = None
                     if self.adsorbate_species is not None:
@@ -652,12 +712,34 @@ class GCEMC(EMC):
                     else:
                         allowed_indices = [self.mutable_metal_indices, self.mutable_nonmetal_indices]
                         element_pools = [self.metal_element_pool, self.nonmetal_element_pool]
-                    operators = [EMCIntraSwap(allowed_indices=allowed_indices, 
-                                              element_pools=element_pools), 
-                                 EMCMutation(allowed_indices=allowed_indices, 
-                                             element_pools=element_pools,
-                                             element_probabilities=self.bulk_metal_composition)]
+    
+                    operators = [EMCIntraSwap(allowed_indices=allowed_indices,
+                                              element_pools=element_pools)]
                     weights = [self.slab_intraswap_rate, self.slab_mutation_rate]
+                    if (self.tdmu_map is None) and (self.mutable_metal_indices is not None):
+                        if (self.mutable_nonmetal_indices is not None) and (self.nonmetal_element_pool is not None):
+                            warnings.warn(
+                                "self.tdmu_map is None, so grand-canonical energy changes for metal "
+                                "composition mutations cannot be evaluated. EMCMutation is now restricted "
+                                "to mutable non-metal indices only."
+                            )
+                            operators.append(
+                                EMCMutation(allowed_indices=self.mutable_nonmetal_indices,
+                                            element_pools=self.nonmetal_element_pool)
+                            )
+                        else:
+                            warnings.warn(
+                                "self.tdmu_map is None, so grand-canonical energy changes for metal "
+                                "composition mutations cannot be evaluated. No mutable non-metal indices "
+                                "are available, so doing EMCIntraswap instead of EMCMutation."
+                            )
+                            weights = [self.slab_intraswap_rate]
+                    else:
+                        operators.append(
+                            EMCMutation(allowed_indices=allowed_indices,
+                                        element_pools=element_pools,
+                                        element_probabilities=self.bulk_metal_composition)
+                        )
                     if self.adsorbate_species is not None:
                         operators += \
                                 [AddAdsorbate(adsorbate_species=adsorbate_species, 
@@ -701,12 +783,12 @@ class GCEMC(EMC):
                         offspring.info['data']['mu'] = parents[0].info['data']['mu']
                     if 'mu_window' in parents[0].info['data']:
                         offspring.info['data']['mu_window'] = parents[0].info['data']['mu_window']
-                    write(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj', offspring)
+                    unrelaxed_dict[rep] = offspring
             
             replicas = sorted([c.info['key_value_pairs'][self.replica_key] for lst in all_parents for c in lst])
-            unrelaxed_offsprings = [read(f'{self.calculation_dir}/tmp_{self.name}/atoms_{rep}.traj') for rep in replicas]
+            unrelaxed_offsprings = [unrelaxed_dict[rep] for rep in replicas]
             relaxed_offsprings = self.get_relaxed_candidates(
-                    unrelaxed_offsprings, run_md=False, add_args=[slab_indices_str], batching=self.batching)
+                    unrelaxed_offsprings, run_md=False)
             relaxed_candidates = []
             for parents in all_parents:
                 if len(parents) == 2:
@@ -769,11 +851,12 @@ class GCEMC(EMC):
                             element_column_map=self.element_column_map,
                             temperature_species_internal_map=self.tsi_map,
                             no_internal_indices=self.mutable_nonmetal_indices)
+            logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             
-            for atoms in self.pop.pop:
-                #atoms = atoms[[a.index for a in atoms if a.symbol != 'X']]
-                rep = atoms.info['key_value_pairs'][self.replica_key]
-                traj = Trajectory(f'{self.calculation_dir}/tmp_{self.name}/emc_{rep}.traj', 'a')
-                traj.write(atoms) 
+            self.write_population_traj(gen_num + gi)
+            self.sync_asedb_if_needed(gen_num + gi)
 
             gi += 1
+
+        self.sync_asedb()
+        self.worker_pool.close()

@@ -123,6 +123,7 @@ class GEEMCAnalysis(object):
 
                     accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
                     U = float(row.potential_energy)
+                    score = float(row.raw_score)
                     if self.interswap_within_key is None:
                         self.mc_data[T].setdefault(rep, {})[row.emc_step] = {
                             'energy': U,
@@ -140,7 +141,8 @@ class GEEMCAnalysis(object):
                         atoms.info = {'key_value_pairs': {
                             self.temperature_key: T,
                             self.replica_key: rep,
-                            'potential_energy': U},
+                            'potential_energy': U,
+                            'raw_score': score},
                             'data': {}}
                         if self.pressure is not None:
                             V = row.volume
@@ -886,7 +888,7 @@ class GCEMCAnalysis(object):
             pop_size,
             target_metal_species,
             target_metal_composition,
-            adsorbate_species,
+            adsorbate_species=None,
             trim_generation=100,
             temperature_key='temperature',
             replica_key='replica',
@@ -902,6 +904,44 @@ class GCEMCAnalysis(object):
         self.temperature_key = temperature_key
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
+
+    def get_asedb_paths(self):
+
+        paths = []
+        n = 0
+        while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
+            paths.append(f'{self.calculation_dir}/{self.name}_bak{n}.db')
+            n += 1
+        active_path = f'{self.calculation_dir}/{self.name}.db'
+        if os.path.isfile(active_path):
+            paths.append(active_path)
+
+        return paths
+
+    def get_row_step(self, row):
+
+        if 'emc_step' not in row.key_value_pairs:
+            return None
+        return int(row.key_value_pairs['emc_step'])
+
+    def complete_trajectories(self, last_atoms, max_step):
+
+        for T in set(list(self.data.keys()) + list(self.mc_data.keys())):
+            self.data.setdefault(T, {})
+            self.mc_data.setdefault(T, {})
+            for rep in set(list(self.data[T].keys()) + list(self.mc_data[T].keys())):
+                old = self.data[T].get(rep, [])
+                full = []
+                current = last_atoms.get((T, rep), None)
+                for step in range(1, max_step + 1):
+                    if step <= len(old) and old[step - 1] is not None:
+                        current = old[step - 1]
+                    full.append(current)
+                if any(a is None for a in full):
+                    first_atoms = next((a for a in full if a is not None), None)
+                    if first_atoms is not None:
+                        full = [first_atoms if a is None else a for a in full]
+                self.data[T][rep] = full
 
     def prepare_data(self,
             starting_step=None,
@@ -930,39 +970,69 @@ class GCEMCAnalysis(object):
         if collect_data:
             self.data = {}
             self.mc_data = {}
+            last_atoms = {}
+            last_steps = {}
+            max_step = 0
 
-            n = 0
-            while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
-                n += 1
-            for i in range(n):
-                if ((i + 1) * self.trim_generation) <= starting_step:
-                    continue
-
-                db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
+            for db_path in self.get_asedb_paths():
+                db = connect(db_path)
                 for row in db.select('relaxed=1'):
-                    step = int(row.emc_step)
-                    if step < starting_step:
-                        continue
+                    step = self.get_row_step(row)
+                    if step is not None:
+                        if step < 0:
+                            continue
+                        max_step = max(max_step, step)
                     if row.raw_score <= raw_score_cutoff:
                         continue
-                    if (ending_step is not None) and (step > ending_step):
+                    if (ending_step is not None) and (step is not None) and (step > ending_step):
                         continue
 
                     T = row.key_value_pairs[self.temperature_key]
                     rep = int(row.key_value_pairs[self.replica_key])
+                    accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
+                    U = float(row.potential_energy)
+                    score = float(row.raw_score)
                     mu = row.data.get('mu', None)
                     mu_window = row.data.get('mu_window', None)
-                    if T not in self.data:
-                        self.data[T] = {}
-                    if T not in self.mc_data:
-                        self.mc_data[T] = {}
-                    if rep not in self.mc_data[T]:
-                        self.mc_data[T][rep] = {}
 
-                    accepted = bool(row.key_value_pairs[self.acceptance_key])
-                    energy = float(row.potential_energy)
+                    self.data.setdefault(T, {})
+                    self.mc_data.setdefault(T, {})
+                    self.mc_data[T].setdefault(rep, {})
+
+                    if step is None:
+                        if accepted and (T, rep) not in last_atoms:
+                            atoms = row.toatoms()
+                            atoms.info = {'key_value_pairs': {
+                                self.temperature_key: T,
+                                self.replica_key: rep,
+                                'potential_energy': U,
+                                'raw_score': score},
+                                'data': {}}
+                            atoms.info['data']['mu'] = mu
+                            atoms.info['data']['mu_window'] = mu_window
+                            atoms.info['data']['fragments'] = row.data.get('fragments', None)
+                            last_atoms[(T, rep)] = atoms
+                            last_steps[(T, rep)] = 0
+                        continue
+
+                    if step < starting_step:
+                        if accepted and step >= last_steps.get((T, rep), -1):
+                            atoms = row.toatoms()
+                            atoms.info = {'key_value_pairs': {
+                                self.temperature_key: T,
+                                self.replica_key: rep,
+                                'potential_energy': U,
+                                'raw_score': score},
+                                'data': {}}
+                            atoms.info['data']['mu'] = mu
+                            atoms.info['data']['mu_window'] = mu_window
+                            atoms.info['data']['fragments'] = row.data.get('fragments', None)
+                            last_atoms[(T, rep)] = atoms
+                            last_steps[(T, rep)] = step
+                        continue
+
                     self.mc_data[T][rep][step] = {
-                        'energy': energy,
+                        'energy': U,
                         'accepted': accepted,
                         'mu': mu,
                         'mu_window': mu_window,
@@ -973,7 +1043,8 @@ class GCEMCAnalysis(object):
                         atoms.info = {'key_value_pairs': {
                             self.temperature_key: T,
                             self.replica_key: rep,
-                            'potential_energy': energy},
+                            'potential_energy': U,
+                            'raw_score': score},
                             'data': {}}
                         atoms.info['data']['mu'] = mu
                         atoms.info['data']['mu_window'] = mu_window
@@ -983,18 +1054,12 @@ class GCEMCAnalysis(object):
                         if needed > 0:
                             rep_list.extend([None] * needed)
                         rep_list[step - 1] = atoms
+                        last_atoms[(T, rep)] = atoms
+                        last_steps[(T, rep)] = step
 
-            for T, dd in self.data.items():
-                for rep in list(dd.keys()):
-                    atoms_prev = None
-                    newlist = []
-                    for atoms in dd[rep]:
-                        if atoms is not None:
-                            atoms_prev = atoms
-                            newlist.append(atoms)
-                        else:
-                            newlist.append(atoms_prev)
-                    dd[rep] = newlist
+            if ending_step is not None:
+                max_step = min(max_step, ending_step)
+            self.complete_trajectories(last_atoms, max_step)
 
             with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
                 pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1148,12 +1213,24 @@ class GCEMCAnalysis(object):
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
+        max_len = 0
+        for dd in self.data.values():
+            if replica in dd:
+                max_len = max(max_len, len(dd[replica]))
         traj = []
-        for T, dd in self.data.items():
-            if replica in dd.keys():
-                for atoms in dd[replica]:
-                    if atoms is not None:
-                        traj.append(atoms)
+        previous = None
+        for i in range(max_len):
+            atoms_i = None
+            for T in sorted(self.data.keys()):
+                dd = self.data[T]
+                if replica in dd and i < len(dd[replica]) and dd[replica][i] is not None:
+                    atoms_i = dd[replica][i]
+                    break
+            if atoms_i is None:
+                atoms_i = previous
+            if atoms_i is not None:
+                previous = atoms_i
+                traj.append(atoms_i)
 
         write(f'{self.calculation_dir}/{self.name}_gcemc_{replica}.traj', traj)
 
@@ -1212,7 +1289,7 @@ class GCEMCAnalysis(object):
 
         fragments = atoms.info['data'].get('fragments', None)
         lattice_nonmetal_symbols = []
-        if element_column_map is not None and fragments is not None:
+        if (element_column_map is not None) and (fragments is not None) and (self.adsorbate_species is not None):
             for nm in element_column_map.keys():
                 lattice_nonmetal_symbols += [nm for i in vacancy_indices if atoms[i].symbol == nm]
             adsorbates = list((Counter(fragments) - Counter(lattice_nonmetal_symbols)).elements())
@@ -1324,7 +1401,7 @@ class GCEMCAnalysis(object):
                             images.append(atoms)
                             image_meta.append((T, rep, n_minus_1))
 
-                        epot = atoms.info['key_value_pairs']['potential_energy']
+                        U = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
                         if atoms.info['data'].get('mu') is not None:
@@ -1334,9 +1411,6 @@ class GCEMCAnalysis(object):
                         idx_match = np.where(np.all(np.abs(grid - sample_cond) < tol, axis=1))[0] 
                         
                         if idx_match.size == 0:
-                            print(grid)
-                            print(sample_cond)
-                            assert False
                             parprint('No matching state found for sample:', sample_cond)
                             continue
                         state_idx = int(idx_match[0])
@@ -1346,7 +1420,7 @@ class GCEMCAnalysis(object):
                         phi = compute_phi(
                                 num_dict, self.target_metal_species, self.target_metal_composition, 
                                 temperature_dmu_map, grid, element_column_map, element_eref_map, 
-                                element_y2x_map, num_metal, epot, dimensionless=True)
+                                element_y2x_map, num_metal, U, dimensionless=True)
                         phi_kn.append(phi.reshape(-1,1))
 
         if traj_exists:
@@ -1560,7 +1634,7 @@ class GCEMCAnalysis(object):
                             images.append(atoms)
                             image_meta.append((T, rep, n_minus_1))
 
-                        epot = atoms.info['key_value_pairs']['potential_energy']
+                        U = atoms.info['key_value_pairs']['potential_energy']
                         num_metal = len([a for a in atoms if a.symbol in self.target_metal_species])
                         num_dict = dict((m, len([a for a in atoms if a.symbol == m])) for m in all_species)
                         if atoms.info['data'].get('mu') is not None:
@@ -1578,7 +1652,7 @@ class GCEMCAnalysis(object):
                         phi = compute_phi(
                                 num_dict, self.target_metal_species, self.target_metal_composition,
                                 temperature_dmu_map, grid, element_column_map, element_eref_map,
-                                element_y2x_map, num_metal, epot, dimensionless=True)
+                                element_y2x_map, num_metal, U, dimensionless=True)
                         phi_kn.append(phi.reshape(-1,1))
 
         if traj_exists:
