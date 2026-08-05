@@ -417,7 +417,7 @@ class GCEMC(EMC):
             'adsorbate_surface_dmax', 'ignore_sites',
         }
 
-    def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=1e-3):
+    def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=5e-3):
 
         from pymbar import MBAR
         all_species = self.metal_element_pool + list(self.element_column_map.keys())
