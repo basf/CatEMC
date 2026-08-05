@@ -425,15 +425,14 @@ class GCEMC(EMC):
         def create_energy_list():
             return [None for _ in range(ending_step)]
         energy_data = {T: defaultdict(create_energy_list) for T in sim_temperatures}
-        db_dir = os.path.dirname(self.asedb_path)
-        n = 0
-        while os.path.isfile(f'{db_dir}/{self.name}_bak{n}.db'):
-            n += 1
-        for i in range(n):
-            if (i+1) * self.trim_generation <= starting_step:
-                continue
-            db = connect(f'{db_dir}/{self.name}_bak{i}.db')
-            for i, row in enumerate(db.select('relaxed=1')):
+        db_paths = self.get_asedb_history_paths()
+        if not db_paths:
+            raise FileNotFoundError(
+                    'No ASE databases were found in the scratch or calculation directory.')
+        parprint('Reading MBAR samples from: {}'.format(', '.join(db_paths)))
+        for db_path in db_paths:
+            db = connect(db_path)
+            for row in db.select('relaxed=1'):
                 if row.emc_step >= starting_step:
                     T = row.temperature
                     if row.key_value_pairs[self.acceptance_key] == 1:
@@ -487,6 +486,10 @@ class GCEMC(EMC):
                     sample_steps.append(n_minus_1)
                     u_kn.append(phi.reshape(-1,1))
  
+        if not u_kn:
+            raise RuntimeError(
+                    'No valid GC-EMC samples were found between steps {} and {} in {}.'
+                    .format(starting_step, ending_step, ', '.join(db_paths)))
         u_kn = np.hstack(u_kn)  # Shape (K, N_total)
  
         # Build numpy array of which state produced each sample (global column index)

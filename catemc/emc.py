@@ -330,6 +330,29 @@ class EMC(object):
         backup_paths.sort(key=lambda x: x[0])
         return backup_paths[-1][1]
 
+    def get_asedb_history_paths(self):
+
+        backup_paths = {}
+        directories = [self.calculation_dir]
+        if self.scratch_dir is not None:
+            directories.append(self.scratch_dir)
+        for directory in directories:
+            if not os.path.isdir(directory):
+                continue
+            for name in os.listdir(directory):
+                path = os.path.join(directory, name)
+                index = self.get_backup_index(path)
+                if index is not None and os.path.isfile(path):
+                    backup_paths[index] = path
+        paths = [backup_paths[index] for index in sorted(backup_paths)]
+        active_path = self.asedb_path
+        if active_path is None or not os.path.isfile(active_path):
+            active_path = self.persistent_asedb_path
+        if active_path is not None and os.path.isfile(active_path):
+            if os.path.abspath(active_path) not in {os.path.abspath(path) for path in paths}:
+                paths.append(active_path)
+        return paths
+
     def restore_asedb_from_backup(self, backup_path, target_path):
 
         backup_dc = DataConnection(backup_path)
