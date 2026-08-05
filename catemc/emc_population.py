@@ -558,7 +558,7 @@ class EMCPopulation(Population):
         self.pop = new_pop
 
     def mu_walk(self, element_column_map, multiple_try=True,
-                reaction_conditions=None, free_energy_differences=None, tol=1e-3):
+                reaction_conditions=None, free_energy_differences=None, tol=5e-3):
 
         new_pop = []
         for c in self.pop:
