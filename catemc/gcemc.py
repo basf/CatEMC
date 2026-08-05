@@ -266,6 +266,10 @@ class GCEMC(EMC):
         Write one population frame per replica every N generations. ``None`` or
         a non-positive value disables trajectory writing.
 
+    overwrite_scratch_db: bool, default False
+        Remove existing databases from ``scratch_dir`` and copy all ``.db`` files
+        from ``calculation_dir`` before starting.
+
     """
 
     def __init__(self, name,
@@ -323,7 +327,8 @@ class GCEMC(EMC):
             worker_result_timeout=3600.,
             scratch_dir=None,
             scratch_sync_interval=None,
-            traj_write_interval=1):
+            traj_write_interval=1,
+            overwrite_scratch_db=False):
 
         super().__init__(
                 name=name, 
@@ -351,6 +356,7 @@ class GCEMC(EMC):
                 worker_startup_timeout=worker_startup_timeout,
                 worker_result_timeout=worker_result_timeout,
                 scratch_dir=scratch_dir,
+                overwrite_scratch_db=overwrite_scratch_db,
                 scratch_sync_interval=scratch_sync_interval,
                 traj_write_interval=traj_write_interval)
 

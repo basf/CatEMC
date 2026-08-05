@@ -140,6 +140,11 @@ class EMC(object):
         Write one population frame per replica every N generations. ``None`` or
         a non-positive value disables trajectory writing.
 
+    overwrite_scratch_db: bool, default False
+        Remove existing databases from ``scratch_dir`` and copy all ``.db`` files
+        from ``calculation_dir`` before starting. This makes persistent storage
+        authoritative when deliberately restarting from its database set.
+
     """
 
     def __init__(self, name,
@@ -172,7 +177,8 @@ class EMC(object):
             worker_result_timeout=3600.,
             scratch_dir=None,
             scratch_sync_interval=None,
-            traj_write_interval=1):
+            traj_write_interval=1,
+            overwrite_scratch_db=False):
 
         self.name = name
         self.calculation_dir = calculation_dir
@@ -214,6 +220,7 @@ class EMC(object):
         self.worker_startup_timeout = worker_startup_timeout
         self.worker_result_timeout = worker_result_timeout
         self.scratch_dir = scratch_dir
+        self.overwrite_scratch_db = overwrite_scratch_db
         self.scratch_sync_interval = scratch_sync_interval
         self.traj_write_interval = traj_write_interval
         self.worker_pool = None
@@ -271,6 +278,31 @@ class EMC(object):
                 startup_timeout=self.worker_startup_timeout,
                 result_timeout=self.worker_result_timeout)
 
+    def get_asedb_paths(self, directory):
+
+        if not os.path.isdir(directory):
+            return []
+        return sorted(
+                os.path.join(directory, name)
+                for name in os.listdir(directory)
+                if name.endswith('.db')
+                and os.path.isfile(os.path.join(directory, name)))
+
+    def overwrite_scratch_asedbs(self):
+
+        if os.path.abspath(self.scratch_dir) == os.path.abspath(self.calculation_dir):
+            return
+        for name in os.listdir(self.scratch_dir):
+            if name.endswith(('.db', '.db-wal', '.db-shm')):
+                path = os.path.join(self.scratch_dir, name)
+                if os.path.isfile(path):
+                    os.remove(path)
+        for source in self.get_asedb_paths(self.calculation_dir):
+            target = os.path.join(self.scratch_dir, os.path.basename(source))
+            self.copy_asedb(source, target)
+        parprint('Scratch ASE databases overwritten from {}'.format(
+                self.calculation_dir))
+
     def set_asedb_path(self):
 
         self.persistent_asedb_path = self.calculation_dir + '/{}.db'.format(self.name)
@@ -282,6 +314,8 @@ class EMC(object):
                     self.restore_asedb_from_backup(backup_path, self.asedb_path)
             return
         os.makedirs(self.scratch_dir, exist_ok=True)
+        if self.overwrite_scratch_db:
+            self.overwrite_scratch_asedbs()
         self.asedb_path = os.path.join(self.scratch_dir, '{}.db'.format(self.name))
         if os.path.isfile(self.asedb_path):
             parprint('Using existing scratch ASE database: {}'.format(self.asedb_path))
