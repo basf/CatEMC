@@ -1341,7 +1341,7 @@ class GCEMCAnalysis(object):
             surf_detect_stride=1,
             precision=0.25,
             touch_sphere_size=3.,
-            tol=1e-3,
+            tol=5e-3,
             procs=1):
 
         """Get the MBAR-estimated expectations of surface structural properties 
@@ -1571,7 +1571,7 @@ class GCEMCAnalysis(object):
             surf_detect_stride=1,
             precision=0.25,
             touch_sphere_size=3.,
-            tol=1e-3,
+            tol=5e-3,
             procs=1):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
