@@ -6,7 +6,7 @@ from acat.adsorbate_coverage import SlabAdsorbateCoverage
 from ase import units
 from ase.neighborlist import NeighborList
 from ase.constraints import FixAtoms
-from ase.optimize import LBFGS
+from .optimizers import SQNM
 from ase.filters import FrechetCellFilter
 from ase.io.trajectory import Trajectory
 from ase.md.nvtberendsen import NVTBerendsen
@@ -136,7 +136,7 @@ def calculate_bulk_fitness(
         if i < len(calculator_list) - 1:
             tmp_atoms.calc = calc
             if fmax is not None:
-                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 opt.run(fmax=fmax, steps=max_relax_steps)
             E0 = tmp_atoms.get_potential_energy()
             if np.isinf(E0):
@@ -187,10 +187,10 @@ def calculate_bulk_fitness(
             penalize = False
             if fmax is not None:
                 if (pressure is None) or not optimize_cell:
-                    opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                    opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 else:
                     ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
-                    opt = LBFGS(ucf, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                    opt = SQNM(ucf, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
@@ -341,7 +341,7 @@ def calculate_surface_fitness(
         if i < len(calculator_list) - 1:
             tmp_atoms.calc = calc
             if fmax is not None:
-                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 opt.run(fmax=fmax, steps=max_relax_steps)
             E0 = tmp_atoms.get_potential_energy()
             if np.isinf(E0):
@@ -378,7 +378,7 @@ def calculate_surface_fitness(
 
             penalize = False
             if fmax is not None:
-                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
@@ -424,7 +424,7 @@ def calculate_surface_fitness(
             tmp_atoms = new_atoms.copy()
             tmp_atoms.calc = calc
             if fmax is not None:
-                opt = LBFGS(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
