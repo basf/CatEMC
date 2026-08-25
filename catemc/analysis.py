@@ -1342,7 +1342,8 @@ class GCEMCAnalysis(object):
             precision=0.25,
             touch_sphere_size=3.,
             tol=5e-3,
-            procs=1):
+            procs=1,
+            compute_uncertainty=False):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (>= z_surf) and reaction conditions. 
@@ -1358,7 +1359,9 @@ class GCEMCAnalysis(object):
         only select the intersecting indices as vacancy indices. The reaction conditions 
         is supposed to emcompass all the reaction condition grid considered in the EMC 
         simulation, including last column as temperature. You can also add more rows to 
-        reaction_conditions to consider states that are not included in the simulation."""
+        reaction_conditions to consider states that are not included in the simulation.
+        If compute_uncertainty=True, also compute and return the MBAR standard deviations
+        of the structural expectations."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
@@ -1537,11 +1540,21 @@ class GCEMCAnalysis(object):
         w_nk /= w_nk.sum(axis=0)
 
         expectations = {}
+        uncertainties = {}
         for cv in images_sub[0].info['data'].keys():
             if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window', 'surf_indices']:
                 continue
             A_n = np.array([a.info['data'][cv] for a in images_sub])
-            if sample_condition_indices is None:
+            if compute_uncertainty:
+                result = mbar.compute_expectations(
+                        A_n, compute_uncertainty=True, uncertainty_method=None)
+                E_k = result['mu']
+                sigma_k = result['sigma']
+                if sample_condition_indices is not None:
+                    E_k = E_k[sample_condition_indices]
+                    sigma_k = sigma_k[sample_condition_indices]
+                uncertainties[cv] = sigma_k
+            elif sample_condition_indices is None:
                 E_k = w_nk.T @ A_n
             else:
                 E_k = w_nk[:, sample_condition_indices].T @ A_n
@@ -1549,6 +1562,11 @@ class GCEMCAnalysis(object):
 
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
             pickle.dump(expectations, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        if compute_uncertainty:
+            with open(f'{self.calculation_dir}/{self.name}_mbar_uncertainty.pkl', 'wb') as handle:
+                pickle.dump(uncertainties, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            return expectations, uncertainties
 
         return expectations
 
