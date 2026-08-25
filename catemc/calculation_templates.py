@@ -4,6 +4,7 @@ from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.adsorbate_coverage import SlabAdsorbateCoverage
 from ase import units
+from ase import optimize as ase_optimize
 from ase.neighborlist import NeighborList
 from ase.constraints import FixAtoms
 from .optimizers import SQNM
@@ -18,6 +19,12 @@ import numpy as np
 import copy
 
 
+def _get_optimizer(optimizer):
+    if optimizer == 'SQNM':
+        return SQNM
+    return getattr(ase_optimize, optimizer)
+
+
 def calculate_bulk_fitness(
         atoms,
         calculator_list,
@@ -26,6 +33,7 @@ def calculate_bulk_fitness(
         md_taut,
         md_steps,
         md_write_interval,
+        optimizer='SQNM',
         run_md=False,
         md_type='berendsen',
         md_friction=None,
@@ -60,6 +68,9 @@ def calculate_bulk_fitness(
         Number of molecular-dynamics steps.
     md_write_interval : int
         Interval between frames in the optional molecular-dynamics trajectory.
+    optimizer : str, default 'SQNM'
+        Structure optimizer. ``'SQNM'`` uses :class:`catemc.optimizers.SQNM`;
+        other names are resolved from :mod:`ase.optimize`.
     run_md : bool, default False
         Run molecular dynamics before the final relaxation.
     md_type : {"berendsen", "langevin"}, default "berendsen"
@@ -107,6 +118,8 @@ def calculate_bulk_fitness(
     replica_key = _emc_context['replica_key']
     dir_name = _emc_context['work_dir']
 
+    optimizer_class = _get_optimizer(optimizer)
+
     if len(calculator_list) != len(fmax_list):
         raise ValueError('calculator_list and fmax_list must have the same length')
     if run_md and md_type not in ('berendsen', 'langevin'):
@@ -136,7 +149,7 @@ def calculate_bulk_fitness(
         if i < len(calculator_list) - 1:
             tmp_atoms.calc = calc
             if fmax is not None:
-                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = optimizer_class(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 opt.run(fmax=fmax, steps=max_relax_steps)
             E0 = tmp_atoms.get_potential_energy()
             if np.isinf(E0):
@@ -187,10 +200,10 @@ def calculate_bulk_fitness(
             penalize = False
             if fmax is not None:
                 if (pressure is None) or not optimize_cell:
-                    opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                    opt = optimizer_class(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 else:
                     ucf = FrechetCellFilter(tmp_atoms, scalar_pressure=pressure)
-                    opt = SQNM(ucf, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                    opt = optimizer_class(ucf, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
@@ -228,6 +241,7 @@ def calculate_surface_fitness(
         md_taut,
         md_steps,
         md_write_interval,
+        optimizer='SQNM',
         run_md=False,
         md_type='berendsen',
         md_friction=None,
@@ -259,6 +273,9 @@ def calculate_surface_fitness(
         Number of molecular-dynamics steps.
     md_write_interval : int
         Interval between frames in the optional molecular-dynamics trajectory.
+    optimizer : str, default 'SQNM'
+        Structure optimizer. ``'SQNM'`` uses :class:`catemc.optimizers.SQNM`;
+        other names are resolved from :mod:`ase.optimize`.
     run_md : bool, default False
         Run molecular dynamics before the final relaxation.
     md_type : {"berendsen", "langevin"}, default "berendsen"
@@ -308,6 +325,8 @@ def calculate_surface_fitness(
     ignore_sites = _emc_context['ignore_sites']
     dir_name = _emc_context['work_dir']
 
+    optimizer_class = _get_optimizer(optimizer)
+
     if len(calculator_list) != len(fmax_list):
         raise ValueError('calculator_list and fmax_list must have the same length')
     if run_md and md_type not in ('berendsen', 'langevin'):
@@ -341,7 +360,7 @@ def calculate_surface_fitness(
         if i < len(calculator_list) - 1:
             tmp_atoms.calc = calc
             if fmax is not None:
-                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = optimizer_class(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 opt.run(fmax=fmax, steps=max_relax_steps)
             E0 = tmp_atoms.get_potential_energy()
             if np.isinf(E0):
@@ -378,7 +397,7 @@ def calculate_surface_fitness(
 
             penalize = False
             if fmax is not None:
-                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = optimizer_class(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
@@ -424,7 +443,7 @@ def calculate_surface_fitness(
             tmp_atoms = new_atoms.copy()
             tmp_atoms.calc = calc
             if fmax is not None:
-                opt = SQNM(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
+                opt = optimizer_class(tmp_atoms, logfile=None, trajectory=relax_traj, append_trajectory=True)
                 converged = opt.run(fmax=fmax, steps=max_relax_steps)
                 if not converged:
                     penalize = True
