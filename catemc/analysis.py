@@ -1360,8 +1360,8 @@ class GCEMCAnalysis(object):
         is supposed to emcompass all the reaction condition grid considered in the EMC 
         simulation, including last column as temperature. You can also add more rows to 
         reaction_conditions to consider states that are not included in the simulation.
-        If compute_uncertainty=True, also compute and return the MBAR standard deviations
-        of the structural expectations."""
+        If compute_uncertainty=True, also compute and return the standard errors of the
+        MBAR-weighted structural expectations."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
@@ -1539,26 +1539,29 @@ class GCEMCAnalysis(object):
         w_nk = mbar.weights()
         w_nk /= w_nk.sum(axis=0)
 
-        expectations = {}
-        uncertainties = {}
-        for cv in images_sub[0].info['data'].keys():
-            if cv in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores', 'mu', 'mu_window', 'surf_indices']:
-                continue
-            A_n = np.array([a.info['data'][cv] for a in images_sub])
-            if compute_uncertainty:
-                result = mbar.compute_expectations(
-                        A_n, compute_uncertainty=True, uncertainty_method=None)
-                E_k = result['mu']
-                sigma_k = result['sigma']
-                if sample_condition_indices is not None:
-                    E_k = E_k[sample_condition_indices]
-                    sigma_k = sigma_k[sample_condition_indices]
-                uncertainties[cv] = sigma_k
-            elif sample_condition_indices is None:
-                E_k = w_nk.T @ A_n
-            else:
-                E_k = w_nk[:, sample_condition_indices].T @ A_n
-            expectations[cv] = E_k
+        cv_keys = [cv for cv in images_sub[0].info['data'].keys()
+                if cv not in ['fragments', 'x_surf_metals', 'ads_coverages', 'raw_scores',
+                              'mu', 'mu_window', 'surf_indices']]
+        A_nm = np.asarray([[a.info['data'][cv] for cv in cv_keys] for a in images_sub],
+                dtype=float)
+        if sample_condition_indices is None:
+            weights = w_nk
+        else:
+            weights = w_nk[:, sample_condition_indices]
+
+        E_km = weights.T @ A_nm
+        expectations = {cv: E_km[:, i] for i, cv in enumerate(cv_keys)}
+
+        if compute_uncertainty:
+            weights2 = weights**2
+            W2A_km = weights2.T @ A_nm
+            W2A2_km = weights2.T @ (A_nm**2)
+            W2_k = weights2.sum(axis=0)
+            var_km = W2A2_km - 2. * E_km * W2A_km + E_km**2 * W2_k[:, None]
+            sigma_km = np.sqrt(np.maximum(var_km, 0.))
+            uncertainties = {cv: sigma_km[:, i] for i, cv in enumerate(cv_keys)}
+        else:
+            uncertainties = {}
 
         with open(f'{self.calculation_dir}/{self.name}_mbar_expectations.pkl', 'wb') as handle:
             pickle.dump(expectations, handle, protocol=pickle.HIGHEST_PROTOCOL)
