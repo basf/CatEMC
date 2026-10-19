@@ -605,6 +605,9 @@ class EMC(object):
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:                  
+                score = atoms.info['key_value_pairs']['raw_score']
+                if not np.isfinite(score) or score <= self.raw_score_cutoff:
+                    raise RuntimeError('Initial population contains a failed fitness evaluation.')
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
         else:
             relaxed_candidates = []
@@ -648,7 +651,9 @@ class EMC(object):
                 unrelaxed_candidates = self.pop.pop
                 relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
                 for atoms in relaxed_candidates:
-                    atoms.info['key_value_pairs'][self.acceptance_key] = 1
+                    score = atoms.info['key_value_pairs']['raw_score']
+                    atoms.info['key_value_pairs'][self.acceptance_key] = int(
+                            np.isfinite(score) and score > self.raw_score_cutoff)
                 # Update the population to allow new candidates to enter
                 self.dc.add_more_relaxed_candidates(relaxed_candidates) 
                 self.pop.update()

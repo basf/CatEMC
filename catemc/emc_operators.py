@@ -84,7 +84,11 @@ class EMCInterSwap(OffspringCreator):
         f, m = parents
         options1 = self._eligible_indices(f)
         options2 = self._eligible_indices(m)
-        pairs = [(i1, i2) for i1 in options1 for i2 in options2 if f[i1].symbol != m[i2].symbol]
+        pairs = [(i1, i2) for i1 in options1 for i2 in options2
+                 if f[i1].symbol != m[i2].symbol and
+                 (self.element_pools is None or any(
+                     f[i1].symbol in pool and m[i2].symbol in pool
+                     for pool in self.element_pools))]
 
         return pairs
 
@@ -177,7 +181,16 @@ class EMCIntraSwap(RandomSlabPermutation):
 
     def get_new_individual(self, parents):
 
-        indi, msg = super().get_new_individual(parents=parents)
+        allowed = self.allowed_indices
+        try:
+            indi, msg = super().get_new_individual(parents=parents)
+        finally:
+            # ACAT narrows this attribute to the selected group in each call.
+            self.allowed_indices = allowed
+        if indi is None:
+            indi = self.initialize_individual(parents[0], parents[0])
+            indi.info['data']['mc_log_proposal_ratio'] = -np.inf
+            indi = self.finalize_individual(indi)
 
         indi.info['data']['parents'] = [i.info['confid'] for i in parents] 
         indi.info['data']['operation'] = 'intraswap'
@@ -233,11 +246,14 @@ class EMCMutation(RandomSlabMutation):
 
     def get_new_individual(self, parents):
 
-        indi, msg, mutated_elements = super().get_new_individual(
-                parents=parents, return_mutated_elements=True)
-
-        indices = (list(range(len(indi))) if self.allowed_indices is None
-                   else self.allowed_indices)
+        allowed = self.allowed_indices
+        try:
+            indi, msg, mutated_elements = super().get_new_individual(
+                    parents=parents, return_mutated_elements=True)
+            indices = (list(range(len(indi))) if self.allowed_indices is None
+                       else self.allowed_indices)
+        finally:
+            self.allowed_indices = allowed
         m, n = mutated_elements
         qf = self._species_probability(m, n, parents[0][indices])
         qr = self._species_probability(n, m, indi[indices])

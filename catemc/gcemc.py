@@ -429,6 +429,11 @@ class GCEMC(EMC):
         No calculator call or structural relaxation is needed.  Custom fitness
         functions must store the same physical potential_energy convention.
         """
+        if temperature <= 0 or not np.isfinite(temperature):
+            raise ValueError('Temperature must be finite and positive.')
+        score = atoms.info['key_value_pairs'].get('raw_score')
+        if score is not None and (not np.isfinite(score) or score <= self.raw_score_cutoff):
+            raise ValueError('A failed fitness evaluation cannot be reused for a state move.')
         energy = atoms.info['key_value_pairs']['potential_energy']
         if not np.isfinite(energy):
             raise ValueError('A finite stored potential_energy is required for state moves.')
@@ -609,6 +614,9 @@ class GCEMC(EMC):
                     unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:
                 rep = atoms.info['key_value_pairs'][self.replica_key]
+                score = atoms.info['key_value_pairs']['raw_score']
+                if not np.isfinite(score) or score <= self.raw_score_cutoff:
+                    raise RuntimeError('Initial population contains a failed fitness evaluation.')
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
                 try:
                     sas = SlabAdsorptionSites(atoms, surface='autoadsorbate', 
@@ -680,7 +688,11 @@ class GCEMC(EMC):
                 relaxed_candidates.sort(key=lambda c: c.info['key_value_pairs'][self.replica_key])
                 for atoms in relaxed_candidates:
                     rep = atoms.info['key_value_pairs'][self.replica_key]
-                    atoms.info['key_value_pairs'][self.acceptance_key] = 1
+                    score = atoms.info['key_value_pairs']['raw_score']
+                    atoms.info['key_value_pairs'][self.acceptance_key] = int(
+                            np.isfinite(score) and score > self.raw_score_cutoff)
+                    if not atoms.info['key_value_pairs'][self.acceptance_key]:
+                        continue
                     try:
                         sas = SlabAdsorptionSites(atoms, surface='autoadsorbate', 
                                               composition_effect=False,
@@ -736,7 +748,7 @@ class GCEMC(EMC):
                         if self.other_adsorbate_species is not None:
                             other_adsorbate_species = self.other_adsorbate_species.copy()
                         elif self.tsi_map is not None:
-                            other_adsorbate_species = [k for k in self.tsi_map.keys() if k not in adsorbate_species]
+                            other_adsorbate_species = [k for k in self.tsi_map[T] if k not in adsorbate_species]
                         if other_adsorbate_species:
                             species_probabilities = {k: 1. for k in adsorbate_species}
                             for k in other_adsorbate_species:
@@ -841,7 +853,7 @@ class GCEMC(EMC):
                     relaxed_candidates += self.pop.evaluate_offsprings(
                             parents, [relaxed_offspring1, relaxed_offspring2], prefactor='gc', volume=self.volume,
                             nonmetal_species=self.adsorbate_species, temperature_species_internal_map=self.tsi_map,
-                            no_internal_indices=self.mutable_nonmetal_indices, mutable_indices=self.mutable_metal_indices, 
+                            no_internal_indices=self.slab_indices, mutable_indices=self.mutable_metal_indices, 
                             raw_score_cutoff=self.raw_score_cutoff)
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
@@ -852,7 +864,7 @@ class GCEMC(EMC):
                             parents, [relaxed_offspring], prefactor='gc', volume=self.volume,
                             nonmetal_species=self.adsorbate_species, 
                             temperature_species_internal_map=self.tsi_map,
-                            no_internal_indices=self.mutable_nonmetal_indices, 
+                            no_internal_indices=self.slab_indices, 
                             metal_species_probabilities=self.bulk_metal_composition,
                             mutable_indices=self.mutable_metal_indices,
                             raw_score_cutoff=self.raw_score_cutoff)
@@ -890,7 +902,7 @@ class GCEMC(EMC):
                             exchange_within_temperature=True, prefactor='gc', 
                             element_column_map=self.element_column_map,
                             temperature_species_internal_map=self.tsi_map,
-                            no_internal_indices=self.mutable_nonmetal_indices,
+                            no_internal_indices=self.slab_indices,
                             state_fitness=self._state_fitness)
             logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             

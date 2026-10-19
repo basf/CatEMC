@@ -278,6 +278,9 @@ class GEEMC(EMC):
             unrelaxed_candidates = self.dc.get_all_unrelaxed_candidates()
             relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
             for atoms in relaxed_candidates:                  
+                score = atoms.info['key_value_pairs']['raw_score']
+                if not np.isfinite(score) or score <= self.raw_score_cutoff:
+                    raise RuntimeError('Initial population contains a failed fitness evaluation.')
                 atoms.info['key_value_pairs'][self.acceptance_key] = 1
         else:
             relaxed_candidates = []
@@ -322,7 +325,9 @@ class GEEMC(EMC):
                 unrelaxed_candidates = self.pop.pop
                 relaxed_candidates = self.get_relaxed_candidates(unrelaxed_candidates, run_md=True)
                 for atoms in relaxed_candidates:
-                    atoms.info['key_value_pairs'][self.acceptance_key] = 1
+                    score = atoms.info['key_value_pairs']['raw_score']
+                    atoms.info['key_value_pairs'][self.acceptance_key] = int(
+                            np.isfinite(score) and score > self.raw_score_cutoff)
                 # Update the population to allow new candidates to enter
                 self.dc.add_more_relaxed_candidates(relaxed_candidates) 
                 self.pop.update()
@@ -434,13 +439,9 @@ class GEEMC(EMC):
                                 parents, [relaxed_offspring1, relaxed_offspring2], 
                                 pressure=self.pressure, raw_score_cutoff=self.raw_score_cutoff)
                     elif parents[0].info['data']['for_operation'] == 'interswap':
-                        if (self.bias_starting_step is not None) and (gen_num + gi >= self.bias_starting_step):
-                            prefactor = 'gc' 
-                        else:
-                            prefactor = 1
                         relaxed_candidates += self.pop.evaluate_offsprings(
                                 parents, [relaxed_offspring1, relaxed_offspring2], 
-                                pressure=self.pressure, prefactor=prefactor,
+                                pressure=self.pressure, prefactor=1.,
                                 raw_score_cutoff=self.raw_score_cutoff)
                 elif len(parents) == 1:
                     rep = parents[0].info['key_value_pairs'][self.replica_key]
