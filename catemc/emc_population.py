@@ -8,6 +8,7 @@ from copy import deepcopy
 from ase.ga.population import Population
 from ase.ga import get_raw_score
 from ase.parallel import parprint
+from ase.io.jsonio import encode, decode
 from ase.units import kB
 from scipy.special import logsumexp
 import numpy as np
@@ -102,8 +103,39 @@ class EMCPopulation(Population):
                 if not eq:
                     self.pop.append(c)
         self.pop.sort(key=lambda x: x.info['key_value_pairs'][self.rk])
+        # Restore accepted state-only moves as well as accepted structures.
+        # Keep historical database rows unchanged: the current population is
+        # a small checkpoint of row ids and state metadata.
+        checkpoint = self.dc.c.metadata.get('catemc_population')
+        if checkpoint is not None:
+            by_id = {c.info['relax_id']: c for c in all_cand}
+            saved = checkpoint['candidates']
+            if all(item['id'] in by_id for item in saved):
+                current = {}
+                for item in saved:
+                    c = deepcopy(by_id[item['id']])
+                    c.info = decode(item['info'])
+                    current[c.info['key_value_pairs'][self.rk]] = c
+                for c in sorted(all_cand, key=lambda a: a.info['relax_id']):
+                    if (c.info['relax_id'] > checkpoint['last_id'] and
+                            c.info['key_value_pairs'][self.ak]):
+                        current[c.info['key_value_pairs'][self.rk]] = c
+                self.pop = self._sorted_by_replica(current.values())
         self.current_fitness = self.__get_fitness__(self.pop)
         self.all_cand = all_cand
+
+    def _checkpoint_population(self):
+        """Persist state labels/scores without overwriting historical samples."""
+        if not hasattr(self, 'dc') or not self.pop:
+            return
+        if any('relax_id' not in c.info for c in self.pop):
+            return
+        metadata = self.dc.c.metadata
+        metadata['catemc_population'] = {
+            'last_id': max(c.info['relax_id'] for c in self.all_cand),
+            'candidates': [{'id': c.info['relax_id'], 'info': encode(c.info)}
+                           for c in self.pop]}
+        self.dc.c.metadata = metadata
 
     def update(self):
         """ New candidates can be added to the database
@@ -114,6 +146,7 @@ class EMCPopulation(Population):
         self.pop = []
         self.__initialize_pop__()
 
+        self._checkpoint_population()
         self._write_log()
 
     def evaluate_offsprings(self, parents, offsprings, prefactor=1, volume=None, 
@@ -126,27 +159,12 @@ class EMCPopulation(Population):
             # Crossover or interswap
             # Will adjust replica and temperature if necessary
             assert len(offsprings) == 2
+            # Offspring i belongs to parent/state i.  Sorting by energy here
+            # changes the proposal and may use a potential from the wrong state.
             switch_to_crossover = False
-            if parents[0].info['data']['for_operation'] == 'crossover':
-                sorted_parents = sorted(parents, key=get_raw_score, reverse=True)
-                sorted_oids, sorted_offsprings = zip(*sorted(enumerate(offsprings),
-                        key=lambda t: get_raw_score(t[1]), reverse=True))
-            else:
-                if mutable_indices is not None:
-                    ctp = Counter([a.symbol for a in parents[0] if a.index not in mutable_indices])
-                    cto = Counter([a.symbol for a in offsprings[0] if a.index not in mutable_indices])
-                    if ctp != cto:
-                        switch_to_crossover = True
-                if switch_to_crossover:
-                    warnings.warn(f"Interswap not possible for [p.info['key_value_pairs'][self.rk] for p in parents] " +
-                                  f"due to non-mutable atom counts changed. Switch to crossover instead!")
-                    sorted_parents = sorted(parents, key=get_raw_score, reverse=True)
-                    sorted_oids, sorted_offsprings = zip(*sorted(enumerate(offsprings),
-                            key=lambda t: get_raw_score(t[1]), reverse=True))
-                else:
-                    sorted_parents = parents
-                    sorted_oids = [0, 1]
-                    sorted_offsprings = offsprings
+            sorted_parents = parents
+            sorted_oids = [0, 1]
+            sorted_offsprings = offsprings
             df1 = get_raw_score(sorted_offsprings[0]) - get_raw_score(sorted_parents[0])
             df2 = get_raw_score(sorted_offsprings[1]) - get_raw_score(sorted_parents[1])
             rep1 = sorted_parents[0].info['key_value_pairs'][self.rk]
@@ -173,6 +191,9 @@ class EMCPopulation(Population):
                 prefactor = None
                 accept = False
             else:
+                proposal_log = offsprings[0].info['data'].get('mc_log_proposal_ratio')
+                if proposal_log is not None:
+                    prefactor = 1.
                 if prefactor == 'gc':
                     if (parents[0].info['data']['for_operation'] == 'crossover') or switch_to_crossover:
                         prefactor = compute_crossover_prefactor(
@@ -185,7 +206,8 @@ class EMCPopulation(Population):
                                 sorted_parents[0], sorted_parents[1],
                                 offsprings[sorted_oids[0]], offsprings[sorted_oids[1]])
 
-                ln_prefactor = log_prefactor_value(prefactor)
+                ln_prefactor = (log_prefactor_value(prefactor) if proposal_log is None
+                                else proposal_log)
                 if pressure is not None:
                     V11 = sorted_parents[0].info['key_value_pairs']['volume']
                     V12 = sorted_offsprings[0].info['key_value_pairs']['volume']
@@ -196,8 +218,8 @@ class EMCPopulation(Population):
                     N21 = len([a for a in sorted_parents[1] if a.symbol != 'X'])
                     N22 = len([a for a in sorted_offsprings[1] if a.symbol != 'X'])
                     lnV = N12*np.log(V12) - N11*np.log(V11) + N22*np.log(V22) - N21*np.log(V21)
-                    df1 += pressure * (V12 - V11)
-                    df2 += pressure * (V22 - V21)
+                    df1 -= pressure * (V12 - V11)
+                    df2 -= pressure * (V22 - V21)
                     ln_prefactor += lnV
                 ln_p_acc = ln_prefactor + df1 / (kB*T1) + df2 / (kB*T2)
                 accept = metropolis_accept_log(ln_p_acc)
@@ -242,6 +264,9 @@ class EMCPopulation(Population):
                 prefactor = None
                 accept = False
             else:
+                proposal_log = offsprings[0].info['data'].get('mc_log_proposal_ratio')
+                if proposal_log is not None:
+                    prefactor = 1.
                 if prefactor == 'gc':
                     prefactor = compute_intramove_prefactor(
                             parents[0], offsprings[0], 
@@ -250,14 +275,15 @@ class EMCPopulation(Population):
                             no_internal_indices,
                             metal_species_probabilities,
                             temperature_key=self.tk)
-                ln_prefactor = log_prefactor_value(prefactor)
+                ln_prefactor = (log_prefactor_value(prefactor) if proposal_log is None
+                                else proposal_log)
                 if pressure is not None:
                     V1 = parents[0].info['key_value_pairs']['volume']
                     V2 = offsprings[0].info['key_value_pairs']['volume']
                     N1 = len([a for a in parents[0] if a.symbol != 'X'])
                     N2 = len([a for a in offsprings[0] if a.symbol != 'X'])
                     lnV = N2*np.log(V2) - N1*np.log(V1)
-                    df += pressure * (V2 - V1)
+                    df -= pressure * (V2 - V1)
                     ln_prefactor += lnV
                 ln_p_acc = ln_prefactor + df / (kB*T)
                 accept = metropolis_accept_log(ln_p_acc)
@@ -492,7 +518,7 @@ class EMCPopulation(Population):
                  exchange_within_temperature=False, 
                  prefactor=1, element_column_map=None, 
                  temperature_species_internal_map=None,
-                 no_internal_indices=None):
+                 no_internal_indices=None, state_fitness=None, pressure=None):
 
         if cand_pairs is None:
             if exchange_within_temperature:
@@ -516,23 +542,48 @@ class EMCPopulation(Population):
             f2 = get_raw_score(c2)
             T1 = c1.info['key_value_pairs'][self.tk]
             T2 = c2.info['key_value_pairs'][self.tk]
+            if state_fitness is not None:
+                mu1 = c1.info['data'].get('mu')
+                mu2 = c2.info['data'].get('mu')
+                f1 = state_fitness(c1, T1, mu1)
+                f2 = state_fitness(c2, T2, mu2)
+                f12 = state_fitness(c1, T2, mu2)
+                f21 = state_fitness(c2, T1, mu1)
+                c1.info['key_value_pairs']['raw_score'] = f1
+                c2.info['key_value_pairs']['raw_score'] = f2
             if prefactor == 'gc':
-                c12_prefactor = compute_exchange_prefactor(
+                ln_prefactor = compute_exchange_prefactor(
                         c1, c2, element_column_map, 
                         temperature_species_internal_map,
                         no_internal_indices,
-                        temperature_key=self.tk)
+                        temperature_key=self.tk,
+                        exponent=0. if state_fitness is not None else None,
+                        return_log=True)
             else:
-                c12_prefactor = prefactor
+                ln_prefactor = log_prefactor_value(prefactor)
             df = f1 - f2
-            ln_prefactor = np.log(c12_prefactor) if c12_prefactor > 0 else -np.inf
-            ln_p_acc = ln_prefactor + (1/(kB*T2)-1/(kB*T1))*df
-            accept = (ln_p_acc >= 0) or (np.log(np.random.uniform()) < ln_p_acc)
+            if state_fitness is not None:
+                ln_p_acc = ln_prefactor + (f21-f1)/(kB*T1) + (f12-f2)/(kB*T2)
+            else:
+                # Standalone use with a common metal reservoir.  GCEMC passes
+                # state_fitness to include all temperature-dependent terms.
+                shift1 = shift2 = 0.
+                if prefactor == 'gc' and element_column_map:
+                    for elem, col in element_column_map.items():
+                        dmu = c2.info['data']['mu'][col] - c1.info['data']['mu'][col]
+                        shift1 += sum(a.symbol == elem for a in c1) * dmu
+                        shift2 -= sum(a.symbol == elem for a in c2) * dmu
+                f12, f21 = f1 + shift1, f2 + shift2
+                if pressure is not None:
+                    df -= pressure * (c1.info['key_value_pairs']['volume'] -
+                                      c2.info['key_value_pairs']['volume'])
+                ln_p_acc = ln_prefactor + (1/(kB*T2)-1/(kB*T1))*df
+            accept = metropolis_accept_log(ln_p_acc)
 
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " + 
                          f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
-                         f"operation: Exchange, delta: {df}, prefactor: {c12_prefactor}.")
+                         f"operation: Exchange, delta: {df}, log prefactor: {ln_prefactor}.")
             if accept:
                 c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
                         c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]
@@ -547,6 +598,8 @@ class EMCPopulation(Population):
                 if 'mu_window' in c1.info['data']:
                     c1.info['data']['mu_window'], c2.info['data']['mu_window'] = \
                             c2.info['data']['mu_window'], c1.info['data']['mu_window']
+                c1.info['key_value_pairs']['raw_score'] = f12
+                c2.info['key_value_pairs']['raw_score'] = f21
                 if self.verbose:
                     parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
             else:
@@ -556,9 +609,12 @@ class EMCPopulation(Population):
 
         new_pop.sort(key=lambda x: x.info['key_value_pairs'][self.rk])
         self.pop = new_pop
+        self.current_fitness = self.__get_fitness__(self.pop)
+        self._checkpoint_population()
 
     def mu_walk(self, element_column_map, multiple_try=True,
-                reaction_conditions=None, free_energy_differences=None, tol=5e-3):
+                reaction_conditions=None, free_energy_differences=None, tol=5e-3,
+                state_fitness=None):
 
         new_pop = []
         for c in self.pop:
@@ -567,7 +623,22 @@ class EMCPopulation(Population):
             mu = c.info['data']['mu']
             mu_window = c.info['data']['mu_window']
             mask = np.all(mu_window==mu, axis=1)
+            if np.count_nonzero(mask) != 1:
+                raise ValueError('The current chemical potential must occur once in its window.')
             valid_rows = np.where(~mask)[0]
+            if not len(valid_rows):
+                new_pop.append(c)
+                continue
+            old_fitness = (get_raw_score(c) if state_fitness is None else
+                           state_fitness(c, T, mu))
+            c.info['key_value_pairs']['raw_score'] = old_fitness
+
+            def trial_fitness(trial_mu):
+                if state_fitness is not None:
+                    return state_fitness(c, T, trial_mu)
+                return old_fitness + sum(sum(a.symbol == k for a in c) *
+                                        (trial_mu[col] - mu[col])
+                                        for k, col in element_column_map.items())
 
             if multiple_try:
                 # multiple-try Metropolis
@@ -575,11 +646,7 @@ class EMCPopulation(Population):
                 exps = []
                 for idx in valid_rows:
                     trial_mu_c = mu_window[idx]
-                    exponent_c = 0.0
-                    for k, col in element_column_map.items():
-                        nk = len([a for a in c if a.symbol == k])
-                        exponent_c += nk * (trial_mu_c[col] - mu[col])
-                    exponent_c /= (kB * T)
+                    exponent_c = (trial_fitness(trial_mu_c) - old_fitness) / (kB * T)
                     if free_energy_differences is not None:
                         cond = np.append(mu, T)
                         grid_id = np.where(
@@ -614,18 +681,11 @@ class EMCPopulation(Population):
                 log_sum_reverse = logsumexp(reverse_exps)
                 # final lnR as derived in the note
                 lnR = log_sum_forward - log_sum_reverse - exps_chosen
-                if lnR >= 0:
-                    accept = True
-                else:
-                    accept = (np.random.uniform() < np.exp(lnR))
+                accept = metropolis_accept_log(lnR)
             else:
                 # single-try Metropolis
                 trial_mu = mu_window[np.random.choice(valid_rows)]
-                exponent = 0.0
-                for k, col in element_column_map.items():
-                    nk = len([a for a in c if a.symbol == k])
-                    exponent += nk * (trial_mu[col] - mu[col])
-                exponent /= (kB * T)
+                exponent = (trial_fitness(trial_mu) - old_fitness) / (kB * T)
                 if free_energy_differences is not None:
                     cond = np.append(mu, T)
                     grid_id = np.where(
@@ -637,10 +697,10 @@ class EMCPopulation(Population):
                     if not np.isscalar(df):
                         df = df[0]
                     exponent += df
-                p_acc = min([1, np.exp(exponent)])
-                accept = (p_acc > np.random.uniform())
+                accept = metropolis_accept_log(exponent)
 
             if accept:
+                c.info['key_value_pairs']['raw_score'] = trial_fitness(trial_mu)
                 c.info['data']['mu'] = trial_mu
                 if self.verbose:
                     parprint(f'Replica {rep} mu-walk move accepted!')
@@ -650,6 +710,8 @@ class EMCPopulation(Population):
             new_pop.append(c)
 
         self.pop = new_pop
+        self.current_fitness = self.__get_fitness__(self.pop)
+        self._checkpoint_population()
 
     def get_all_parents(self, n_crossover_pairs=1, n_interswap_pairs=0,
                         crossover_by_boltzmann_first=False,        

@@ -18,6 +18,10 @@ def compute_intramove_prefactor(
         temperature_key='temperature',
         ):
 
+    if 'mc_log_proposal_ratio' in trial_atoms.info.get('data', {}):
+        # EMCMutation changes labelled lattice sites (including O/X sites),
+        # not particles inserted uniformly into a continuous gas volume.
+        return np.exp(trial_atoms.info['data']['mc_log_proposal_ratio'])
     real_indices = [a.index for a in atoms if a.symbol != 'X']
     atoms = atoms[real_indices]
     orig_to_new = {idx: i for i, idx in enumerate(real_indices)}
@@ -91,14 +95,13 @@ def compute_intramove_prefactor(
                 n = k
             if ect1[k] - ect2[k] == 1:
                 m = k
-            try:
-                prefactor *= (math.factorial(ect1[k]) / math.factorial(ect2[k]))
-            except:
-                prefactor *= np.exp(stirling(ect1[k]) - stirling(ect2[k]))
+            # Explicit metal-site assignments already count the distinct
+            # arrangements.  A further N_m/(N_n+1) double-counts that entropy.
 
     if (metal_species_probabilities is not None) and (m is not None) and (n is not None):
-        prefactor *= (metal_species_probabilities[m] * (1 - metal_species_probabilities[m]))
-        prefactor /= (metal_species_probabilities[n] * (1 - metal_species_probabilities[n]))
+        total = sum(metal_species_probabilities.values())
+        wm, wn = metal_species_probabilities[m], metal_species_probabilities[n]
+        prefactor *= wm * (total - wm) / (wn * (total - wn))
 
     return prefactor
 
@@ -106,22 +109,21 @@ def compute_intramove_prefactor(
 def compute_interswap_prefactor(
         atoms1, atoms2, trial_atoms1, trial_atoms2=None):
 
-    ect11, ect12 = Counter(atoms1.symbols), Counter(trial_atoms1.symbols)
-    for k in set(list(ect11.keys()) + list(ect12.keys())):
-        if k not in ect11:
-            ect11[k] = 0
-        if k not in ect12:
-            ect12[k] = 0
-    mutated_elements = [k for k, v in ect11.items() if v != ect12[k]]
-    mutated_elements.sort(key=lambda x: ect12[x] - ect11[x])
-    m1, m2 = mutated_elements
-    N11 = len([a for a in atoms1 if a.symbol == m1])
-    N12 = len([a for a in atoms1 if a.symbol == m2])
-    N21 = len([a for a in atoms2 if a.symbol == m1])
-    N22 = len([a for a in atoms2 if a.symbol == m2])
-    prefactor = N11 * N22 / (N12 + 1) / (N21 + 1)
+    """Proposal ratio for unlike-index-pair selection, not species-first swaps.
 
-    return prefactor
+    EMCInterSwap supplies the exact ratio for its allowed indices and weights.
+    Without that metadata, this helper assumes all indices and uniform pairs.
+    """
+    if 'mc_log_proposal_ratio' in trial_atoms1.info.get('data', {}):
+        return np.exp(trial_atoms1.info['data']['mc_log_proposal_ratio'])
+    if trial_atoms2 is None:
+        raise ValueError('Both trial replicas are needed for an interswap ratio.')
+    def unlike_pairs(a, b):
+        ca, cb = Counter(a.symbols), Counter(b.symbols)
+        return len(a) * len(b) - sum(v * cb[k] for k, v in ca.items())
+    forward = unlike_pairs(atoms1, atoms2)
+    reverse = unlike_pairs(trial_atoms1, trial_atoms2)
+    return forward / reverse if reverse else 0.
 
 
 def compute_crossover_prefactor(
@@ -155,6 +157,13 @@ def compute_crossover_prefactor(
     ect21, ect22 = Counter(atoms2.symbols), Counter(trial_atoms2.symbols)
     if temperature_species_internal_map is None:
         fct11, fct12, fct21, fct22 = ect11, ect12, ect21, ect22        
+        if no_internal_indices is not None:
+            counts = []
+            for a, mapping in [(atoms1, orig_to_new1), (trial_atoms1, trial_to_new1),
+                               (atoms2, orig_to_new2), (trial_atoms2, trial_to_new2)]:
+                fixed = {mapping[i] for i in no_internal_indices if i in mapping}
+                counts.append(Counter(atom.symbol for atom in a if atom.index not in fixed))
+            fct11, fct12, fct21, fct22 = counts
     else:
         ads11 = atoms1.info['data']['fragments']
         ads12 = trial_atoms1.info['data']['fragments']
@@ -184,6 +193,7 @@ def compute_crossover_prefactor(
             for s in set(lattice_specs22):
                 if s in nfct22:
                     nfct22[s] -= len([spec for spec in lattice_specs22 if spec == s])
+            fct11, fct12, fct21, fct22 = nfct11, nfct12, nfct21, nfct22
 
     prefactor = 1
     for k in set(list(fct11.keys()) + list(fct12.keys()) + list(fct21.keys()) + list(fct22.keys()) +
@@ -214,11 +224,9 @@ def compute_crossover_prefactor(
                     prefactor *= (np.exp(stirling(fct11[k]) - stirling(fct12[k]) + stirling(fct21[k]) - stirling(fct22[k]))
                                   * frac1**delta_Nk1 * frac2**delta_Nk2)
         else:
-            try:
-                prefactor *= (math.factorial(ect11[k]) / math.factorial(ect12[k]) * math.factorial(ect21[k]) 
-                              / math.factorial(ect22[k]))
-            except:
-                prefactor *= np.exp(stirling(ect11[k]) - stirling(ect12[k]) + stirling(ect21[k]) - stirling(ect22[k]))
+            # Metal identities are explicit labelled-site assignments, as in
+            # EMCMutation and EMCInterSwap; no additional count factorials.
+            pass
 
     return prefactor
 
@@ -230,6 +238,7 @@ def compute_exchange_prefactor(
         no_internal_indices=None,
         temperature_key='temperature',
         exponent=None,
+        return_log=False,
         ):
 
     real_indices1 = [a.index for a in atoms1 if a.symbol != 'X']
@@ -256,7 +265,17 @@ def compute_exchange_prefactor(
         N_frag1 = len(atoms1.info['data']['fragments'])       
         N_frag2 = len(atoms2.info['data']['fragments'])
 
-    prefactor = (beta2/beta1)**(1.5*(N_frag2 - N_frag1))
+    if no_internal_indices is not None:
+        # These are explicit lattice occupations, including oxygen/vacancies.
+        # Their site multiplicity is counted by assignments, not a gas volume.
+        nonmetals = (set(element_column_map) if element_column_map is not None else
+                     set(adsorbate_elements))
+        N_frag1 -= sum(atoms1[orig_to_new1[i]].symbol in nonmetals
+                       for i in no_internal_indices if i in orig_to_new1)
+        N_frag2 -= sum(atoms2[orig_to_new2[i]].symbol in nonmetals
+                       for i in no_internal_indices if i in orig_to_new2)
+
+    log_prefactor = 1.5 * (N_frag2 - N_frag1) * np.log(beta2 / beta1)
     if temperature_species_internal_map is not None:
         fct1 = Counter(atoms1.info['data']['fragments'])
         fct2 = Counter(atoms2.info['data']['fragments'])
@@ -271,9 +290,10 @@ def compute_exchange_prefactor(
             for s in set(lattice_specs2):
                 if s in fct2:
                     fct2[s] -= len([spec for spec in lattice_specs2 if spec == s])
-        prefactor *= np.prod([(temperature_species_internal_map[T1][k] / 
-                temperature_species_internal_map[T2][k])**(fct2[k] - fct1[k]) 
-                for k in temperature_species_internal_map[T1].keys()])
+        log_prefactor += sum((fct2[k] - fct1[k]) *
+                            (np.log(temperature_species_internal_map[T1][k]) -
+                             np.log(temperature_species_internal_map[T2][k]))
+                            for k in temperature_species_internal_map[T1])
 
     if exponent is None:
         exponent = 0
@@ -284,9 +304,8 @@ def compute_exchange_prefactor(
                     mu1 = atoms1.info['data']['mu'][col]
                     mu2 = atoms2.info['data']['mu'][col]
                     exponent += (beta1*ect2[k] - beta2*ect1[k]) * (mu2 - mu1)
-    prefactor /= np.exp(exponent)
-
-    return prefactor
+    log_prefactor -= exponent
+    return log_prefactor if return_log else np.exp(log_prefactor)
 
 
 def stirling(x):

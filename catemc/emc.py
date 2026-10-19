@@ -738,7 +738,7 @@ class EMC(object):
             self.pop.update()
             if (self.exchange_generation is not None) and (self.exchange_generation > 0):
                 if (gen_num + gi) % self.exchange_generation == 0:
-                    self.pop.exchange(keep_composition=True)
+                    self.pop.exchange(keep_composition=True, pressure=self.pressure)
             logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             
             self.write_population_traj(gen_num + gi)

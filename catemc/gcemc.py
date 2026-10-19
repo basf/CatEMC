@@ -24,7 +24,7 @@ from ase import units
 from ase.io.trajectory import Trajectory
 from ase.ga.data import DataConnection, PrepareDB
 from ase.parallel import parprint
-from collections import defaultdict
+from collections import defaultdict, Counter
 from itertools import combinations
 import numpy as np
 import warnings
@@ -423,6 +423,28 @@ class GCEMC(EMC):
             'adsorbate_surface_dmax', 'ignore_sites',
         }
 
+    def _state_fitness(self, atoms, temperature, mu):
+        """Evaluate -Phi at a state using the already stored potential energy.
+
+        No calculator call or structural relaxation is needed.  Custom fitness
+        functions must store the same physical potential_energy convention.
+        """
+        energy = atoms.info['key_value_pairs']['potential_energy']
+        if not np.isfinite(energy):
+            raise ValueError('A finite stored potential_energy is required for state moves.')
+        if self.tdmu_map is not None and temperature not in self.tdmu_map:
+            raise ValueError('Metal chemical potentials are missing for temperature '
+                             f'{temperature}.')
+        counts = Counter(atoms.get_chemical_symbols())
+        num_metal = sum(counts[m] for m in self.metal_element_pool)
+        grid = (np.array([temperature]) if mu is None else
+                np.array([np.append(mu, temperature)]))
+        return -float(compute_phi(
+                counts, self.metal_element_pool, self.bulk_metal_composition,
+                self.tdmu_map, grid, self.element_column_map,
+                self.element_eref_map, self.element_y2x_map,
+                num_metal, energy, dimensionless=False)[0])
+
     def calculate_free_energy_differences(self, starting_step, ending_step, sample_stride, tol=5e-3):
 
         from pymbar import MBAR
@@ -671,6 +693,13 @@ class GCEMC(EMC):
                 self.dc.add_more_relaxed_candidates(relaxed_candidates) 
                 self.pop.update()
            
+            # Also repairs stale scores when resuming an older database;
+            # this changes no historical configurations or stored energies.
+            for atoms in self.pop.pop:
+                atoms.info['key_value_pairs']['raw_score'] = self._state_fitness(
+                        atoms, atoms.info['key_value_pairs'][self.temperature_key],
+                        atoms.info['data'].get('mu'))
+            self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
             n_crossover_pairs = round((self.pop_size * self.crossover_rate) / 2)
             n_interswap_pairs = round((self.pop_size * self.interswap_rate) / 2)
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs,
@@ -844,7 +873,8 @@ class GCEMC(EMC):
                         pass
             if (self.mu_walk_generation is not None) and (self.mu_walk_generation > 0):
                 if (gen_num + gi) % self.mu_walk_generation == 0:
-                    if gen_num + gi >= self.bias_starting_step:
+                    if (self.bias_starting_step is not None and
+                            gen_num + gi >= self.bias_starting_step):
                         df_path = f'{self.calculation_dir}/{self.name}_free_energy_differences.npy'
                         df = np.load(df_path)
                     else:
@@ -852,14 +882,16 @@ class GCEMC(EMC):
                     self.pop.mu_walk(element_column_map=self.element_column_map,
                                      multiple_try=True,
                                      reaction_conditions=self.reaction_conditions,
-                                     free_energy_differences=df)
+                                     free_energy_differences=df,
+                                     state_fitness=self._state_fitness)
             if (self.exchange_generation is not None) and (self.exchange_generation > 0):
                 if (gen_num + gi) % self.exchange_generation == 0:
                     self.pop.exchange(
                             exchange_within_temperature=True, prefactor='gc', 
                             element_column_map=self.element_column_map,
                             temperature_species_internal_map=self.tsi_map,
-                            no_internal_indices=self.mutable_nonmetal_indices)
+                            no_internal_indices=self.mutable_nonmetal_indices,
+                            state_fitness=self._state_fitness)
             logger.generation(gen_num + gi, relaxed_candidates, self.pop.pop)
             
             self.write_population_traj(gen_num + gi)
