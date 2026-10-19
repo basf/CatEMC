@@ -426,9 +426,12 @@ class GCEMC(EMC):
     def _state_fitness(self, atoms, temperature, mu):
         """Evaluate -Phi at a state using the already stored potential energy.
 
-        No calculator call or structural relaxation is needed.  Custom fitness
-        functions must store the same physical potential_energy convention.
+        No calculator call or structural relaxation is needed. Custom fitness
+        functions must override this method with their own state dependence.
         """
+        if not self.uses_builtin_fitness():
+            raise ValueError('Custom fitness requires a matching _state_fitness '
+                             'implementation for exchange and chemical-potential moves.')
         if temperature <= 0 or not np.isfinite(temperature):
             raise ValueError('Temperature must be finite and positive.')
         score = atoms.info['key_value_pairs'].get('raw_score')
@@ -705,13 +708,6 @@ class GCEMC(EMC):
                 self.dc.add_more_relaxed_candidates(relaxed_candidates) 
                 self.pop.update()
            
-            # Also repairs stale scores when resuming an older database;
-            # this changes no historical configurations or stored energies.
-            for atoms in self.pop.pop:
-                atoms.info['key_value_pairs']['raw_score'] = self._state_fitness(
-                        atoms, atoms.info['key_value_pairs'][self.temperature_key],
-                        atoms.info['data'].get('mu'))
-            self.pop.current_fitness = self.pop.__get_fitness__(self.pop.pop)
             n_crossover_pairs = round((self.pop_size * self.crossover_rate) / 2)
             n_interswap_pairs = round((self.pop_size * self.interswap_rate) / 2)
             all_parents = self.pop.get_all_parents(n_crossover_pairs, n_interswap_pairs,

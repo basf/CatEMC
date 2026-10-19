@@ -5,6 +5,7 @@ from ase.ga.offspring_creator import OffspringCreator
 from acat.ga.particle_crossovers import SimpleCutSpliceCrossover
 from acat.ga.adsorbate_operators import CatalystAdsorbateCrossover
 from acat.ga.slab_operators import RandomSlabMutation, RandomSlabPermutation
+from copy import copy
 import numpy as np
 import random
 
@@ -181,12 +182,9 @@ class EMCIntraSwap(RandomSlabPermutation):
 
     def get_new_individual(self, parents):
 
-        allowed = self.allowed_indices
-        try:
-            indi, msg = super().get_new_individual(parents=parents)
-        finally:
-            # ACAT narrows this attribute to the selected group in each call.
-            self.allowed_indices = allowed
+        # ACAT narrows allowed_indices during a call. Keep that change local.
+        operator = copy(self)
+        indi, msg = RandomSlabPermutation.get_new_individual(operator, parents)
         if indi is None:
             indi = self.initialize_individual(parents[0], parents[0])
             indi.info['data']['mc_log_proposal_ratio'] = -np.inf
@@ -246,14 +244,12 @@ class EMCMutation(RandomSlabMutation):
 
     def get_new_individual(self, parents):
 
-        allowed = self.allowed_indices
-        try:
-            indi, msg, mutated_elements = super().get_new_individual(
-                    parents=parents, return_mutated_elements=True)
-            indices = (list(range(len(indi))) if self.allowed_indices is None
-                       else self.allowed_indices)
-        finally:
-            self.allowed_indices = allowed
+        # ACAT narrows allowed_indices during a call. Keep that change local.
+        operator = copy(self)
+        indi, msg, mutated_elements = RandomSlabMutation.get_new_individual(
+                operator, parents, return_mutated_elements=True)
+        indices = (list(range(len(indi))) if operator.allowed_indices is None
+                   else operator.allowed_indices)
         m, n = mutated_elements
         qf = self._species_probability(m, n, parents[0][indices])
         qr = self._species_probability(n, m, indi[indices])

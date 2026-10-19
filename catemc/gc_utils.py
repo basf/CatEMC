@@ -31,18 +31,11 @@ def compute_intramove_prefactor(
         metal_species_probabilities=None, temperature_key='temperature',
         return_log=False):
     proposal_log = trial_atoms.info.get('data', {}).get('mc_log_proposal_ratio')
-    fixed = set(() if no_internal_indices is None else no_internal_indices)
-    if proposal_log is not None:
-        # The mutated indices are discrete occupations even for standalone use.
-        if len(atoms) == len(trial_atoms):
-            fixed.update(np.flatnonzero(atoms.numbers != trial_atoms.numbers))
-        log_ratio = float(proposal_log)
-    else:
-        log_ratio = 0.
+    log_ratio = 0. if proposal_log is None else float(proposal_log)
     before = _mobile_fragment_counts(atoms, nonmetal_species,
-                                     temperature_species_internal_map, fixed)
+                                     temperature_species_internal_map, no_internal_indices)
     after = _mobile_fragment_counts(trial_atoms, nonmetal_species,
-                                    temperature_species_internal_map, fixed)
+                                    temperature_species_internal_map, no_internal_indices)
     T = atoms.info['key_value_pairs'][temperature_key]
     for k in before.keys() | after.keys():
         n0, n1 = before[k], after[k]
@@ -73,15 +66,10 @@ def compute_intramove_prefactor(
 
 def compute_interswap_prefactor(atoms1, atoms2, trial_atoms1, trial_atoms2=None):
     """Reverse/forward unlike-index-pair proposal ratio, without target weights."""
-    if 'mc_log_proposal_ratio' in trial_atoms1.info.get('data', {}):
-        return np.exp(trial_atoms1.info['data']['mc_log_proposal_ratio'])
-    if trial_atoms2 is None:
-        raise ValueError('Both trial replicas are needed for an interswap ratio.')
-    def unlike_pairs(a, b):
-        ca, cb = Counter(a.symbols), Counter(b.symbols)
-        return len(a)*len(b) - sum(v*cb[k] for k, v in ca.items())
-    forward, reverse = unlike_pairs(atoms1, atoms2), unlike_pairs(trial_atoms1, trial_atoms2)
-    return forward / reverse if reverse else 0.
+    proposal_log = trial_atoms1.info.get('data', {}).get('mc_log_proposal_ratio')
+    if proposal_log is None:
+        raise ValueError('Interswap requires the proposal ratio recorded by EMCInterSwap.')
+    return np.exp(proposal_log)
 
 
 def compute_crossover_prefactor(
