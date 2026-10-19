@@ -137,6 +137,7 @@ class EMCPopulation(Population):
                            for c in self.pop]}
         self.dc.c.metadata = metadata
 
+
     def update(self):
         """ New candidates can be added to the database
             after the population object has been created.
@@ -159,57 +160,61 @@ class EMCPopulation(Population):
             # Crossover or interswap
             # Will adjust replica and temperature if necessary
             assert len(offsprings) == 2
-            # Offspring i belongs to parent/state i.  Sorting by energy here
-            # changes the proposal and may use a potential from the wrong state.
-            df1 = get_raw_score(offsprings[0]) - get_raw_score(parents[0])
-            df2 = get_raw_score(offsprings[1]) - get_raw_score(parents[1])
-            rep1 = parents[0].info['key_value_pairs'][self.rk]
-            rep2 = parents[1].info['key_value_pairs'][self.rk]
-            T1 = parents[0].info['key_value_pairs'][self.tk]
-            T2 = parents[1].info['key_value_pairs'][self.tk]
-            offsprings[0].info['key_value_pairs'][self.rk] = rep1
-            offsprings[1].info['key_value_pairs'][self.rk] = rep2
-            offsprings[0].info['key_value_pairs'][self.tk] = T1
-            offsprings[1].info['key_value_pairs'][self.tk] = T2
+            # Keep each offspring at the state used to evaluate its fitness.
+            sorted_parents = parents
+            sorted_oids = [0, 1]
+            sorted_offsprings = offsprings
+            df1 = get_raw_score(sorted_offsprings[0]) - get_raw_score(sorted_parents[0])
+            df2 = get_raw_score(sorted_offsprings[1]) - get_raw_score(sorted_parents[1])
+            rep1 = sorted_parents[0].info['key_value_pairs'][self.rk]
+            rep2 = sorted_parents[1].info['key_value_pairs'][self.rk]
+            T1 = sorted_parents[0].info['key_value_pairs'][self.tk]
+            T2 = sorted_parents[1].info['key_value_pairs'][self.tk]
+            offsprings[sorted_oids[0]].info['key_value_pairs'][self.rk] = rep1
+            offsprings[sorted_oids[1]].info['key_value_pairs'][self.rk] = rep2
+            offsprings[sorted_oids[0]].info['key_value_pairs'][self.tk] = T1
+            offsprings[sorted_oids[1]].info['key_value_pairs'][self.tk] = T2
             if self.ck is not None:
-                C1 = parents[0].info['key_value_pairs'][self.ck]
-                C2 = parents[1].info['key_value_pairs'][self.ck]
-                offsprings[0].info['key_value_pairs'][self.ck] = C1
-                offsprings[1].info['key_value_pairs'][self.ck] = C2
-            if 'mu' in parents[0].info['data']:
-                offsprings[0].info['data']['mu'] = parents[0].info['data']['mu']
-                offsprings[1].info['data']['mu'] = parents[1].info['data']['mu']
-            if 'mu_window' in parents[0].info['data']:
-                offsprings[0].info['data']['mu_window'] = parents[0].info['data']['mu_window']
-                offsprings[1].info['data']['mu_window'] = parents[1].info['data']['mu_window']
+                C1 = sorted_parents[0].info['key_value_pairs'][self.ck]
+                C2 = sorted_parents[1].info['key_value_pairs'][self.ck]
+                offsprings[sorted_oids[0]].info['key_value_pairs'][self.ck] = C1
+                offsprings[sorted_oids[1]].info['key_value_pairs'][self.ck] = C2
+            if 'mu' in sorted_parents[0].info['data']:
+                offsprings[sorted_oids[0]].info['data']['mu'] = sorted_parents[0].info['data']['mu']
+                offsprings[sorted_oids[1]].info['data']['mu'] = sorted_parents[1].info['data']['mu']
+            if 'mu_window' in sorted_parents[0].info['data']:
+                offsprings[sorted_oids[0]].info['data']['mu_window'] = sorted_parents[0].info['data']['mu_window']
+                offsprings[sorted_oids[1]].info['data']['mu_window'] = sorted_parents[1].info['data']['mu_window']
 
             if any(o for o in offsprings if get_raw_score(o) <= raw_score_cutoff):
                 prefactor = None
                 accept = False
             else:
-                proposal_log = offsprings[0].info['data'].get('mc_log_proposal_ratio')
                 if prefactor == 'gc':
                     ln_prefactor = compute_crossover_prefactor(
-                            parents[0], parents[1], offsprings[0], offsprings[1],
+                            sorted_parents[0], sorted_parents[1],
+                            offsprings[sorted_oids[0]], offsprings[sorted_oids[1]],
                             nonmetal_species, temperature_species_internal_map,
                             no_internal_indices, temperature_key=self.tk,
                             volume=volume, return_log=True)
-                    if proposal_log is None and parents[0].info['data']['for_operation'] == 'interswap':
-                        proposal_log = log_prefactor_value(compute_interswap_prefactor(
-                                parents[0], parents[1], offsprings[0], offsprings[1]))
                 else:
                     ln_prefactor = log_prefactor_value(prefactor)
+                proposal_log = offsprings[0].info['data'].get('mc_log_proposal_ratio')
                 if proposal_log is not None:
                     ln_prefactor += proposal_log
+                elif prefactor == 'gc' and parents[0].info['data']['for_operation'] == 'interswap':
+                    ln_prefactor += log_prefactor_value(compute_interswap_prefactor(
+                            sorted_parents[0], sorted_parents[1],
+                            offsprings[sorted_oids[0]], offsprings[sorted_oids[1]]))
                 if pressure is not None:
-                    V11 = parents[0].info['key_value_pairs']['volume']
-                    V12 = offsprings[0].info['key_value_pairs']['volume']
-                    V21 = parents[1].info['key_value_pairs']['volume']
-                    V22 = offsprings[1].info['key_value_pairs']['volume']
-                    N11 = len([a for a in parents[0] if a.symbol != 'X'])
-                    N12 = len([a for a in offsprings[0] if a.symbol != 'X'])
-                    N21 = len([a for a in parents[1] if a.symbol != 'X'])
-                    N22 = len([a for a in offsprings[1] if a.symbol != 'X'])
+                    V11 = sorted_parents[0].info['key_value_pairs']['volume']
+                    V12 = sorted_offsprings[0].info['key_value_pairs']['volume']
+                    V21 = sorted_parents[1].info['key_value_pairs']['volume']
+                    V22 = sorted_offsprings[1].info['key_value_pairs']['volume']
+                    N11 = len([a for a in sorted_parents[0] if a.symbol != 'X'])
+                    N12 = len([a for a in sorted_offsprings[0] if a.symbol != 'X'])
+                    N21 = len([a for a in sorted_parents[1] if a.symbol != 'X'])
+                    N22 = len([a for a in sorted_offsprings[1] if a.symbol != 'X'])
                     lnV = N12*np.log(V12) - N11*np.log(V11) + N22*np.log(V22) - N21*np.log(V21)
                     df1 -= pressure * (V12 - V11)
                     df2 -= pressure * (V22 - V21)
@@ -218,8 +223,8 @@ class EMCPopulation(Population):
                 accept = metropolis_accept_log(ln_p_acc)
             if self.verbose:
                 parprint(f"Replicas: {[rep1, rep2]}, " + 
-                         f"parents: {[parents[0].get_chemical_formula(), parents[1].get_chemical_formula()]}, " +
-                         f"offsprings: {[offsprings[0].get_chemical_formula(), offsprings[1].get_chemical_formula()]}, " +
+                         f"parents: {[sorted_parents[0].get_chemical_formula(), sorted_parents[1].get_chemical_formula()]}, " +
+                         f"offsprings: {[sorted_offsprings[0].get_chemical_formula(), sorted_offsprings[1].get_chemical_formula()]}, " +
                          f"operation: {offsprings[0].info['key_value_pairs']['origin']}, " + 
                          f"deltas: {df1} and {df2}, prefactor: {prefactor}.")
             if accept:
@@ -233,15 +238,15 @@ class EMCPopulation(Population):
                 if self.verbose:
                     parprint(f'Replicas {rep1} {rep2} inter move rejected!')
             if self.store_delta:
-                offsprings[0].info['key_value_pairs']['delta'] = df1
-                offsprings[1].info['key_value_pairs']['delta'] = df2
+                offsprings[sorted_oids[0]].info['key_value_pairs']['delta'] = df1
+                offsprings[sorted_oids[1]].info['key_value_pairs']['delta'] = df2
                 if pressure is not None:
                     if prefactor is None:
-                        offsprings[0].info['key_value_pairs']['volume_ratio'] = 1.
-                        offsprings[1].info['key_value_pairs']['volume_ratio'] = 1.
+                        offsprings[sorted_oids[0]].info['key_value_pairs']['volume_ratio'] = 1.
+                        offsprings[sorted_oids[1]].info['key_value_pairs']['volume_ratio'] = 1.
                     else:
-                        offsprings[0].info['key_value_pairs']['volume_ratio'] = V12 / V11
-                        offsprings[1].info['key_value_pairs']['volume_ratio'] = V22 / V21
+                        offsprings[sorted_oids[0]].info['key_value_pairs']['volume_ratio'] = V12 / V11
+                        offsprings[sorted_oids[1]].info['key_value_pairs']['volume_ratio'] = V22 / V21
 
         elif len(parents) == 1:
             # Mutation
@@ -259,10 +264,12 @@ class EMCPopulation(Population):
             else:
                 if prefactor == 'gc':
                     ln_prefactor = compute_intramove_prefactor(
-                            parents[0], offsprings[0], volume, nonmetal_species,
-                            temperature_species_internal_map, no_internal_indices,
-                            metal_species_probabilities, temperature_key=self.tk,
-                            return_log=True)
+                            parents[0], offsprings[0],
+                            volume, nonmetal_species,
+                            temperature_species_internal_map,
+                            no_internal_indices,
+                            metal_species_probabilities,
+                            temperature_key=self.tk, return_log=True)
                 else:
                     ln_prefactor = log_prefactor_value(prefactor)
                     ln_prefactor += offsprings[0].info['data'].get('mc_log_proposal_ratio', 0.)
@@ -515,7 +522,6 @@ class EMCPopulation(Population):
             else:
                 cand_pairs = self.get_exchange_pairs_between_temperatures(keep_composition)
 
-        # Explicit pair lists may cover only part of the population.
         cand_pairs = list(cand_pairs)
         paired = {c.info['key_value_pairs'][self.rk] for pair in cand_pairs for c in pair}
         cand_pairs += [(c,) for c in self.pop if c.info['key_value_pairs'][self.rk] not in paired]
@@ -538,14 +544,18 @@ class EMCPopulation(Population):
             T1 = c1.info['key_value_pairs'][self.tk]
             T2 = c2.info['key_value_pairs'][self.tk]
             if state_fitness is not None:
-                mu1 = c1.info['data'].get('mu')
-                mu2 = c2.info['data'].get('mu')
-                f1 = state_fitness(c1, T1, mu1)
-                f2 = state_fitness(c2, T2, mu2)
-                f12 = state_fitness(c1, T2, mu2)
-                f21 = state_fitness(c2, T1, mu1)
+                mu1, mu2 = c1.info['data'].get('mu'), c2.info['data'].get('mu')
+                f1, f2 = state_fitness(c1, T1, mu1), state_fitness(c2, T2, mu2)
+                f12, f21 = state_fitness(c1, T2, mu2), state_fitness(c2, T1, mu1)
                 c1.info['key_value_pairs']['raw_score'] = f1
                 c2.info['key_value_pairs']['raw_score'] = f2
+            else:
+                f12, f21 = f1, f2
+                if prefactor == 'gc' and element_column_map:
+                    for k, col in element_column_map.items():
+                        dmu = c2.info['data']['mu'][col] - c1.info['data']['mu'][col]
+                        f12 += sum(a.symbol == k for a in c1) * dmu
+                        f21 -= sum(a.symbol == k for a in c2) * dmu
             if prefactor == 'gc':
                 ln_prefactor = compute_exchange_prefactor(
                         c1, c2, element_column_map, 
@@ -557,21 +567,10 @@ class EMCPopulation(Population):
             else:
                 ln_prefactor = log_prefactor_value(prefactor)
             df = f1 - f2
+            ln_p_acc = ln_prefactor + (1/(kB*T2)-1/(kB*T1))*df
             if state_fitness is not None:
                 ln_p_acc = ln_prefactor + (f21-f1)/(kB*T1) + (f12-f2)/(kB*T2)
-            else:
-                # Standalone use with a common metal reservoir.  GCEMC passes
-                # state_fitness to include all temperature-dependent terms.
-                shift1 = shift2 = 0.
-                if prefactor == 'gc' and element_column_map:
-                    for elem, col in element_column_map.items():
-                        dmu = c2.info['data']['mu'][col] - c1.info['data']['mu'][col]
-                        shift1 += sum(a.symbol == elem for a in c1) * dmu
-                        shift2 -= sum(a.symbol == elem for a in c2) * dmu
-                f12, f21 = f1 + shift1, f2 + shift2
-                ln_p_acc = ln_prefactor + (1/(kB*T2)-1/(kB*T1))*df
             if pressure is not None:
-                # Scores/state_fitness exclude pV. Add common-pressure work once.
                 ln_p_acc += (1/(kB*T2)-1/(kB*T1)) * pressure * (
                         c2.info['key_value_pairs']['volume'] - c1.info['key_value_pairs']['volume'])
             accept = metropolis_accept_log(ln_p_acc)
@@ -581,6 +580,8 @@ class EMCPopulation(Population):
                          f"Formulas: {[c1.get_chemical_formula(), c2.get_chemical_formula()]}, " +
                          f"operation: Exchange, delta: {df}, log prefactor: {ln_prefactor}.")
             if accept:
+                c1.info['key_value_pairs']['raw_score'] = f12
+                c2.info['key_value_pairs']['raw_score'] = f21
                 c1.info['key_value_pairs'][self.rk], c2.info['key_value_pairs'][self.rk] = \
                         c2.info['key_value_pairs'][self.rk], c1.info['key_value_pairs'][self.rk]
                 c1.info['key_value_pairs'][self.tk], c2.info['key_value_pairs'][self.tk] = \
@@ -594,8 +595,6 @@ class EMCPopulation(Population):
                 if 'mu_window' in c1.info['data']:
                     c1.info['data']['mu_window'], c2.info['data']['mu_window'] = \
                             c2.info['data']['mu_window'], c1.info['data']['mu_window']
-                c1.info['key_value_pairs']['raw_score'] = f12
-                c2.info['key_value_pairs']['raw_score'] = f21
                 if self.verbose:
                     parprint(f'Replicas {rep1} and {rep2} exchange move accepted!')
             else:
@@ -611,67 +610,131 @@ class EMCPopulation(Population):
     def mu_walk(self, element_column_map, multiple_try=True,
                 reaction_conditions=None, free_energy_differences=None, tol=5e-3,
                 state_fitness=None):
+
         if free_energy_differences is not None:
-            grid = np.asarray(reaction_conditions, dtype=float)
-            differences = np.asarray(free_energy_differences, dtype=float)
-            if grid.ndim != 2 or differences.shape != (len(grid), len(grid)):
+            reaction_conditions = np.asarray(reaction_conditions, dtype=float)
+            free_energy_differences = np.asarray(free_energy_differences, dtype=float)
+            if (reaction_conditions.ndim != 2 or free_energy_differences.shape !=
+                    (len(reaction_conditions), len(reaction_conditions))):
                 raise ValueError('Bias differences must match the reaction-condition grid.')
-            bias = differences[0]
-            if (not np.all(np.isfinite(differences)) or
-                    not np.allclose(differences, bias[None, :] - bias[:, None], rtol=1e-10, atol=1e-10)):
+            bias = free_energy_differences[0]
+            if (not np.all(np.isfinite(free_energy_differences)) or not np.allclose(
+                    free_energy_differences, bias[None,:]-bias[:,None], rtol=1e-10, atol=1e-10)):
                 raise ValueError('Bias differences must derive from one fixed state-weight vector.')
 
+        new_pop = []
         for c in self.pop:
             rep = c.info['key_value_pairs'][self.rk]
             T = c.info['key_value_pairs'][self.tk]
-            mu = np.asarray(c.info['data']['mu'], dtype=float)
-            window = np.asarray(c.info['data']['mu_window'], dtype=float)
-            if (window.ndim != 2 or window.shape[1] != len(mu) or
-                    not np.all(np.isfinite(window)) or len(np.unique(window, axis=0)) != len(window)):
-                raise ValueError('The chemical-potential window must contain distinct finite states.')
-            current = np.flatnonzero(np.all(window == mu, axis=1))
-            if len(current) != 1:
+            mu = c.info['data']['mu']
+            mu_window = np.asarray(c.info['data']['mu_window'], dtype=float)
+            if (T <= 0 or not np.isfinite(T) or mu_window.ndim != 2 or
+                    mu_window.shape[1] != len(mu) or not np.all(np.isfinite(mu_window)) or
+                    len(np.unique(mu_window, axis=0)) != len(mu_window)):
+                raise ValueError('Require positive temperature and a window of distinct finite states.')
+            mask = np.all(mu_window==mu, axis=1)
+            if mask.sum() != 1:
                 raise ValueError('The current chemical potential must occur once in its window.')
-            current = int(current[0])
-            if T <= 0 or not np.isfinite(T):
-                raise ValueError('Temperature must be finite and positive.')
-            if state_fitness is None:
-                counts = np.zeros(len(mu))
-                for element, column in element_column_map.items():
-                    counts[column] = sum(a.symbol == element for a in c)
-                fitness = get_raw_score(c) + (window - mu) @ counts
-            else:
-                fitness = np.array([state_fitness(c, T, trial_mu) for trial_mu in window])
-            if not np.all(np.isfinite(fitness)):
-                raise ValueError('Chemical-potential state fitness must be finite.')
-            log_weights = (fitness - fitness[current]) / (kB*T)
-            if free_energy_differences is not None:
-                conditions = np.column_stack((window, np.full(len(window), T)))
-                matches = np.all(np.abs(conditions[:, None, :] - grid[None, :, :]) < tol, axis=2)
-                if not np.all(matches.sum(axis=1) == 1):
-                    raise ValueError('Each window state must match exactly one bias-grid state.')
-                weights = bias[np.argmax(matches, axis=1)]
-                log_weights += weights - weights[current]
-            c.info['key_value_pairs']['raw_score'] = fitness[current]
-            valid = np.flatnonzero(np.arange(len(window)) != current)
-            if not len(valid):
+            valid_rows = np.where(~mask)[0]
+            old_fitness = get_raw_score(c) if state_fitness is None else state_fitness(c, T, mu)
+            c.info['key_value_pairs']['raw_score'] = old_fitness
+            if len(valid_rows) == 0:
+                new_pop.append(c)
                 continue
+
             if multiple_try:
-                # Metropolized independence sampling on the complete window.
-                forward_sum = logsumexp(log_weights[valid])
-                probabilities = np.exp(log_weights[valid] - forward_sum)
-                trial = int(valid[np.random.choice(len(valid), p=probabilities)])
-                reverse = np.arange(len(window)) != trial
-                ln_ratio = forward_sum - logsumexp(log_weights[reverse])
+                # multiple-try Metropolis
+                # compute exponent/log-weight for every candidate in valid_rows
+                exps = []
+                trial_scores = []
+                for idx in valid_rows:
+                    trial_mu_c = mu_window[idx]
+                    exponent_c = 0.0
+                    for k, col in element_column_map.items():
+                        nk = len([a for a in c if a.symbol == k])
+                        exponent_c += nk * (trial_mu_c[col] - mu[col])
+                    trial_fitness = (old_fitness + exponent_c if state_fitness is None else
+                                     state_fitness(c, T, trial_mu_c))
+                    if not np.isfinite(trial_fitness):
+                        raise ValueError('Chemical-potential state fitness must be finite.')
+                    trial_scores.append(trial_fitness)
+                    exponent_c = (trial_fitness - old_fitness) / (kB * T)
+                    if free_energy_differences is not None:
+                        cond = np.append(mu, T)
+                        grid_id = np.where(
+                                np.all(np.abs(reaction_conditions - cond) < tol, axis=1))[0]
+                        trial_cond = np.append(trial_mu_c, T)
+                        trial_grid_id = np.where(
+                                np.all(np.abs(reaction_conditions - trial_cond) < tol, axis=1))[0]
+                        if len(grid_id) != 1 or len(trial_grid_id) != 1:
+                            raise ValueError('Each window state must match exactly one bias-grid state.')
+                        df = free_energy_differences[grid_id, trial_grid_id]
+                        if not np.isscalar(df):
+                            df = df[0]
+                        exponent_c += df
+                    # exponent_c is ln(w_j / w_current)
+                    exps.append(exponent_c)
+
+                # numerically-stable selection: convert to probs ~ exp(exps)
+                exps = np.asarray(exps, dtype=float)
+                M = np.max(exps)
+                weights = np.exp(exps - M)
+                probs = weights / np.sum(weights)
+                # pick one candidate (b) from forward set (weighted)
+                chosen_pos = np.random.choice(len(valid_rows), p=probs)
+                trial_idx = int(valid_rows[chosen_pos])
+                trial_mu = mu_window[trial_idx]
+                trial_fitness = trial_scores[chosen_pos]
+                # MTM reverse/exponent construction
+                exps_chosen = exps[chosen_pos]
+                # forward log-sum = log(sum_j w_j) baseline canceled later
+                log_sum_forward = logsumexp(exps)
+                # reverse_exps = ln(w_u / w_selected) for u in reverse set
+                reverse_exps = np.delete(exps, chosen_pos) - exps_chosen
+                # include current state's term ln(w_current/w_selected) = -exps_chosen
+                reverse_exps = np.append(reverse_exps, -exps_chosen)
+                log_sum_reverse = logsumexp(reverse_exps)
+                # final lnR as derived in the note
+                lnR = log_sum_forward - log_sum_reverse - exps_chosen
+                accept = metropolis_accept_log(lnR)
             else:
-                trial = int(np.random.choice(valid))
-                ln_ratio = log_weights[trial]
-            accept = metropolis_accept_log(ln_ratio)
+                # single-try Metropolis
+                trial_mu = mu_window[np.random.choice(valid_rows)]
+                exponent = 0.0
+                for k, col in element_column_map.items():
+                    nk = len([a for a in c if a.symbol == k])
+                    exponent += nk * (trial_mu[col] - mu[col])
+                trial_fitness = (old_fitness + exponent if state_fitness is None else
+                                 state_fitness(c, T, trial_mu))
+                if not np.isfinite(trial_fitness):
+                    raise ValueError('Chemical-potential state fitness must be finite.')
+                exponent = (trial_fitness - old_fitness) / (kB * T)
+                if free_energy_differences is not None:
+                    cond = np.append(mu, T)
+                    grid_id = np.where(
+                            np.all(np.abs(reaction_conditions - cond) < tol, axis=1))[0]
+                    trial_cond = np.append(trial_mu, T)
+                    trial_grid_id = np.where(
+                            np.all(np.abs(reaction_conditions - trial_cond) < tol, axis=1))[0]
+                    if len(grid_id) != 1 or len(trial_grid_id) != 1:
+                        raise ValueError('Each window state must match exactly one bias-grid state.')
+                    df = free_energy_differences[grid_id, trial_grid_id]
+                    if not np.isscalar(df):
+                        df = df[0]
+                    exponent += df
+                accept = metropolis_accept_log(exponent)
+
             if accept:
-                c.info['data']['mu'] = window[trial].copy()
-                c.info['key_value_pairs']['raw_score'] = fitness[trial]
-            if self.verbose:
-                parprint(f'Replica {rep} mu-walk move {"accepted" if accept else "rejected"}!')
+                c.info['data']['mu'] = trial_mu.copy()
+                c.info['key_value_pairs']['raw_score'] = trial_fitness
+                if self.verbose:
+                    parprint(f'Replica {rep} mu-walk move accepted!')
+            else:
+                if self.verbose:
+                    parprint(f'Replica {rep} mu-walk move rejected!')
+            new_pop.append(c)
+
+        self.pop = new_pop
         self.current_fitness = self.__get_fitness__(self.pop)
         self._checkpoint_population()
 

@@ -62,8 +62,7 @@ class EMCInterSwap(OffspringCreator):
         self.ff = filter_function
         self.min_inputs = 2
         if self.dcf is not None or self.ff is not None:
-            raise ValueError('EMCInterSwap requires an explicit reverse proposal; '
-                             'custom correction/filter callbacks are not supported.')
+            raise ValueError('Custom interswap callbacks require a reverse proposal probability.')
 
     def _eligible_indices(self, parent):
 
@@ -118,6 +117,8 @@ class EMCInterSwap(OffspringCreator):
                 w2 = self.element_probabilities.get(s2, 0.0)
                 weights.append(w1 * w2)
             weights = np.array(weights, dtype=float)
+            if not np.all(np.isfinite(weights)) or np.any(weights < 0.):
+                raise ValueError('Interswap weights must be finite and nonnegative.')
             if weights.sum() == 0:
                 # fallback to uniform if probabilities don't cover available symbols
                 i1, i2 = random.choice(possible_pairs)
@@ -128,30 +129,34 @@ class EMCInterSwap(OffspringCreator):
         sym1 = f[i1].symbol
         sym2 = m[i2].symbol
 
-        # Exchange the selected indices.  For labelled site assignments the
-        # target has no species-count factorials.  The complete proposal ratio
-        # is the reverse/forward probability of this same index pair.
-        indi1 = self.initialize_individual(f, f)
-        indi2 = self.initialize_individual(m, m)
-        indi1[i1].symbol, indi2[i2].symbol = sym2, sym1
-        def pair_probability(a, b, pairs):
-            if self.element_probabilities is None:
-                return 1. / len(pairs)
-            w = np.array([self.element_probabilities.get(a[i].symbol, 0.) *
-                          self.element_probabilities.get(b[j].symbol, 0.)
-                          for i, j in pairs], dtype=float)
-            if not np.all(np.isfinite(w)) or np.any(w < 0.):
-                raise ValueError('Interswap weights must be finite and nonnegative.')
-            return (w[pairs.index((i1, i2))] / w.sum()
-                    if w.sum() > 0. else 1. / len(pairs))
+        # Build mutation operators that swap sym1<->sym2 on the two parents
+        op1 = EMCMutation(element_pools=self.element_pools,
+                          allowed_indices=self.allowed_indices,
+                          distribution_correction_function=self.dcf,
+                          filter_function=self.ff,
+                          from_element=sym1, to_element=sym2)
+        op2 = EMCMutation(element_pools=self.element_pools,
+                          allowed_indices=self.allowed_indices,
+                          distribution_correction_function=self.dcf,
+                          filter_function=self.ff,
+                          from_element=sym2, to_element=sym1)
+
+        indi1, _ = op1.get_new_individual([f])
+        indi2, _ = op2.get_new_individual([m])
+
         reverse_pairs = self.find_possible_pairs([indi1, indi2])
-        qf = pair_probability(f, m, possible_pairs)
-        qr = pair_probability(indi1, indi2, reverse_pairs)
-        log_ratio = np.log(qr) - np.log(qf) if qr > 0. else -np.inf
-        for parent, child in zip(parents, [indi1, indi2]):
-            if 'groups' in parent.info.get('data', {}):
-                child.info['data']['groups'] = parent.info['data']['groups']
-            child.info['data']['mc_log_proposal_ratio'] = float(log_ratio)
+        if self.element_probabilities is None:
+            q_forward, q_reverse = 1. / len(possible_pairs), 1. / len(reverse_pairs)
+        else:
+            reverse_weight = sum(self.element_probabilities.get(indi1[i].symbol, 0.) *
+                                 self.element_probabilities.get(indi2[j].symbol, 0.)
+                                 for i, j in reverse_pairs)
+            pair_weight = self.element_probabilities.get(sym1, 0.) * self.element_probabilities.get(sym2, 0.)
+            q_forward = pair_weight / weights.sum() if weights.sum() > 0. else 1. / len(possible_pairs)
+            q_reverse = pair_weight / reverse_weight if reverse_weight > 0. else 1. / len(reverse_pairs)
+        log_ratio = np.log(q_reverse) - np.log(q_forward) if q_reverse > 0. else -np.inf
+        for indi in (indi1, indi2):
+            indi.info['data']['mc_log_proposal_ratio'] = float(log_ratio)
 
         indi1.info['data']['parents'] = [i.info['confid'] for i in parents]
         indi1.info['data']['operation'] = 'interswap'
@@ -182,7 +187,7 @@ class EMCIntraSwap(RandomSlabPermutation):
 
     def get_new_individual(self, parents):
 
-        # ACAT narrows allowed_indices during a call. Keep that change local.
+        # ACAT changes allowed_indices during the call. Keep that change local.
         operator = copy(self)
         indi, msg = RandomSlabPermutation.get_new_individual(operator, parents)
         if indi is None:
@@ -219,44 +224,39 @@ class EMCMutation(RandomSlabMutation):
 
         self.descriptor = 'EMCMutation'
         if distribution_correction_function is not None or filter_function is not None:
-            raise ValueError('EMCMutation requires an explicit reverse proposal; '
-                             'custom correction/filter callbacks are not supported.')
-        if from_element is not None or to_element is not None:
-            raise ValueError('Directed mutations have no reverse move in this '
-                             'operator; use EMCInterSwap for paired exchanges.')
-
-    def _species_probability(self, source, target, atoms):
-        """Actual conditional species proposal used by ACAT, including fallback."""
-        if self.element_pools is None:
-            options = set(atoms.get_chemical_symbols()) - {source}
-        else:
-            options = {e for pool in self.element_pools if source in pool
-                       for e in pool if e != source}
-        if target not in options:
-            return 0.
-        p = self.element_probabilities
-        if p is None or any(e not in p for e in options):
-            return 1. / len(options)
-        weights = np.array([p[e] for e in options], dtype=float)
-        if not np.all(np.isfinite(weights)) or np.any(weights < 0.) or weights.sum() <= 0.:
-            raise ValueError('Mutation weights must be finite, nonnegative and have positive sum.')
-        return p[target] / weights.sum()
+            raise ValueError('Custom mutation callbacks require a reverse proposal probability.')
 
     def get_new_individual(self, parents):
 
-        # ACAT narrows allowed_indices during a call. Keep that change local.
+        # ACAT changes allowed_indices during the call. Keep that change local.
         operator = copy(self)
         indi, msg, mutated_elements = RandomSlabMutation.get_new_individual(
                 operator, parents, return_mutated_elements=True)
-        indices = (list(range(len(indi))) if operator.allowed_indices is None
-                   else operator.allowed_indices)
+        indices = list(range(len(indi))) if operator.allowed_indices is None else operator.allowed_indices
         m, n = mutated_elements
-        qf = self._species_probability(m, n, parents[0][indices])
-        qr = self._species_probability(n, m, indi[indices])
-        # The uniform atom-index probabilities cancel.  Raw composition
-        # weights are normalized within the actual accessible species pool.
+        probabilities = []
+        for atoms, source, target in ((parents[0][indices], m, n), (indi[indices], n, m)):
+            if self.element_pools is None:
+                options = set(atoms.symbols) - {source}
+            else:
+                options = {e for pool in self.element_pools if source in pool for e in pool if e != source}
+            if target not in options:
+                probability = 0.
+            elif self.element_probabilities is None or any(e not in self.element_probabilities for e in options):
+                probability = 1. / len(options)
+            else:
+                weights = np.array([self.element_probabilities[e] for e in options], dtype=float)
+                if not np.all(np.isfinite(weights)) or np.any(weights < 0.) or weights.sum() <= 0.:
+                    raise ValueError('Mutation weights must be finite, nonnegative and have positive sum.')
+                probability = self.element_probabilities[target] / weights.sum()
+            probabilities.append(probability)
+        q_forward, q_reverse = probabilities
+        # A directed mutation alone has no reverse. EMCInterSwap supplies the
+        # complete ratio for its paired directed mutations below this level.
+        if self.from_element is not None or self.to_element is not None:
+            q_reverse = 0.
         indi.info['data']['mc_log_proposal_ratio'] = (
-                float(np.log(qr) - np.log(qf)) if qr > 0. else -np.inf)
+                float(np.log(q_reverse) - np.log(q_forward)) if q_reverse > 0. else -np.inf)
 
         indi.info['data']['parents'] = [i.info['confid'] for i in parents] 
         indi.info['data']['operation'] = 'mutation'
