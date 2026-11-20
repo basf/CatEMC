@@ -13,6 +13,137 @@ import pickle
 import os
 
 
+def iter_mc_attempts(db_path, replica_key='replica'):
+    """Iterate over the genuine MC attempts stored in one EMC ASE database
+    and yield (row, parent_row) pairs in chronological order.
+
+    Every replica writes exactly one offspring row per generation (accepted
+    or rejected). All other relaxed rows are copies of the current population
+    that still carry the bookkeeping of the attempt that created the
+    configuration (emc_step, delta, operation, mutated_elements): the
+    starting population, the population re-inserted when the database is
+    trimmed, and the population re-evaluated at every md_generation. Those
+    copies are not MC attempts and must not be counted as such, they are
+    only used here to look up parent configurations.
+
+    parent_row is the database row of the configuration held by the replica
+    when the attempt was made (None if it cannot be resolved). It is the
+    state sampled by that replica at this generation regardless of whether
+    the attempt was accepted, and it already includes any earlier exchange,
+    mu-walk or MD re-evaluation, none of which changes emc_step."""
+
+    rows = sorted(connect(db_path).select('relaxed=1'), key=lambda r: r.id)
+    rows_by_confid = {}
+    header_reps = set()
+    in_header = True
+    in_batch = False
+    last_gen = 0
+    seen = set()
+    pair_count = {}
+    for row in rows:
+        kvp = row.key_value_pairs
+        # Parents are stored by their confid, which is the gaid of the row
+        rows_by_confid[kvp.get('gaid', row.id)] = row
+        step = kvp.get('emc_step', None)
+        rep = kvp.get(replica_key, None)
+        if (step is None) or (rep is None):
+            in_batch = False
+            continue
+        step = int(step)
+        if in_header:
+            # The leading rows with distinct replicas are the starting
+            # population or the population re-inserted after trimming.
+            if rep not in header_reps:
+                header_reps.add(rep)
+                last_gen = max(last_gen, step)
+                continue
+            in_header = False
+        if step > last_gen:
+            last_gen = step
+            seen = {rep}
+            pair_count = {}
+            in_batch = True
+        elif in_batch and (step == last_gen) and (rep not in seen):
+            seen.add(rep)
+        else:
+            # Copy of a population member (MD re-evaluation)
+            in_batch = False
+            continue
+
+        parent = None
+        parents = row.data.get('parents', None)
+        if parents is not None and len(parents) > 0:
+            k = 0
+            if len(parents) == 2:
+                # Both offsprings store [parent 1, parent 2] and are written
+                # in the same order, each staying in the state of its parent
+                key = tuple(parents)
+                k = min(pair_count.get(key, 0), 1)
+                pair_count[key] = k + 1
+            parent = rows_by_confid.get(parents[k], None)
+            if (parent is not None) and (parent.id >= row.id):
+                parent = None
+        yield row, parent
+
+
+def compute_fragment_log_weights(atoms, temperatures,
+        nonmetal_species=None,
+        temperature_species_internal_map=None,
+        no_internal_indices=None):
+    """Temperature-dependent part of ln prod_k (V Q_k / Lambda_k^3)^N_k, the 
+    weight carried by the N_k mobile fragments of each species k in the GC-EMC 
+    target distribution, evaluated at each of the given temperatures. This 
+    weight is part of the reduced potential whenever samples are reweighted 
+    between different temperatures. The volume, mass and N_k! factors are the 
+    same in every thermodynamic state and are therefore left out. The mobile 
+    fragments are counted in the same way as in the acceptance probabilities 
+    (see gc_utils.compute_intramove_prefactor)."""
+
+    if temperature_species_internal_map is None:
+        counts = Counter(a.symbol for a in atoms if a.symbol != 'X')
+        if nonmetal_species is None:
+            from acat.settings import adsorbate_elements
+            nonmetal_species = adsorbate_elements
+    else:
+        fragments = atoms.info['data'].get('fragments', None)
+        if fragments is None:
+            raise ValueError('Fragments are required with temperature_species_internal_map.')
+        counts = Counter(fragments)
+        if nonmetal_species is None:
+            nonmetal_species = []
+    if no_internal_indices is not None:
+        lattice_specs = Counter(atoms[i].symbol for i in no_internal_indices
+                                if (i < len(atoms)) and (atoms[i].symbol != 'X'))
+        for k, n in lattice_specs.items():
+            if k in counts:
+                counts[k] -= n
+    if any(n < 0 for n in counts.values()):
+        raise ValueError('Fragment counts are inconsistent with the lattice indices.')
+
+    temperatures = np.asarray(temperatures, dtype=float)
+    unique_temperatures, inverse = np.unique(temperatures, return_inverse=True)
+    values = np.zeros(len(unique_temperatures), dtype=float)
+    for i, T in enumerate(unique_temperatures):
+        species = set(nonmetal_species)
+        if temperature_species_internal_map is not None:
+            if T not in temperature_species_internal_map:
+                raise ValueError(f'Internal partition functions are missing at T={T}.')
+            species |= set(temperature_species_internal_map[T])
+        for k, n in counts.items():
+            if (k not in species) or (n == 0):
+                continue
+            # Lambda_k^-3 is proportional to T^(3/2)
+            ln_q = 1.5 * np.log(units.kB * T)
+            if temperature_species_internal_map is not None:
+                Q = temperature_species_internal_map[T][k]
+                if Q <= 0 or not np.isfinite(Q):
+                    raise ValueError('Internal partition functions must be finite and positive.')
+                ln_q += np.log(Q)
+            values[i] += n * ln_q
+
+    return values[inverse]
+
+
 class GEEMCAnalysis(object):
 
     """Analysis class for bulk GE-EMC simulations."""
@@ -99,11 +230,10 @@ class GEEMCAnalysis(object):
             for i in range(n):
                 if ((i + 1) * self.trim_generation) <= starting_step:
                     continue
-                db = connect(f'{self.calculation_dir}/{self.name}_bak{i}.db')
-                for row in db.select('relaxed=1'):
+                state_cache = {}
+                for row, parent in iter_mc_attempts(
+                        f'{self.calculation_dir}/{self.name}_bak{i}.db', self.replica_key):
                     if row.emc_step < starting_step:
-                        continue
-                    if row.raw_score <= raw_score_cutoff:
                         continue
                     if (ending_step is not None) and (row.emc_step > ending_step):
                         continue
@@ -115,15 +245,44 @@ class GEEMCAnalysis(object):
                     else: 
                         group_value = row.key_value_pairs[self.interswap_within_key]
                     init_group(group_value, T)
+
+                    # The state sampled by this replica at this step is the 
+                    # configuration it held when the move was attempted (the
+                    # parent), whether the move was then accepted or not.
+                    if parent is not None:
+                        cache_key = (parent.id, T, rep)
+                        if cache_key not in state_cache:
+                            state = parent.toatoms()
+                            U_state = float(parent.potential_energy)
+                            state.info = {'key_value_pairs': {
+                                self.temperature_key: T,
+                                self.replica_key: rep,
+                                'potential_energy': U_state,
+                                'raw_score': float(parent.raw_score)},
+                                'data': {}}
+                            if self.pressure is not None:
+                                V_state = parent.volume
+                                N_state = len([a for a in state if a.symbol != 'X'])
+                                state.info['key_value_pairs']['enthalpy'] = U_state + self.pressure * V_state
+                                state.info['key_value_pairs']['NlnV'] = N_state * np.log(V_state)
+                            state_cache[cache_key] = state
+                        if self.interswap_within_key is None:
+                            rep_list = self.data[T].setdefault(rep, [])
+                        else:
+                            rep_list = self.data[group_value][T].setdefault(rep, [])
+                        needed = row.emc_step - len(rep_list)
+                        if needed > 0:
+                            rep_list.extend([None] * needed)
+                        rep_list[row.emc_step - 1] = state_cache[cache_key]
+
+                    if row.raw_score <= raw_score_cutoff:
+                        continue
                     dU = -row.delta
                     if abs(dU) > 100.:
-                        continue
-                    if abs(dU) < 0.01:
                         continue
 
                     accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
                     U = float(row.potential_energy)
-                    score = float(row.raw_score)
                     if self.interswap_within_key is None:
                         self.mc_data[T].setdefault(rep, {})[row.emc_step] = {
                             'energy': U,
@@ -135,40 +294,26 @@ class GEEMCAnalysis(object):
                             'accepted': accepted
                         }
 
-                    atoms = row.toatoms()
-                    is_widom = ((row.data.operation == 'interswap') and ('mutated_elements' in row.data))
-                    if accepted or is_widom:
-                        atoms.info = {'key_value_pairs': {
-                            self.temperature_key: T,
-                            self.replica_key: rep,
-                            'potential_energy': U,
-                            'raw_score': score},
-                            'data': {}}
-                        if self.pressure is not None:
-                            V = row.volume
-                            U += self.pressure * V
-                            atoms.info['key_value_pairs']['enthalpy'] = U
-                            atoms.info['key_value_pairs']['NlnV'] = len(atoms) * np.log(V)
-
-                        if self.interswap_within_key is None:
-                            rep_list = self.data[T].setdefault(rep, [])
-                        else:
-                            rep_list = self.data[group_value][T].setdefault(rep, [])
-                        needed = row.emc_step - len(rep_list)
-                        if needed > 0:
-                            rep_list.extend([None] * needed)
-                        rep_list[row.emc_step - 1] = atoms
-
+                    is_widom = ((row.data.get('operation', None) == 'interswap') 
+                                and ('mutated_elements' in row.data))
                     if not is_widom:
                         continue
+                    symbols = row.toatoms().get_chemical_symbols()
                     m1, m2 = row.data.mutated_elements
-                    N1 = len([a for a in atoms if a.symbol == m1]) + 1
-                    N2plus1 = len([a for a in atoms if a.symbol == m2])
+                    N1 = symbols.count(m1) + 1
+                    N2plus1 = symbols.count(m2)
                     W_prefactor = N1 / N2plus1
                     if self.pressure is None:
                         V_prefactor = 1.
                     else:
-                        V_prefactor = row.volume_ratio**len(atoms)
+                        # Same volume term as in the acceptance probability,
+                        # where vacancies (X) do not count as particles.
+                        V_new = row.volume
+                        V_old = V_new / row.volume_ratio
+                        N_new = len(symbols) - symbols.count('X')
+                        N_old = N_new + int(m2 == 'X') - int(m1 == 'X')
+                        V_prefactor = np.exp(N_new * np.log(V_new) - N_old * np.log(V_old))
+                        U += self.pressure * V_new
 
                     key = f'{m1}2{m2}'
                     if self.interswap_within_key is None:
@@ -932,15 +1077,13 @@ class GCEMCAnalysis(object):
             for rep in set(list(self.data[T].keys()) + list(self.mc_data[T].keys())):
                 old = self.data[T].get(rep, [])
                 full = []
+                # Steps before the first known state stay None (they are 
+                # skipped later) instead of being filled with a later state.
                 current = last_atoms.get((T, rep), None)
                 for step in range(1, max_step + 1):
                     if step <= len(old) and old[step - 1] is not None:
                         current = old[step - 1]
                     full.append(current)
-                if any(a is None for a in full):
-                    first_atoms = next((a for a in full if a is not None), None)
-                    if first_atoms is not None:
-                        full = [first_atoms if a is None else a for a in full]
                 self.data[T][rep] = full
 
     def prepare_data(self,
@@ -971,27 +1114,22 @@ class GCEMCAnalysis(object):
             self.data = {}
             self.mc_data = {}
             last_atoms = {}
-            last_steps = {}
             max_step = 0
 
             for db_path in self.get_asedb_paths():
-                db = connect(db_path)
-                for row in db.select('relaxed=1'):
+                state_cache = {}
+                for row, parent in iter_mc_attempts(db_path, self.replica_key):
                     step = self.get_row_step(row)
-                    if step is not None:
-                        if step < 0:
-                            continue
-                        max_step = max(max_step, step)
-                    if row.raw_score <= raw_score_cutoff:
+                    max_step = max(max_step, step)
+                    if step < starting_step:
                         continue
-                    if (ending_step is not None) and (step is not None) and (step > ending_step):
+                    if (ending_step is not None) and (step > ending_step):
                         continue
 
+                    # Thermodynamic state (T, mu) of this replica when the move 
+                    # was attempted, i.e. after any earlier exchange or mu-walk.
                     T = row.key_value_pairs[self.temperature_key]
                     rep = int(row.key_value_pairs[self.replica_key])
-                    accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
-                    U = float(row.potential_energy)
-                    score = float(row.raw_score)
                     mu = row.data.get('mu', None)
                     mu_window = row.data.get('mu_window', None)
 
@@ -999,63 +1137,39 @@ class GCEMCAnalysis(object):
                     self.mc_data.setdefault(T, {})
                     self.mc_data[T].setdefault(rep, {})
 
-                    if step is None:
-                        if accepted and (T, rep) not in last_atoms:
-                            atoms = row.toatoms()
+                    # The configuration sampled in that state at this step is
+                    # the one the replica held when the move was attempted (the
+                    # parent), whether the move was then accepted or not.
+                    if parent is not None:
+                        mu_key = None if mu is None else tuple(np.ravel(mu).tolist())
+                        cache_key = (parent.id, T, rep, mu_key)
+                        if cache_key not in state_cache:
+                            atoms = parent.toatoms()
                             atoms.info = {'key_value_pairs': {
                                 self.temperature_key: T,
                                 self.replica_key: rep,
-                                'potential_energy': U,
-                                'raw_score': score},
+                                'potential_energy': float(parent.potential_energy),
+                                'raw_score': float(parent.raw_score)},
                                 'data': {}}
                             atoms.info['data']['mu'] = mu
                             atoms.info['data']['mu_window'] = mu_window
-                            atoms.info['data']['fragments'] = row.data.get('fragments', None)
-                            last_atoms[(T, rep)] = atoms
-                            last_steps[(T, rep)] = 0
-                        continue
-
-                    if step < starting_step:
-                        if accepted and step >= last_steps.get((T, rep), -1):
-                            atoms = row.toatoms()
-                            atoms.info = {'key_value_pairs': {
-                                self.temperature_key: T,
-                                self.replica_key: rep,
-                                'potential_energy': U,
-                                'raw_score': score},
-                                'data': {}}
-                            atoms.info['data']['mu'] = mu
-                            atoms.info['data']['mu_window'] = mu_window
-                            atoms.info['data']['fragments'] = row.data.get('fragments', None)
-                            last_atoms[(T, rep)] = atoms
-                            last_steps[(T, rep)] = step
-                        continue
-
-                    self.mc_data[T][rep][step] = {
-                        'energy': U,
-                        'accepted': accepted,
-                        'mu': mu,
-                        'mu_window': mu_window,
-                        'fragments': row.data.get('fragments', None),
-                    }
-                    if accepted:
-                        atoms = row.toatoms()
-                        atoms.info = {'key_value_pairs': {
-                            self.temperature_key: T,
-                            self.replica_key: rep,
-                            'potential_energy': U,
-                            'raw_score': score},
-                            'data': {}}
-                        atoms.info['data']['mu'] = mu
-                        atoms.info['data']['mu_window'] = mu_window
-                        atoms.info['data']['fragments'] = row.data.get('fragments', None)
+                            atoms.info['data']['fragments'] = parent.data.get('fragments', None)
+                            state_cache[cache_key] = atoms
                         rep_list = self.data[T].setdefault(rep, [])
                         needed = step - len(rep_list)
                         if needed > 0:
                             rep_list.extend([None] * needed)
-                        rep_list[step - 1] = atoms
-                        last_atoms[(T, rep)] = atoms
-                        last_steps[(T, rep)] = step
+                        rep_list[step - 1] = state_cache[cache_key]
+
+                    if row.raw_score <= raw_score_cutoff:
+                        continue
+                    self.mc_data[T][rep][step] = {
+                        'energy': float(row.potential_energy),
+                        'accepted': bool(row.key_value_pairs.get(self.acceptance_key, 0)),
+                        'mu': mu,
+                        'mu_window': mu_window,
+                        'fragments': row.data.get('fragments', None),
+                    }
 
             if ending_step is not None:
                 max_step = min(max_step, ending_step)
@@ -1343,7 +1457,9 @@ class GCEMCAnalysis(object):
             touch_sphere_size=3.,
             tol=5e-3,
             procs=1,
-            compute_uncertainty=False):
+            compute_uncertainty=False,
+            temperature_species_internal_map=None,
+            slab_indices=None):
 
         """Get the MBAR-estimated expectations of surface structural properties 
         depending on a user-defined surface region (>= z_surf) and reaction conditions. 
@@ -1361,7 +1477,12 @@ class GCEMCAnalysis(object):
         simulation, including last column as temperature. You can also add more rows to 
         reaction_conditions to consider states that are not included in the simulation.
         If compute_uncertainty=True, also compute and return the standard errors of the
-        MBAR-weighted structural expectations."""
+        MBAR-weighted structural expectations. When the states span more than one 
+        temperature, provide the temperature_species_internal_map and slab_indices used
+        in the GC-EMC simulation, so that the temperature-dependent fragment weight
+        (Q_k / Lambda_k^3)^N_k of the sampled distribution is included in the reduced 
+        potentials. If only monatomic fragments without internal partition functions 
+        were simulated, providing slab_indices alone is sufficient."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
@@ -1424,6 +1545,12 @@ class GCEMCAnalysis(object):
                                 num_dict, self.target_metal_species, self.target_metal_composition, 
                                 temperature_dmu_map, grid, element_column_map, element_eref_map, 
                                 element_y2x_map, num_metal, U, dimensionless=True)
+                        if (temperature_species_internal_map is not None) or (slab_indices is not None):
+                            phi = phi - compute_fragment_log_weights(
+                                    atoms, grid[:, -1] if grid.ndim == 2 else grid,
+                                    nonmetal_species=self.adsorbate_species,
+                                    temperature_species_internal_map=temperature_species_internal_map,
+                                    no_internal_indices=slab_indices)
                         phi_kn.append(phi.reshape(-1,1))
 
         if traj_exists:
@@ -1593,7 +1720,9 @@ class GCEMCAnalysis(object):
             precision=0.25,
             touch_sphere_size=3.,
             tol=5e-3,
-            procs=1):
+            procs=1,
+            temperature_species_internal_map=None,
+            slab_indices=None):
 
         """Get the MBAR-estimated free energy surfaces of surface structural properties
         depending on a user-defined surface region (>= z_surf), reaction conditions and
@@ -1610,7 +1739,9 @@ class GCEMCAnalysis(object):
         vacancy indices. The reaction conditions is supposed to emcompass all the 
         reaction condition grid considered in the EMC simulation, including last column 
         as temperature. You can also add more rows to reaction_conditions to consider 
-        states that are not included in the simulation."""
+        states that are not included in the simulation. When the states span more than
+        one temperature, provide the temperature_species_internal_map and slab_indices 
+        used in the GC-EMC simulation (see get_structural_expectations)."""
 
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
@@ -1674,6 +1805,12 @@ class GCEMCAnalysis(object):
                                 num_dict, self.target_metal_species, self.target_metal_composition,
                                 temperature_dmu_map, grid, element_column_map, element_eref_map,
                                 element_y2x_map, num_metal, U, dimensionless=True)
+                        if (temperature_species_internal_map is not None) or (slab_indices is not None):
+                            phi = phi - compute_fragment_log_weights(
+                                    atoms, grid[:, -1] if grid.ndim == 2 else grid,
+                                    nonmetal_species=self.adsorbate_species,
+                                    temperature_species_internal_map=temperature_species_internal_map,
+                                    no_internal_indices=slab_indices)
                         phi_kn.append(phi.reshape(-1,1))
 
         if traj_exists:

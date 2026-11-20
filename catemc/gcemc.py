@@ -6,18 +6,17 @@ from .emc_operators import (
         EMCCatalystAdsorbateCrossover,
         EMCInterSwap,
         EMCIntraSwap,
-        EMCMutation)
+        EMCMutation,
+        EMCAddAdsorbate,
+        EMCRemoveAdsorbate,
+        EMCMoveAdsorbate,
+        EMCReplaceAdsorbate,
+        EMCReplaceAdsorbateSpecies)
 from .emc import EMC
 from .calculation_templates import calculate_surface_fitness
 from .emc_logger import EMCLogger
 from .gc_utils import compute_phi
 from acat.adsorption_sites import SlabAdsorptionSites
-from acat.ga.adsorbate_operators import (
-        AddAdsorbate, 
-        RemoveAdsorbate,                                 
-        MoveAdsorbate, 
-        ReplaceAdsorbate,
-        ReplaceAdsorbateSpecies)
 from ase.io import read, write
 from ase.db import connect
 from ase import units
@@ -788,7 +787,7 @@ class GCEMC(EMC):
                         )
                     if self.adsorbate_species is not None:
                         operators += \
-                                [AddAdsorbate(adsorbate_species=adsorbate_species, 
+                                [EMCAddAdsorbate(adsorbate_species=adsorbate_species, 
                                               species_probabilities=species_probabilities,
                                               max_species=self.max_adsorbate_species, 
                                               max_coverage=self.max_adsorbate_coverage, 
@@ -796,23 +795,24 @@ class GCEMC(EMC):
                                               min_adsorbate_distance=self.adsorbate_adsorbate_dmin, 
                                               catalyst_indices=self.slab_indices, 
                                               dmax=self.adsorbate_surface_dmax),
-                                 RemoveAdsorbate(adsorbate_species=adsorbate_species, 
+                                 EMCRemoveAdsorbate(adsorbate_species=adsorbate_species, 
+                                                 species_probabilities=species_probabilities,
                                                  adsorption_sites=site_path, 
                                                  catalyst_indices=self.slab_indices, 
                                                  dmax=self.adsorbate_surface_dmax),
-                                 MoveAdsorbate(adsorbate_species=adsorbate_species,
+                                 EMCMoveAdsorbate(adsorbate_species=adsorbate_species,
                                                adsorption_sites=site_path, 
                                                catalyst_indices=self.slab_indices, 
                                                min_adsorbate_distance=self.adsorbate_adsorbate_dmin, 
                                                dmax=self.adsorbate_surface_dmax),
-                                 ReplaceAdsorbate(adsorbate_species=adsorbate_species, 
+                                 EMCReplaceAdsorbate(adsorbate_species=adsorbate_species, 
                                                   species_probabilities=species_probabilities, 
                                                   max_species=self.max_adsorbate_species, 
                                                   adsorption_sites=site_path, 
                                                   catalyst_indices=self.slab_indices, 
                                                   min_adsorbate_distance=self.adsorbate_adsorbate_dmin, 
                                                   dmax=self.adsorbate_surface_dmax),
-                                 ReplaceAdsorbateSpecies(adsorbate_species=adsorbate_species,
+                                 EMCReplaceAdsorbateSpecies(adsorbate_species=adsorbate_species,
                                                          species_probabilities=species_probabilities, 
                                                          adsorption_sites=site_path, 
                                                          catalyst_indices=self.slab_indices, 
@@ -821,7 +821,21 @@ class GCEMC(EMC):
                                     self.adsorbate_mutation_rate*2/3, self.adsorbate_mutation_rate*1/3]
                     operator = random.choices(population=operators, weights=weights)[0]
                     offspring, desc = operator.get_new_individual(parents)
-                    if offspring == parents[0]:
+                    # Insertion and removal are the reverse of each other. If they are 
+                    # attempted with different rates, the ratio of the two rates is part 
+                    # of the proposal ratio
+                    if isinstance(operator, (EMCAddAdsorbate, EMCRemoveAdsorbate)):
+                        if isinstance(operator, EMCAddAdsorbate):
+                            p_fwd, p_rvs = self.adsorbate_insertion_rate, self.adsorbate_removal_rate
+                        else:
+                            p_fwd, p_rvs = self.adsorbate_removal_rate, self.adsorbate_insertion_rate
+                        if (p_rvs != p_fwd) and (offspring.info['data'].get('mc_log_proposal_ratio') is None):
+                            offspring.info['data']['mc_log_proposal_ratio'] = (
+                                    float(np.log(p_rvs) - np.log(p_fwd)) if p_rvs > 0. else -np.inf)
+                    # A fragment move that is not possible leaves the parent unchanged 
+                    # and is rejected through its proposal ratio, which is not an error
+                    if (offspring == parents[0]) and (offspring.info['data'].get(
+                    'mc_log_proposal_ratio') != -np.inf):
                         warnings.warn(f'Offspring identical to parent. Something with replica {rep} went wrong')
                     offspring.info['key_value_pairs'][self.temperature_key] = parents[0].info['key_value_pairs'][self.temperature_key]
                     offspring.info['key_value_pairs'][self.replica_key] = rep
