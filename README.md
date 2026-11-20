@@ -1,8 +1,28 @@
 # CatEMC
 
+[![Documentation](https://readthedocs.org/projects/catemc/badge/?version=latest)](https://catemc.readthedocs.io/en/latest/)
+
 **CatEMC** is a Python package for running evolutionary Monte Carlo (EMC) simulations for complex bulk and surface heterogeneous catalyst materials. The package provides tools to (1) generate populations of structures and μ-windows, (2) run Gibbs ensemble evolutionary Monte Carlo (GE-EMC) bulk simulations at different temperatures, or grand-canonical evolutionary Monte Carlo (GC-EMC) surface simulations at different temperatures and reaction conditions, and (3) analyze GE-EMC data to estimate metal chemical-potential differences or GC-EMC data to estimate structural expectations and free-energy surfaces. For the full tutorial, see the [CatEMC documentation](https://catemc.readthedocs.io/en/latest/).
 
 ![png](images/catemc_workflow.png)
+
+---
+
+## Documentation
+
+The documentation is at **https://catemc.readthedocs.io/en/latest/**. It explains the theory with the equations of the method, and gives every run of the tutorials in a Python and a command-line version.
+
+| Page | Content |
+| --- | --- |
+| [Quickstart](https://catemc.readthedocs.io/en/latest/quickstart.html) | a complete Gibbs-ensemble study in one minute, without a GPU |
+| [Method](https://catemc.readthedocs.io/en/latest/concepts.html) | replicas, moves, detailed balance and reweighting |
+| [Structure generation](https://catemc.readthedocs.io/en/latest/input_populations.html) | bulk and surface populations, vacancies, μ-windows |
+| [EMC simulations](https://catemc.readthedocs.io/en/latest/emc.html) | [canonical](https://catemc.readthedocs.io/en/latest/canonical_emc.html), [Gibbs](https://catemc.readthedocs.io/en/latest/bulk_geemc.html) and [grand-canonical](https://catemc.readthedocs.io/en/latest/surface_gcemc.html) ensemble |
+| [Post-simulation analyses](https://catemc.readthedocs.io/en/latest/analysis.html) | chemical potentials, short-range order, surface phase diagrams, free energies |
+| [Command line](https://catemc.readthedocs.io/en/latest/cli.html) | the `catemc` command and [every key of the YAML file](https://catemc.readthedocs.io/en/latest/config_reference.html) |
+| [API reference](https://catemc.readthedocs.io/en/latest/api.html) | classes and functions |
+
+The sources of the documentation are in `docs/`. Build them locally with `pip install -r docs/requirements.txt` and `sphinx-build -b html docs/source docs/build/html`.
 
 ---
 
@@ -13,6 +33,8 @@ Shuang Han: hanshuangshiren@gmail.com
 ---
 
 ## Quick start
+
+CatEMC can be driven in two equivalent ways: from Python input files, described here and in the sections below, or from the `catemc` command with one YAML file per system (see [Command-line interface](#command-line-interface)).
 
 A CatEMC simulation is configured in one Python input file. The same file defines the calculator sequence, the fitness settings and the EMC parameters. No separate `calculate_fitness.py` script or command-line argument parser is required.
 
@@ -49,6 +71,72 @@ git clone https://github.com/basf/CatEMC.git
 cd CatEMC
 pip install -e .
 ```
+
+---
+
+## Command-line interface
+
+Installing the package also installs the `catemc` command. It does the same as the Python input files, but reads everything from one YAML file per system, so no Python has to be written:
+
+```bash
+catemc init gibbs -o config.yaml   # write a commented starting file (canonical, gibbs or grand_canonical)
+catemc check config.yaml           # show what the file resolves to, without running anything
+catemc generate config.yaml        # build the template and the initial population
+catemc run config.yaml             # run the simulation; run it again to continue
+catemc analyze config.yaml         # post-simulation analysis
+```
+
+The file written by `catemc init gibbs` (or `canonical`) uses the EMT calculator of ASE and a tiny cell, so the five commands above finish in about a minute and double as a test of the installation. A configuration looks like this:
+
+```yaml
+name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk
+ensemble: gibbs                              # canonical, gibbs or grand_canonical
+composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1     # any composition; X is a vacancy, e.g. Co0.2Ni0.8Al2O3.5X0.5
+
+template:                                    # the lattice: a structure file or any ase.build function
+  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.776}
+  repeat: [8, 8, 8]
+
+population:
+  temperatures: [573, 650, 723, 800, 873, 950, 1023, 1100, 1173, 1250, 1323, 1400]
+  replicas_per_temperature: 4
+
+calculators:                                 # used one after the other
+  - calculator: mace                         # repulsive, emt, mace or any import path
+    model_paths: /path/to/model
+    device: cuda
+    default_dtype: float64
+    fmax: 0.05
+
+emc:                                         # arguments of EMC, GEEMC or GCEMC under the same names
+  bias_starting_step: 300
+  metal_interswap_rate: 0.8
+  intraswap_rate: 0.1
+  crossover_rate: 0.1
+  gpu_devices: [0]
+  procs_per_device: 32
+
+run:
+  total_steps: 5000
+
+analysis:
+  starting_step: 300
+  sro: {cutoff: 3.5}
+  dmu: {target_temperatures: [573, 673, 773, 800, 873]}
+```
+
+Units are K, eV, Å, fs and bar, and paths are relative to the YAML file. Any entry can be replaced on the command line, for example `catemc run config.yaml -s run.total_steps=200`. Surfaces add the sections `regions` (which atoms are fixed), `adsorbates` and `chemical_potentials`.
+
+Every example folder contains the CLI version next to the Python scripts:
+
+| Example | Configuration | Commands |
+| --- | --- | --- |
+| HEA bulk, Gibbs and canonical ensemble | `examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/config.yaml`, `config_canonical.yaml` | `run_cli.sh` |
+| HEA(111), ammonia decomposition | `examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/111/config.yaml` | `run_cli.sh` |
+| HEO bulk, Gibbs and canonical ensemble | `examples/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/config.yaml`, `config_canonical.yaml` | `run_cli.sh` |
+| HEO(311), H2 reduction and C/O/H reservoirs | `examples/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/311/config_OH.yaml`, `config_COH.yaml` | `run_cli_OH.sh`, `run_cli_COH.sh` |
+
+`examples/quickstart` holds the one-minute EMT example in both versions. The complete list of configuration keys is in the [configuration reference](https://catemc.readthedocs.io/en/latest/config_reference.html) of the documentation.
 
 ---
 

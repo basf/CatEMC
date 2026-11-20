@@ -2,11 +2,6 @@
 ===================
 
 .. automodule:: catemc.worker_pool
-
-   
-   .. rubric:: Classes
-
-   .. autosummary::
-   
-      WorkerPool
-   
+   :members:
+   :undoc-members:
+   :show-inheritance:

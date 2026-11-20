@@ -1,56 +1,86 @@
 Installation
 ============
 
-CatEMC is intended to be installed in the same Python environment that contains
-ASE and the calculator package used for production runs.
+Requirements
+------------
 
-Editable install
-----------------
+CatEMC is a pure Python package. It depends on the following packages,
+which are installed automatically with it:
 
-.. code-block:: bash
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
 
-   git clone https://github.com/basf/CatEMC.git
-   cd CatEMC
-   python -m pip install -e .
+   * - Package
+     - Used for
+   * - `ASE <https://wiki.fysik.dtu.dk/ase/>`_
+     - structures, calculators, optimizers, molecular dynamics and databases
+   * - `ACAT <https://asm-dtu.gitlab.io/acat/>`_ (2.0.3 or newer)
+     - random orderings, adsorption sites and the genetic operators that the
+       EMC moves are built on
+   * - `AutoAdsorbate <https://github.com/basf/autoadsorbate>`_
+     - surface binding sites and placement of adsorbate fragments
+   * - `pymbar <https://pymbar.readthedocs.io>`_
+     - MBAR free energies and reweighting
+   * - `PyYAML <https://pyyaml.org>`_
+     - the configuration file of the command-line interface
 
-Runtime packages
-----------------
+Install from source
+-------------------
 
-Install the packages required by your workflow. A typical environment contains:
+.. code-block:: console
 
-.. code-block:: bash
+   $ git clone https://github.com/basf/CatEMC.git
+   $ cd CatEMC
+   $ pip install -e .
 
-   python -m pip install ase numpy scipy pymbar
+The editable install also creates the ``catemc`` command. Check it with
 
-CatEMC also uses ACAT and AutoAdsorbate for surface site handling and structure
-generation. Install the MLIP calculator package used by your calculation script,
-for example MACE or metatomic/PET-MAD.
+.. code-block:: console
 
-Build the documentation locally
--------------------------------
+   $ catemc --version
+   catemc 1.0.0
 
-The documentation has its own lightweight requirements:
+Install a calculator
+--------------------
 
-.. code-block:: bash
+CatEMC works with any ASE calculator. The tutorials use fine-tuned
+`MACE <https://github.com/ACEsuit/mace>`_ models, for which you need PyTorch
+and ``mace-torch``:
 
-   cd /path/to/CatEMC
-   python -m pip install -r docs/requirements.txt
-   make -C docs clean html
+.. code-block:: console
 
-Open the generated page:
+   $ pip install torch mace-torch
 
-.. code-block:: text
+The :doc:`quickstart` uses the EMT calculator that ships with ASE, so you can
+try CatEMC before installing a machine-learning potential.
 
-   docs/build/html/index.html
+.. tip::
 
-Publish on ReadTheDocs
-----------------------
+   When many worker processes share one GPU, limit the CPU threads of each
+   worker so that they do not compete with each other:
 
-The repository includes ``.readthedocs.yaml`` at the top level. To publish:
+   .. code-block:: console
 
-1. push the repository to GitHub;
-2. import the repository on ReadTheDocs;
-3. keep the default configuration file path ``.readthedocs.yaml``;
-4. trigger a build.
+      $ export OMP_NUM_THREADS=1
+      $ export MKL_NUM_THREADS=1
+      $ export OPENBLAS_NUM_THREADS=1
+      $ export NUMEXPR_NUM_THREADS=1
 
-This route does not require enabling GitHub Pages in the repository settings.
+Run the tests
+-------------
+
+The tests of the configuration layer need no calculator and take a second:
+
+.. code-block:: console
+
+   $ pip install pytest
+   $ pytest tests
+
+Build this documentation
+------------------------
+
+.. code-block:: console
+
+   $ pip install -r docs/requirements.txt
+   $ sphinx-build -b html docs/source docs/build/html

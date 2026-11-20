@@ -2,12 +2,6 @@
 ===============
 
 .. automodule:: catemc.analysis
-
-   
-   .. rubric:: Classes
-
-   .. autosummary::
-   
-      GCEMCAnalysis
-      GEEMCAnalysis
-   
+   :members:
+   :undoc-members:
+   :show-inheritance:

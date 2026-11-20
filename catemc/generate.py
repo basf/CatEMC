@@ -300,6 +300,7 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
     partition of the full mu-grid.
 
     The algorithm:
+
     1) ranks replicas by their nonmetal composition;
     2) partitions reaction_conditions into disjoint windows with equal point counts;
     3) uses recursive median splits along the widest mu-dimension so each window
@@ -319,7 +320,9 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
         Mapping from non-metal element name to its mu-column index.
 
     round_decimals : int
-        Number of decimals used when storing the representative mu center.
+        Number of decimals used when comparing the mu-window centers to
+        order the windows. The starting chemical potential of each replica
+        is the point of its window that is closest to the window center.
 
     """
 
@@ -396,7 +399,13 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
         inds = groups[rank]
         mu_window = reaction_conditions[inds]
 
-        center_mu = np.round(mu_window.mean(axis=0), round_decimals)
+        # The starting chemical potential must be a state of the window
+        # itself (the mu-walk and the MBAR bias both look it up in the
+        # window / reaction-condition grid), so the window point closest to
+        # the centroid is used instead of the centroid, which in general
+        # falls between grid points.
+        centroid_dists = np.linalg.norm(mu_norm[inds] - mu_norm[inds].mean(axis=0), axis=1)
+        center_mu = mu_window[int(np.argmin(centroid_dists))].copy()
         #mu_lower = np.round(mu_window.min(axis=0), round_decimals)
         #mu_upper = np.round(mu_window.max(axis=0), round_decimals)
 

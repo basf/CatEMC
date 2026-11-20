@@ -20,11 +20,18 @@ setuptools.setup(
     description='A Python-based evolutionary Monte Carlo code for heterogeneous catalysis',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://gitlab.roqs.basf.net/qm-inorganics/basf_acat',
+    url='https://github.com/basf/CatEMC',
+    project_urls={
+        'Documentation': 'https://catemc.readthedocs.io/en/latest/',
+        'Source': 'https://github.com/basf/CatEMC',
+    },
     packages=setuptools.find_packages(),
+    entry_points={
+        'console_scripts': ['catemc=catemc.cli:main'],
+    },
     classifiers=[
         'Programming Language :: Python :: 3',
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: GPLv3 License',
         'Operating System :: POSIX',
     ],
     install_requires=install_requires,

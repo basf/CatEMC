@@ -1,0 +1,78 @@
+# CatEMC configuration file (Gibbs ensemble).
+#
+#   catemc check    config.yaml   show what this file resolves to
+#   catemc generate config.yaml   build the initial population
+#   catemc run      config.yaml   run (or continue) the simulation
+#   catemc analyze  config.yaml   post-simulation analysis
+#
+# Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
+# Any entry can be replaced on the command line: -s run.total_steps=200
+# Full reference: https://catemc.readthedocs.io/en/latest/config_reference.html
+
+# Prefix of every output file, output folder and statistical ensemble
+# (canonical, gibbs or grand_canonical).
+name: CuNiPdPtAu_bulk
+directory: .
+ensemble: gibbs
+
+# Any composition: one formula, or the two sublattices separately, e.g.
+#   composition: Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5X0.5       (X = vacancy)
+#   composition: {metals: {Co: 1, Al: 2}, nonmetals: {O: 3.5, X: 0.5}}
+composition: Cu0.25Ni0.25Pd0.2Pt0.2Au0.1
+
+# The lattice that is decorated: a structure file (file: lattice.cif) or
+# any function of ase.build with its arguments.
+template:
+  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.8, cubic: true}
+  repeat: [2, 2, 2]
+
+population:
+  temperatures: [600, 700, 800, 900]
+  replicas_per_temperature: 2
+  seed: 1
+
+# One entry per calculator, used one after the other (pre-relaxation first).
+# "calculator" is repulsive, emt, mace or any import path such as
+# mace.calculators.mace.MACECalculator. The other entries are its arguments.
+calculators:
+  - calculator: emt
+    fmax: 0.1                   # relaxation threshold of this calculator
+# - calculator: mace
+#   model_paths: /path/to/model
+#   device: cuda
+#   default_dtype: float64
+#   fmax: 0.05
+
+# Settings of the MD + relaxation that evaluates every structure.
+fitness:
+  md_timestep: 2                # fs
+  md_taut: 100                  # fs
+  md_steps: 20
+  neighbor_cutoff: 3.5
+  optimizer: LBFGS
+
+# Arguments of catemc.geemc.GEEMC. The move rates are normalised to one.
+emc:
+  metal_interswap_rate: 0.8     # swap unlike metals between two replicas
+  # nonmetal_interswap_rate: 0.3  # the same on the non-metal sublattice
+  intraswap_rate: 0.1           # swap two unlike atoms within a replica
+  crossover_rate: 0.1           # cut-and-splice between two replicas
+  md_generation: 10             # MD every N steps
+  exchange_generation: 1        # replica exchange every N steps
+  bias_starting_step: 10        # species-weighted inter-swap from this step on
+  trim_generation: 20           # move old rows to a backup database
+  procs_per_device: 2           # worker processes (per GPU)
+  # gpu_devices: [0]
+  # pressure: 1.01325           # bar; NpT instead of NVT
+
+run:
+  total_steps: 100
+
+analysis:
+  starting_step: 20             # discard the equilibration steps
+  sample_stride: 1
+  trajectory: {replicas: [0]}   # {name}_geemc_0.traj
+  diagnostics: true             # acceptance ratios per move
+  sro: {cutoff: 3.5}            # Warren-Cowley short-range order
+  dmu:                          # metal chemical-potential differences
+    target_temperatures: [600, 650, 700, 800, 900]

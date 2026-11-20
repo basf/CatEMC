@@ -2,12 +2,6 @@
 ======================
 
 .. automodule:: catemc.emc_population
-
-   
-   .. rubric:: Classes
-
-   .. autosummary::
-   
-      EMCPopulation
-      MixtureEMCPopulation
-   
+   :members:
+   :undoc-members:
+   :show-inheritance:

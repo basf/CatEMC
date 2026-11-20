@@ -1,0 +1,78 @@
+# CLI version of generate_initial_population.py, geemc_run.py and
+# mbar_analysis.py in this folder: Gibbs-ensemble EMC (NpT) of the bulk
+# (Co0.2Ni0.2Mg0.2Zn0.2Mn0.2)Al2O3.5 high-entropy spinel oxide with oxygen
+# vacancies.
+#
+#   catemc generate config.yaml
+#   catemc run      config.yaml
+#   catemc analyze  config.yaml
+#
+# Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
+
+name: Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk
+directory: .
+ensemble: gibbs
+# X is a vacancy: one eighth of the oxygen sites of the spinel AB2O4 is empty.
+composition: Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5X0.5
+
+# 2x2x2 supercell of the conventional spinel cell, scaled to a = 8.06 A.
+# Co and Al of the cif file mark the metal sites that are decorated.
+template:
+  file: Al2CoO4.cif
+  scale_cell: [8.06, 8.06, 8.06]
+  repeat: [2, 2, 2]
+
+# 4 temperatures x 6 replicas = 24 replicas
+population:
+  temperatures: [723, 823, 923, 1023]
+  replicas_per_temperature: 6
+
+# The repulsive potential removes close contacts before MACE is used.
+calculators:
+  - calculator: repulsive
+    fmax: 0.5
+  - calculator: mace
+    model_paths: /mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model
+    dispersion: false
+    device: cuda
+    default_dtype: float64
+    fmax: 0.05
+
+fitness:
+  md_timestep: 1
+  md_taut: 500
+  md_steps: 400
+  md_write_interval: 10
+  md_taup: 1000
+  compressibility: 5.0e-5       # 1/bar
+  neighbor_cutoff: 3.5
+
+emc:
+  trim_generation: 100
+  pressure: 1.01325             # bar
+  md_generation: 10
+  exchange_generation: 1
+  bias_starting_step: 300
+  crossover_rate: 0.1
+  metal_interswap_rate: 0.5
+  nonmetal_interswap_rate: 0.3  # swaps O and vacancies between replicas
+  intraswap_rate: 0.1
+  gpu_devices: [0]
+  procs_per_device: 32
+  traj_write_interval: 50
+  verbose: true
+
+run:
+  total_steps: 5000
+
+analysis:
+  starting_step: 300
+  ending_step: 1000
+  sample_stride: 10
+  trajectory: {replicas: [10]}
+  sro: {cutoff: 3.5, metal_only: true, use_energy_mask: true}
+  # Chemical-potential differences between the metals. The surface examples
+  # in ../311 read them at their own temperatures.
+  dmu:
+    target_temperatures: [623, 723, 800, 823, 873, 950, 1023, 1100, 1173]
+    wls_correction: true

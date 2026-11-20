@@ -1,0 +1,60 @@
+# Canonical-ensemble EMC of the bulk Co0.25Mo0.45Fe0.1Ni0.1Cu0.1 high-entropy
+# alloy: every replica keeps the nominal composition, and the replicas only
+# differ in temperature. Same lattice, population and potential as config.yaml.
+#
+#   catemc generate config_canonical.yaml
+#   catemc run      config_canonical.yaml
+#   catemc analyze  config_canonical.yaml
+#
+# Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
+
+name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_canonical
+directory: .
+ensemble: canonical
+composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1
+
+template:
+  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.776}
+  repeat: [8, 8, 8]
+
+population:
+  temperatures: [573, 650, 723, 800, 873, 950, 1023, 1100, 1173, 1250, 1323, 1400]
+  replicas_per_temperature: 4
+
+calculators:
+  - calculator: mace
+    model_paths: /mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model
+    dispersion: false
+    device: cuda
+    default_dtype: float64
+    fmax: 0.05
+
+fitness:
+  md_timestep: 1
+  md_taut: 500
+  md_steps: 400
+  md_write_interval: 10
+  neighbor_cutoff: 3.5
+
+# No inter-replica swap: the composition of every replica is conserved.
+emc:
+  trim_generation: 100
+  md_generation: 10
+  exchange_generation: 1
+  crossover_rate: 0.1
+  intraswap_rate: 0.9
+  gpu_devices: [0]
+  procs_per_device: 32
+  traj_write_interval: 50
+  verbose: true
+
+run:
+  total_steps: 5000
+
+analysis:
+  starting_step: 300
+  ending_step: 1000
+  sample_stride: 10
+  trajectory: {replicas: [10]}
+  diagnostics: true
+  sro: {cutoff: 3.5, use_energy_mask: true}

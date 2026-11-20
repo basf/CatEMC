@@ -2,11 +2,6 @@
 ================
 
 .. automodule:: catemc.repulsive
-
-   
-   .. rubric:: Classes
-
-   .. autosummary::
-   
-      RepulsivePotential
-   
+   :members:
+   :undoc-members:
+   :show-inheritance:

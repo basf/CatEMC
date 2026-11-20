@@ -2,11 +2,6 @@
 ==========
 
 .. automodule:: catemc.emc
-
-   
-   .. rubric:: Classes
-
-   .. autosummary::
-   
-      EMC
-   
+   :members:
+   :undoc-members:
+   :show-inheritance:

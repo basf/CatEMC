@@ -1,13 +1,210 @@
+/* CatEMC documentation: additions to the furo theme. */
+
 :root {
-  --color-brand-primary: #204a87;
-  --color-brand-content: #204a87;
+  --catemc-blue: #2a78d6;
+  --catemc-orange: #eb6834;
+  --catemc-aqua: #1baf7a;
+  --catemc-violet: #6250d6;
+  --catemc-hero-from: #123a7a;
+  --catemc-hero-to: #4a3aa7;
 }
 
+/* ---- sidebar ------------------------------------------------------------ */
 .sidebar-brand-text {
   font-weight: 700;
   letter-spacing: 0.01em;
 }
+.sidebar-logo {
+  max-width: 78%;
+  margin: 0.4rem auto 0.2rem auto;
+}
 
+/* ---- landing page hero --------------------------------------------------- */
+.catemc-hero {
+  background: linear-gradient(125deg, var(--catemc-hero-from), var(--catemc-hero-to));
+  border-radius: 14px;
+  color: #ffffff;
+  margin: 0 0 1.6rem 0;
+  padding: 2.2rem 2.2rem 1.9rem 2.2rem;
+  position: relative;
+  overflow: hidden;
+  clear: both;       /* full width below the theme's page icons */
+}
+.catemc-hero::after {
+  /* a faint lattice of atoms in the corner */
+  content: "";
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 300px;
+  height: 300px;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.16) 9px, transparent 10px);
+  background-size: 38px 33px;
+  transform: rotate(12deg);
+  pointer-events: none;
+}
+.catemc-hero h1 {
+  color: #ffffff;
+  font-size: 2.5rem;
+  margin: 0 0 0.5rem 0;
+}
+.catemc-hero p {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 1.08rem;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 44rem;
+}
+.catemc-hero .catemc-hero-buttons {
+  margin-top: 1.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.catemc-hero a.catemc-btn {
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 0.4rem 1.1rem;
+  text-decoration: none;
+}
+.catemc-hero a.catemc-btn.primary {
+  background: #ffffff;
+  color: var(--catemc-hero-from);
+}
+.catemc-hero a.catemc-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+.catemc-hero a.catemc-btn.primary:hover {
+  background: #e8efff;
+  color: var(--catemc-hero-from);
+}
+/* The hero replaces the page title on the landing page. */
+.catemc-landing > h1:first-child,
+section#catemc > h1 {
+  display: none;
+}
+
+/* ---- cards ---------------------------------------------------------------- */
+.sd-card {
+  border-radius: 10px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.sd-card.sd-card-hover:hover {
+  transform: translateY(-2px);
+}
+.sd-card .sd-card-title {
+  font-weight: 650;
+}
+.catemc-step .sd-card-header {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+/* ---- content -------------------------------------------------------------- */
 article img {
   border-radius: 8px;
+}
+article img.catemc-figure-light {
+  background: #ffffff;
+  padding: 6px;
+}
+table.docutils td, table.docutils th {
+  vertical-align: top;
+}
+.catemc-keys table.docutils td:first-child {
+  white-space: nowrap;
+}
+/* Numbered equations: keep the number on the right and allow wide ones to scroll. */
+div.math-wrapper, div.math {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+span.eqno {
+  color: var(--color-foreground-muted);
+}
+/* On narrow screens the number goes on its own line above the equation,
+   so that it never covers a long formula. */
+@media (max-width: 52em) {
+  div.math span.eqno {
+    position: static;
+    transform: none;
+    float: none;
+    display: block;
+    text-align: right;
+    font-size: 0.85em;
+  }
+}
+/* The equation/theory boxes */
+.admonition.catemc-theory {
+  border-left-color: var(--catemc-violet);
+}
+.admonition.catemc-theory > .admonition-title {
+  background-color: rgba(98, 80, 214, 0.12);
+}
+.admonition.catemc-theory > .admonition-title::before {
+  background-color: var(--catemc-violet);
+}
+.admonition.catemc-cli {
+  border-left-color: var(--catemc-aqua);
+}
+.admonition.catemc-cli > .admonition-title {
+  background-color: rgba(27, 175, 122, 0.12);
+}
+.admonition.catemc-cli > .admonition-title::before {
+  background-color: var(--catemc-aqua);
+}
+
+/* ---- inline SVG diagrams -------------------------------------------------- */
+.catemc-diagram {
+  margin: 1.2rem 0 1.4rem 0;
+  text-align: center;
+}
+.catemc-diagram svg {
+  max-width: 100%;
+  height: auto;
+  font-family: var(--font-stack);
+}
+.catemc-diagram .d-text { fill: var(--color-foreground-primary); }
+.catemc-diagram .d-muted { fill: var(--color-foreground-secondary); }
+.catemc-diagram .d-box {
+  fill: var(--color-background-secondary);
+  stroke: var(--color-background-border);
+  stroke-width: 1.5;
+}
+.catemc-diagram .d-line {
+  stroke: var(--color-foreground-muted);
+  stroke-width: 1.8;
+  fill: none;
+}
+.catemc-diagram .d-arrow { fill: var(--color-foreground-muted); }
+.catemc-diagram .d-blue { fill: #2a78d6; }
+.catemc-diagram .d-orange { fill: #eb6834; }
+.catemc-diagram .d-aqua { fill: #1baf7a; }
+.catemc-diagram .d-violet { fill: #6250d6; }
+.catemc-diagram .d-yellow { fill: #eda100; }
+.catemc-diagram .d-ads { fill: #e34948; }
+.catemc-diagram .d-vac {
+  fill: none;
+  stroke: var(--color-foreground-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+.catemc-diagram .d-accent-blue { stroke: #2a78d6; stroke-width: 2.5; fill: none; }
+.catemc-diagram .d-accent-violet { stroke: #6250d6; stroke-width: 2.5; fill: none; }
+.catemc-diagram .d-accent-aqua { stroke: #1baf7a; stroke-width: 2.5; fill: none; }
+.catemc-diagram .d-head { font-weight: 700; font-size: 15px; }
+.catemc-diagram .d-small { font-size: 12px; }
+.catemc-diagram .d-mono {
+  font-family: var(--font-stack--monospace);
+  font-size: 12.5px;
+}
+.catemc-diagram figcaption, .catemc-diagram .caption {
+  color: var(--color-foreground-secondary);
+  font-size: 0.88rem;
+  margin-top: 0.4rem;
 }

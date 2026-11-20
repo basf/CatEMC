@@ -2,11 +2,6 @@
 ============
 
 .. automodule:: catemc.geemc
-
-   
-   .. rubric:: Classes
-
-   .. autosummary::
-   
-      GEEMC
-   
+   :members:
+   :undoc-members:
+   :show-inheritance:

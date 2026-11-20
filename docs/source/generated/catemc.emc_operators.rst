@@ -2,15 +2,6 @@
 =====================
 
 .. automodule:: catemc.emc_operators
-
-   
-   .. rubric:: Classes
-
-   .. autosummary::
-   
-      EMCCatalystAdsorbateCrossover
-      EMCCutSpliceCrossover
-      EMCInterSwap
-      EMCIntraSwap
-      EMCMutation
-   
+   :members:
+   :undoc-members:
+   :show-inheritance:

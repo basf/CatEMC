@@ -1,0 +1,68 @@
+# CLI version of generate_initial_population.py, geemc_run.py and
+# mbar_analysis.py in this folder: Gibbs-ensemble EMC of the bulk
+# Co0.25Mo0.45Fe0.1Ni0.1Cu0.1 high-entropy alloy.
+#
+#   catemc generate config.yaml
+#   catemc run      config.yaml
+#   catemc analyze  config.yaml
+#
+# Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
+
+name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk
+directory: .
+ensemble: gibbs
+composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1
+
+# 8x8x8 fcc supercell (512 atoms)
+template:
+  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.776}
+  repeat: [8, 8, 8]
+
+# 12 temperatures x 4 replicas = 48 replicas
+population:
+  temperatures: [573, 650, 723, 800, 873, 950, 1023, 1100, 1173, 1250, 1323, 1400]
+  replicas_per_temperature: 4
+
+calculators:
+  - calculator: mace
+    model_paths: /mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model
+    dispersion: false
+    device: cuda
+    default_dtype: float64
+    fmax: 0.05
+
+fitness:
+  md_timestep: 1
+  md_taut: 500
+  md_steps: 400
+  md_write_interval: 10
+  neighbor_cutoff: 3.5
+
+emc:
+  trim_generation: 100
+  md_generation: 10
+  exchange_generation: 1
+  bias_starting_step: 300
+  crossover_rate: 0.1
+  metal_interswap_rate: 0.8
+  intraswap_rate: 0.1
+  gpu_devices: [0]
+  procs_per_device: 32
+  traj_write_interval: 50
+  verbose: true
+
+run:
+  total_steps: 5000
+
+analysis:
+  starting_step: 300
+  ending_step: 1000
+  sample_stride: 10
+  trajectory: {replicas: [10]}
+  sro: {cutoff: 3.5, use_energy_mask: true}
+  # Chemical-potential differences between the metals. The surface example
+  # in ../111 reads them at its own temperatures (573, 673, 773, 873 K) and
+  # at the analysis temperature (800 K).
+  dmu:
+    target_temperatures: [573, 650, 673, 723, 773, 800, 873, 950, 1023, 1100]
+    wls_correction: true
