@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-38.9 0.0 149.5 149.5" role="img" aria-label="CatEMC">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-44.6 0.0 160.9 160.9" role="img" aria-label="CatEMC">
   <title>CatEMC</title>
-  <defs><linearGradient id="catemc-slab" gradientUnits="userSpaceOnUse" x1="9.0" y1="0" x2="62.7" y2="0"><stop offset="0" stop-color="#2f7fe0"/><stop offset="1" stop-color="#6a5fe0"/></linearGradient><linearGradient id="catemc-ads" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e9504f"/><stop offset="1" stop-color="#f2803f"/></linearGradient>
+  <defs><linearGradient id="catemc-slab" gradientUnits="userSpaceOnUse" x1="9.0" y1="0" x2="62.7" y2="0"><stop offset="0" stop-color="#2f7fe0"/><stop offset="1" stop-color="#6a5fe0"/></linearGradient><linearGradient id="catemc-ads" gradientUnits="userSpaceOnUse" x1="7.4" y1="0" x2="70.3" y2="0"><stop offset="0" stop-color="#e9504f"/><stop offset="1" stop-color="#f2803f"/></linearGradient>
   </defs>
-  <path fill="url(#catemc-slab)" d="M9 139.35H62.5V123.05H29.2V109.65H59.9V93.75H29.2V81.15H62.7V64.85H9Z"/>
-  <path fill="url(#catemc-ads)" d="M36.55 62.55C51.84 62.55 59.58 51.7 60.28 42.81H45.93C45.23 47.25 42.08 50.23 36.9 50.23C29.97 50.23 25.98 45.36 25.98 35.81C25.98 26.71 29.87 21.32 36.97 21.32C42.22 21.32 45.3 24.3 45.86 28.74H60.21C58.91 16.14 49.54 9 36.55 9C22.52 9 11.42 18.38 11.42 35.81C11.42 53.13 22.24 62.55 36.55 62.55Z"/>
+  <path fill="url(#catemc-slab)" d="M9 150.78H62.5V134.48H29.2V121.08H59.9V105.18H29.2V92.58H62.7V76.28H9Z"/>
+  <path fill="url(#catemc-ads)" d="M36.59 73.48C52.76 73.48 60.94 62.01 61.68 52.61H46.51C45.77 57.31 42.44 60.46 36.96 60.46C29.63 60.46 25.42 55.31 25.42 45.21C25.42 35.59 29.52 29.89 37.03 29.89C42.58 29.89 45.84 33.04 46.43 37.74H61.6C60.23 24.42 50.32 16.87 36.59 16.87C21.75 16.87 10.02 26.79 10.02 45.21C10.02 63.53 21.46 73.48 36.59 73.48Z M34.05 19.21L19.87 11.73Q17.56 10.52 17.28 13.36L15.52 30.84Z M57.66 31.08L56.23 13.38Q56.00 10.50 53.69 11.72L39.50 19.21Z"/>
 </svg>
