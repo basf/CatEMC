@@ -41,19 +41,13 @@ population:
     - {size: 5, nonmetals: {O: 20, X: 1}}
     - {size: 5, nonmetals: {O: 10, X: 1}}
 
-# Pre-relaxation with a repulsive potential and a foundation model, then the
-# fine-tuned MACE model.
+# Pre-relaxation with a repulsive potential, then the MACE-MPA-0 foundation
+# model.
 calculators:
   - calculator: repulsive
     fmax: 0.5
-  - calculator: mace
-    model_paths: /mnt/nfs/ml_training/pretrained_mace_models/mace-mpa-0-medium.model
-    dispersion: false
-    device: cuda
-    default_dtype: float64
-    fmax: 0.25
-  - calculator: mace
-    model_paths: /emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model
+  - calculator: mace_mp           # MACE-MPA-0, https://github.com/ACEsuit/mace
+    model: medium-mpa-0
     dispersion: false
     device: cuda
     default_dtype: float64

@@ -395,7 +395,8 @@ values,
    + E_{\mathrm{N_2}}^\mathrm{zpe}\right)
 
 and likewise for H and O. The reference energies must come from the same
-level of theory as the potential.
+level of theory as the potential. The examples use PBE energies, the
+functional of the data that MACE-MPA-0 is trained on.
 
 .. tab-set::
 
@@ -413,13 +414,13 @@ level of theory as the potential.
            - N\ :sub:`2`
            - H\ :sub:`2`
          * - early stage, :math:`\xi = 0.1`
-           - −20.421
-           - −18.145
-           - −8.129
+           - −20.459
+           - −18.492
+           - −7.920
          * - equilibrium, :math:`\xi = 1`
-           - −20.890
-           - −17.986
-           - −7.971
+           - −20.928
+           - −18.333
+           - −7.762
 
       Hydrogen is pinned by the H\ :sub:`2` that is produced, and nitrogen
       by NH\ :sub:`3` or N\ :sub:`2`, whichever gives the higher value:
@@ -430,14 +431,14 @@ level of theory as the potential.
          \mu_\mathrm{N} = \max\left(\mu_{\mathrm{NH_3}} - 3\mu_\mathrm{H},\;
          \tfrac12\mu_{\mathrm{N_2}}\right)
 
-      This gives :math:`\mu_\mathrm{N} = -8.227` eV and
-      :math:`\mu_\mathrm{H} = -4.065` eV at the early stage. At
+      This gives :math:`\mu_\mathrm{N} = -8.579` eV and
+      :math:`\mu_\mathrm{H} = -3.960` eV at the early stage. At
       equilibrium the two ways of pinning nitrogen agree to within
-      0.06 eV, and the example uses the N\ :sub:`2` value,
-      :math:`\mu_\mathrm{N} = -8.993` eV with
-      :math:`\mu_\mathrm{H} = -3.985` eV. With the references
-      :math:`\mu_\mathrm{N}^\mathrm{ref} = -8.069` eV and
-      :math:`\mu_\mathrm{H}^\mathrm{ref} = -3.3575` eV, both conditions lie
+      0.12 eV, and the example uses the N\ :sub:`2` value,
+      :math:`\mu_\mathrm{N} = -9.167` eV with
+      :math:`\mu_\mathrm{H} = -3.881` eV. With the references
+      :math:`\mu_\mathrm{N}^\mathrm{ref} = -8.2425` eV and
+      :math:`\mu_\mathrm{H}^\mathrm{ref} = -3.253` eV, both conditions lie
       inside the grid :math:`\Delta\mu_\mathrm{N}, \Delta\mu_\mathrm{H}
       \in [-1, 0]` eV of the example.
 
@@ -478,8 +479,8 @@ least-squares sense, :math:`\boldsymbol\mu^\mathrm{LS} = \arg\min_{\boldsymbol\m
    >>> from catemc.generate import get_ls_elemental_mu
    >>> get_ls_elemental_mu({'H2O': -16.782, 'H2': -7.961})
    {'H': -3.9805, 'O': -8.821}
-   >>> get_ls_elemental_mu({'NH3': -20.421, 'H2': -8.129})
-   {'H': -4.0645, 'N': -8.2275}
+   >>> get_ls_elemental_mu({'NH3': -20.459, 'H2': -7.920})
+   {'H': -3.96, 'N': -8.579}
 
 HEA(111) under ammonia-decomposition conditions
 -----------------------------------------------
@@ -575,9 +576,9 @@ slab with the bulk oxygen content is the reference.
 
 Some points about this input:
 
-* Three calculators are applied in sequence: the repulsive potential to
-  0.5 eV/Å, a foundation model to 0.25 eV/Å and the fine-tuned model to
-  0.05 eV/Å. The pre-relaxation avoids unphysical structures when an
+* Two calculators are applied in sequence: the repulsive potential to
+  0.5 eV/Å and MACE-MPA-0 to 0.05 eV/Å. The pre-relaxation avoids
+  unphysical structures when an
   oxygen atom is inserted into a vacancy that is surrounded closely by
   metal atoms.
 * Oxygen vacancies are pseudo-atoms ``X``. They are removed for the

@@ -296,15 +296,22 @@ def generate_population(
 
 def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_decimals=3):
     """
-    Assign mu-windows to a list of ase.Atoms objects using a balanced recursive
-    partition of the full mu-grid.
+    Assign mu-windows to a list of ase.Atoms objects by dividing the full
+    mu-grid into regular blocks.
 
     The algorithm:
 
     1) ranks replicas by their nonmetal composition;
-    2) partitions reaction_conditions into disjoint windows with equal point counts;
-    3) uses recursive median splits along the widest mu-dimension so each window
-       is compact and as close to equal-volume as possible on a grid;
+    2) partitions reaction_conditions into disjoint windows with equal point
+       counts (the windows differ by one point when the grid does not divide
+       evenly);
+    3) cuts the grid into slabs along one mu-dimension and every slab into
+       windows along the next one. The cuts follow the grid lines wherever
+       the point counts allow it, so the windows are rectangular blocks
+       when the grid divides evenly (e.g. 3 x 3 squares for 49 replicas on
+       a 21 x 21 grid) and blocks with a stepped edge otherwise. Of the
+       possible numbers of slabs and cutting orders, the one with the most
+       compact windows is used;
     4) assigns low-mu windows to low-nonmetal replicas and high-mu windows to
        high-nonmetal replicas.
 
@@ -360,36 +367,111 @@ def assign_mu_windows(input_pop, reaction_conditions, element_column_map, round_
     mu_span = np.where((mu_max - mu_min) > 0, (mu_max - mu_min), 1.0)
     mu_norm = (mu_points - mu_min) / mu_span
 
-    # Desired sizes
-    q, r = divmod(n_grid, n_images)
-    target_sizes = [q + 1] * r + [q] * (n_images - r)
+    # Window sizes: n_big windows of q + 1 points and the others of q points.
+    q, n_big = divmod(n_grid, n_images)
+    n_dims = mu_norm.shape[1]
 
-    def _partition(indices, sizes):
-        """Recursively partition indices into disjoint groups with target sizes."""
-        if len(sizes) == 1:
+    def _order(indices, axis):
+        """Sort points along one axis. Within one grid line of that axis the
+        points follow the other axes back and forth, so that consecutive
+        points are neighbours on the grid."""
+        indices = np.asarray(indices, dtype=int)
+        pts = np.round(mu_norm[indices], 9)
+        dims = [axis] + [d for d in range(n_dims) if d != axis]
+        keys, flip = [], np.zeros(len(indices), dtype=int)
+        for d in dims:
+            levels = np.unique(pts[:, d], return_inverse=True)[1].ravel()
+            keys.append(np.where(flip % 2 == 1, levels.max() - levels, levels))
+            flip = flip + levels
+        return indices[np.lexsort(tuple(reversed(keys)))]
+
+    def _cut(indices, axis, k, a, m):
+        """Cut a point set along one axis into m consecutive slabs.
+
+        The set holds k windows, a of them with q + 1 points. Every slab
+        receives a share of the windows (within one of k / m), and its
+        number of larger windows is chosen so that the cut falls on a grid
+        line whenever that is possible.
+        """
+        order = _order(indices, axis)
+        coords = np.round(mu_norm[order, axis], 9)
+        on_grid_line = set((np.flatnonzero(np.diff(coords) > 0) + 1).tolist())
+
+        slabs = []
+        start, k_rem, a_rem = 0, k, a
+        for slabs_rem in range(m, 0, -1):
+            if slabs_rem == 1:
+                k_i, a_i = k_rem, a_rem
+            else:
+                best = None
+                for k_i in sorted({k_rem // slabs_rem, -(-k_rem // slabs_rem)}):
+                    a_min = max(0, a_rem - (k_rem - k_i))
+                    a_max = min(k_i, a_rem)
+                    for a_i in range(a_min, a_max + 1):
+                        stop = start + k_i * q + a_i
+                        # prefer a cut on a grid line, then even slabs
+                        key = (stop not in on_grid_line,
+                               abs(a_i * k_rem - a_rem * k_i),
+                               abs(k_i * slabs_rem - k_rem))
+                        if best is None or key < best[0]:
+                            best = (key, k_i, a_i)
+                _, k_i, a_i = best
+            stop = start + k_i * q + a_i
+            slabs.append((order[start:stop], k_i, a_i))
+            start, k_rem, a_rem = stop, k_rem - k_i, a_rem - a_i
+        return slabs
+
+    def _scatter(windows):
+        """Sum of squared distances to the window centres (compactness)."""
+        return sum(float(((mu_norm[w] - mu_norm[w].mean(axis=0)) ** 2).sum())
+                   for w in windows)
+
+    def _partition(indices, k, a, axes):
+        """Divide a point set into k windows, a of them with q + 1 points."""
+        if k == 1:
             return [np.asarray(indices, dtype=int)]
 
         pts = mu_norm[indices]
-        spreads = pts.max(axis=0) - pts.min(axis=0)
-        axis = int(np.argmax(spreads))
+        n_levels = {d: len(np.unique(np.round(pts[:, d], 9))) for d in axes}
+        active = [d for d in axes if n_levels[d] > 1]
+        if len(active) <= 1:
+            # One direction left: one window after the other along it.
+            axis = active[0] if active else int(np.argmax(np.ptp(pts, axis=0)))
+            return [w for w, _, _ in _cut(indices, axis, k, a, k)]
 
-        # Lexsort with the chosen axis as primary key.
-        keys = tuple(pts[:, d] for d in range(pts.shape[1]) if d != axis) + (pts[:, axis],)
-        order = np.asarray(indices, dtype=int)[np.lexsort(keys)]
+        # Extent of the point set along every direction, including the
+        # half grid spacing at both ends.
+        extent = {d: np.ptp(pts[:, d]) * n_levels[d] / (n_levels[d] - 1)
+                  for d in active}
+        scale = (k / np.prod([extent[d] for d in active])) ** (1. / len(active))
 
-        left_n = int(sum(sizes[:len(sizes) // 2]))
-        left_inds = order[:left_n]
-        right_inds = order[left_n:]
-
-        return _partition(left_inds, sizes[:len(sizes) // 2]) + _partition(right_inds, sizes[len(sizes) // 2:])
+        best = None
+        for axis in active:
+            others = [d for d in active if d != axis]
+            # Number of slabs that makes the windows as wide as they are high.
+            ideal = extent[axis] * scale
+            lower = int(np.floor(ideal))
+            most = min(k, n_levels[axis])
+            for m in sorted({min(max(m, 1), most)
+                             for m in range(lower - 1, lower + 3)}):
+                windows = []
+                for inds, k_i, a_i in _cut(indices, axis, k, a, m):
+                    windows += _partition(inds, k_i, a_i, others)
+                score = _scatter(windows)
+                if best is None or score < best[0] - 1e-12:
+                    best = (score, windows)
+        return best[1]
 
     # Partition the mu-grid.
     all_indices = np.arange(n_grid, dtype=int)
-    groups = _partition(all_indices, target_sizes)
+    groups = _partition(all_indices, n_images, n_big, list(range(n_dims)))
 
-    # Sort groups by centroid in the same mu-order used for replica ordering.
+    # Sort groups by their centre in the same mu-order used for replica
+    # ordering. The centre is the middle of the range of the window in every
+    # mu-dimension, so the windows of one slab share the first coordinate
+    # exactly and are then ordered along the next one.
     def _group_key(inds):
-        c = mu_points[inds].mean(axis=0)
+        c = (mu_points[inds].min(axis=0) + mu_points[inds].max(axis=0)) / 2.
         return tuple(np.round(c, round_decimals).tolist())
 
     groups = sorted(groups, key=_group_key)

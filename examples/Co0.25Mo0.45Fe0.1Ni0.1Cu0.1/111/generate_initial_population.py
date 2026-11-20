@@ -99,9 +99,8 @@ if __name__ == '__main__':
     if os.path.isfile(f'{dir_name}/template_{comp_surf_name}_slab_mace_opt.traj',): 
         slab = read(f'{dir_name}/template_{comp_surf_name}_slab_mace_opt.traj')
     else:
-        from mace.calculators.mace import MACECalculator
-        calc = MACECalculator(model_paths="/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model", 
-                              dispersion=False, device='cuda', default_dtype='float64')
+        # MACE-MPA-0 foundation model (https://github.com/ACEsuit/mace)
+        calc = mace_mp(model='medium-mpa-0', dispersion=False, device='cuda', default_dtype='float64')
         slab.calc = calc
         opt = LBFGS(slab, logfile=None)
         opt.run(fmax=0.01, steps=300)

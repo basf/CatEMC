@@ -200,7 +200,7 @@ swapped between replicas with ``metal_interswap_rate``, and oxygen atoms
 and vacancies with ``nonmetal_interswap_rate``, so the oxygen-vacancy
 concentration of each replica fluctuates around one eighth. The run is at
 constant pressure (1 atm) with the two-stage relaxation: repulsive
-potential first, then MACE.
+potential first, then MACE-MPA-0.
 
 .. tab-set::
    :sync-group: interface

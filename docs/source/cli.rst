@@ -239,8 +239,8 @@ Using your own potential
 The ``calculators`` section lists the calculators that evaluate a
 candidate, in the order in which they are used: cheap pre-relaxation
 first, the production model last. ``calculator`` is one of the short names
-``repulsive``, ``emt`` and ``mace``, or the import path of any ASE
-calculator. ``fmax`` is the force threshold of the relaxation with this
+``repulsive``, ``emt``, ``mace`` and ``mace_mp``, or the import path of
+any ASE calculator. ``fmax`` is the force threshold of the relaxation with this
 calculator, ``args`` an optional list of positional arguments, and all
 other entries are passed to the calculator as keyword arguments.
 
@@ -253,11 +253,17 @@ other entries are passed to the calculator as keyword arguments.
          calculators:
            - calculator: repulsive       # catemc.repulsive.RepulsivePotential
              fmax: 0.5
-           - calculator: mace            # mace.calculators.mace.MACECalculator
-             model_paths: /path/to/model
+           - calculator: mace_mp         # mace.calculators.mace_mp
+             model: medium-mpa-0         # the MACE-MPA-0 foundation model
              device: cuda
              default_dtype: float64
              fmax: 0.05
+
+      ``mace_mp`` loads a foundation model of
+      `MACE <https://github.com/ACEsuit/mace>`_ by its name. For a model
+      file of your own, use ``calculator: mace`` with
+      ``model_paths: /path/to/model``
+      (``mace.calculators.mace.MACECalculator``).
 
    .. tab-item:: Any ASE calculator
 
@@ -283,17 +289,17 @@ other entries are passed to the calculator as keyword arguments.
 
          # my_calculators.py, next to config.yaml
          def create_calculators(model, device='cuda'):
-             from mace.calculators.mace import MACECalculator
+             from mace.calculators import mace_mp
              from catemc.repulsive import RepulsivePotential
              return [RepulsivePotential(),
-                     MACECalculator(model_paths=model, device=device,
-                                    default_dtype='float64')]
+                     mace_mp(model=model, device=device,
+                             default_dtype='float64')]
 
       .. code-block:: yaml
 
          calculators:
            factory: my_calculators.py:create_calculators
-           kwargs: {model: /path/to/model}
+           kwargs: {model: medium-mpa-0}
            fmax: [0.5, 0.05]
 
       ``factory`` is ``file.py:function`` or ``package.module:function``.

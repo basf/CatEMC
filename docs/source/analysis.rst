@@ -384,7 +384,7 @@ Usage
       .. code-block:: text
 
          expectations: 8407 reaction conditions, saved to ..._mbar_expectations_conditions.npy
-           condition [-0.158, -0.7075, 800.0]:
+           condition [-0.3365, -0.707, 800.0]:
              x_surf_Co                ...
              x_surf_Mo                ...
              ads_coverage             ...
@@ -500,8 +500,8 @@ condition.
 
          analysis:
            conditions:
-             - {N: -8.227, H: -4.065, T: 800, absolute: true}
-             - {N: -8.993, H: -3.985, T: 800, absolute: true}
+             - {N: -8.579, H: -3.960, T: 800, absolute: true}
+             - {N: -9.167, H: -3.881, T: 800, absolute: true}
            fes:
              bin_width: 0.05
 

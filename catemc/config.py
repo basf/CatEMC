@@ -49,6 +49,7 @@ CALCULATOR_ALIASES = {
     'repulsive': 'catemc.repulsive.RepulsivePotential',
     'emt': 'ase.calculators.emt.EMT',
     'mace': 'mace.calculators.mace.MACECalculator',
+    'mace_mp': 'mace.calculators.mace_mp',
 }
 
 # Fitness settings given in fs (or 1/fs, 1/bar) in the YAML file and
@@ -155,7 +156,7 @@ def create_calculators(stages=None, factory=None, factory_kwargs=None):
     stages : list of dict, optional
         One entry per calculator. ``calculator`` is the import path of the
         calculator class (or one of the short names ``repulsive``, ``emt``,
-        ``mace``), ``args`` an optional list of positional arguments and all
+        ``mace``, ``mace_mp``), ``args`` an optional list of positional arguments and all
         remaining entries are keyword arguments.
     factory : str, optional
         ``path/to/file.py:function`` or ``package.module:function`` of a

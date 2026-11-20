@@ -24,8 +24,8 @@ population:
   replicas_per_temperature: 4
 
 calculators:
-  - calculator: mace
-    model_paths: /mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model
+  - calculator: mace_mp           # MACE-MPA-0, https://github.com/ACEsuit/mace
+    model: medium-mpa-0
     dispersion: false
     device: cuda
     default_dtype: float64

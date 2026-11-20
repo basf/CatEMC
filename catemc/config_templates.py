@@ -45,13 +45,13 @@ population:
   seed: 1
 
 # One entry per calculator, used one after the other (pre-relaxation first).
-# "calculator" is repulsive, emt, mace or any import path such as
+# "calculator" is repulsive, emt, mace, mace_mp or any import path such as
 # mace.calculators.mace.MACECalculator. The other entries are its arguments.
 calculators:
   - calculator: emt
     fmax: 0.1                   # relaxation threshold of this calculator
-# - calculator: mace
-#   model_paths: /path/to/model
+# - calculator: mace_mp         # MACE-MPA-0, https://github.com/ACEsuit/mace
+#   model: medium-mpa-0
 #   device: cuda
 #   default_dtype: float64
 #   fmax: 0.05
@@ -141,8 +141,8 @@ population:
     - {adsorbate_species: [N, H, NH]}       # random adlayers (the rest)
 
 calculators:
-  - calculator: mace
-    model_paths: /path/to/model
+  - calculator: mace_mp           # MACE-MPA-0, https://github.com/ACEsuit/mace
+    model: medium-mpa-0
     dispersion: false
     device: cuda
     default_dtype: float64
@@ -172,8 +172,8 @@ adsorbates:
 chemical_potentials:
   # metals: ../bulk/NAME_bulk_mbar_dmu_estimates.pkl   # from the Gibbs-ensemble run
   elements:
-    N: {reference: -8.069, range: [-1.0, 0.0], step: 0.05}
-    H: {reference: -3.3575, range: [-1.0, 0.0], step: 0.05}
+    N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}
+    H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}
 
 # Arguments of catemc.gcemc.GCEMC. The move rates are normalised to one.
 emc:
@@ -207,7 +207,7 @@ analysis:
     step: {N: 0.025, H: 0.025}
     temperatures: [800]         # extra temperatures to reweight to
   # conditions:                 # extra single conditions
-  #   - {N: -8.993, H: -3.985, T: 800, absolute: true}
+  #   - {N: -9.167, H: -3.881, T: 800, absolute: true}
 '''
 
 TEMPLATES = {

@@ -11,20 +11,20 @@ from ase import units
 from ase.io import read
 
 
-MODEL_PATH = '/mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model'
+MODEL = 'medium-mpa-0'  # MACE-MPA-0 foundation model (https://github.com/ACEsuit/mace)
 TARGET_METAL_SPECIES = ['Co', 'Ni', 'Mg', 'Zn', 'Mn', 'Al']
 
 
 def create_calculators():
     from catemc.repulsive import RepulsivePotential
-    from mace.calculators.mace import MACECalculator
+    from mace.calculators import mace_mp
 
     return [
         RepulsivePotential(),
-        MACECalculator(model_paths=MODEL_PATH,
-                       dispersion=False,
-                       device='cuda',
-                       default_dtype='float64'),
+        mace_mp(model=MODEL,
+                dispersion=False,
+                device='cuda',
+                default_dtype='float64'),
     ]
 
 

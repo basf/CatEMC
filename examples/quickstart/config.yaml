@@ -32,13 +32,13 @@ population:
   seed: 1
 
 # One entry per calculator, used one after the other (pre-relaxation first).
-# "calculator" is repulsive, emt, mace or any import path such as
+# "calculator" is repulsive, emt, mace, mace_mp or any import path such as
 # mace.calculators.mace.MACECalculator. The other entries are its arguments.
 calculators:
   - calculator: emt
     fmax: 0.1                   # relaxation threshold of this calculator
-# - calculator: mace
-#   model_paths: /path/to/model
+# - calculator: mace_mp         # MACE-MPA-0, https://github.com/ACEsuit/mace
+#   model: medium-mpa-0
 #   device: cuda
 #   default_dtype: float64
 #   fmax: 0.05

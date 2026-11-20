@@ -141,8 +141,8 @@ counterpart side by side:
 
 .. note::
 
-   The examples refer to fine-tuned MACE models by a path such as
-   ``/mnt/nfs/emc_tutorial/.../CoMoFeNiCuNH_mace.model``. Replace it by the
-   path of your own model, or by any other ASE calculator, before you run
-   them. To try the workflow without a model, start with the
-   :doc:`quickstart`.
+   The examples use the MACE-MPA-0 foundation model of
+   `MACE <https://github.com/ACEsuit/mace>`_, imported with
+   ``from mace.calculators import mace_mp``. Any other model or ASE
+   calculator can take its place (:doc:`cli`). To try the workflow without
+   a machine-learning potential, start with the :doc:`quickstart`.

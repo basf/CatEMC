@@ -41,14 +41,8 @@ population:
 calculators:
   - calculator: repulsive
     fmax: 0.5
-  - calculator: mace
-    model_paths: /mnt/nfs/ml_training/pretrained_mace_models/mace-mpa-0-medium.model
-    dispersion: false
-    device: cuda
-    default_dtype: float64
-    fmax: 0.25
-  - calculator: mace
-    model_paths: /mnt/nfs/emc_tutorial/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model
+  - calculator: mace_mp           # MACE-MPA-0, https://github.com/ACEsuit/mace
+    model: medium-mpa-0
     dispersion: false
     device: cuda
     default_dtype: float64

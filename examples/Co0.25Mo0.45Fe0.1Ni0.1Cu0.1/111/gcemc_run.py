@@ -8,18 +8,18 @@ import numpy as np
 import pickle
 
 
-MODEL_PATH = '/emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model'
+MODEL = 'medium-mpa-0'  # MACE-MPA-0 foundation model (https://github.com/ACEsuit/mace)
 TARGET_METAL_SPECIES = ['Co', 'Mo', 'Fe', 'Ni', 'Cu']
 TARGET_METAL_COMPOSITION = {'Co': 0.25, 'Mo': 0.45, 'Fe': 0.1,
                             'Ni': 0.1, 'Cu': 0.1}
 
 def create_calculators():
-    from mace.calculators.mace import MACECalculator
+    from mace.calculators import mace_mp
 
-    return [MACECalculator(model_paths=MODEL_PATH,
-                           dispersion=False,
-                           device='cuda',
-                           default_dtype='float64')]
+    return [mace_mp(model=MODEL,
+                    dispersion=False,
+                    device='cuda',
+                    default_dtype='float64')]
 
 
 def get_fitness_kwargs():
@@ -114,8 +114,8 @@ def main():
             volume=volume,
             reaction_conditions=reaction_conditions,
             element_column_map={'N': 0, 'H': 1},
-            element_eref_map={'N': (-16.293 + 0.155) / 2,
-                              'H': (-6.984 + 0.269) / 2},
+            element_eref_map={'N': (-16.640 + 0.155) / 2,   # Etot incl. ZPE PBE
+                              'H': (-6.773 + 0.267) / 2},
             element_y2x_map={'N': 0., 'H': 0.},
             temperature_dmu_map=temperature_dmu_map,
             temperature_species_internal_map=temperature_species_internal_map,

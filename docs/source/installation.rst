@@ -41,19 +41,25 @@ The editable install also creates the ``catemc`` command. Check it with
    $ catemc --version
    catemc 1.0.0
 
-Install a calculator
---------------------
+Calculator
+----------
 
-CatEMC works with any ASE calculator. The tutorials use fine-tuned
-`MACE <https://github.com/ACEsuit/mace>`_ models, for which you need PyTorch
-and ``mace-torch``:
+CatEMC works with any ASE calculator. The tutorials use the MACE-MPA-0
+foundation model of `MACE <https://github.com/ACEsuit/mace>`_, which the
+examples import directly:
 
-.. code-block:: console
+.. code-block:: python
 
-   $ pip install torch mace-torch
+   from mace.calculators import mace_mp
+
+   calculator = mace_mp(model='medium-mpa-0', dispersion=False,
+                        device='cuda', default_dtype='float64')
+
+``mace_mp`` downloads the model at its first call. Call it once before the
+first run with many worker processes.
 
 The :doc:`quickstart` uses the EMT calculator that ships with ASE, so you can
-try CatEMC before installing a machine-learning potential.
+try CatEMC without a machine-learning potential.
 
 .. tip::
 

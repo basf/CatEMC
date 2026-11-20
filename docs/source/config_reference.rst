@@ -354,8 +354,10 @@ A list with one entry per calculator, used one after the other:
      - Meaning
    * - ``calculator``
      - ``repulsive`` (:class:`catemc.repulsive.RepulsivePotential`),
-       ``emt``, ``mace`` (``mace.calculators.mace.MACECalculator``) or the
-       import path of any ASE calculator
+       ``emt``, ``mace`` (``mace.calculators.mace.MACECalculator``, for a
+       model file), ``mace_mp`` (``mace.calculators.mace_mp``, for a MACE
+       foundation model such as ``model: medium-mpa-0``) or the import
+       path of any ASE calculator
    * - ``fmax``
      - force threshold in eV/Å of the relaxation with this calculator
    * - ``args``
@@ -830,7 +832,7 @@ the reference energies are subtracted:
      sample_stride: 50
      z_surf: 22.0
      conditions:
-       - {N: -8.227, H: -4.065, T: 800, absolute: true}
+       - {N: -8.579, H: -3.960, T: 800, absolute: true}
        - {N: -0.2, H: -0.7, T: 800}
      expectations:
        step: {N: 0.025, H: 0.025}

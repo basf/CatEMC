@@ -48,8 +48,8 @@ population:
     - {size: 48, adsorbate_species: [N, H, NH]}
 
 calculators:
-  - calculator: mace
-    model_paths: /emc/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model
+  - calculator: mace_mp           # MACE-MPA-0, https://github.com/ACEsuit/mace
+    model: medium-mpa-0
     dispersion: false
     device: cuda
     default_dtype: float64
@@ -78,12 +78,13 @@ adsorbates:
     H2: {degeneracy: 1, symmetry_number: 2}
 
 # mu_N = reference + dmu_N and mu_H = reference + dmu_H, with the references
-# E(N2)/2 and E(H2)/2 (RPBE total energies incl. zero-point energy).
+# E(N2)/2 and E(H2)/2 (PBE total energies incl. zero-point energy, the
+# functional of the MACE-MPA-0 training data).
 chemical_potentials:
   metals: ../bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_mbar_dmu_estimates.pkl
   elements:
-    N: {reference: -8.069, range: [-1.0, 0.0], step: 0.05}     # (-16.293 + 0.155) / 2
-    H: {reference: -3.3575, range: [-1.0, 0.0], step: 0.05}    # (-6.984 + 0.269) / 2
+    N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}    # (-16.640 + 0.155) / 2
+    H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}     # (-6.773 + 0.267) / 2
 
 emc:
   trim_generation: 100
@@ -123,8 +124,8 @@ analysis:
   # Early-stage and equilibrium ammonia decomposition at 800 K, given as
   # absolute chemical potentials mu_N and mu_H.
   conditions:
-    - {N: -8.227, H: -4.065, T: 800, absolute: true}
-    - {N: -8.993, H: -3.985, T: 800, absolute: true}
+    - {N: -8.579, H: -3.960, T: 800, absolute: true}
+    - {N: -9.167, H: -3.881, T: 800, absolute: true}
   # Surface phase diagram: reweight to a finer grid and to 800 K
   expectations:
     step: {N: 0.025, H: 0.025}

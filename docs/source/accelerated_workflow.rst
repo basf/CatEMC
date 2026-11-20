@@ -145,8 +145,8 @@ obey them:
 .. code-block:: python
 
    def create_calculators():            # 1. a function at the top level of the module
-       from mace.calculators.mace import MACECalculator
-       return [MACECalculator(model_paths=MODEL_PATH, device='cuda')]
+       from mace.calculators import mace_mp
+       return [mace_mp(model='medium-mpa-0', device='cuda')]
 
 
    def main():

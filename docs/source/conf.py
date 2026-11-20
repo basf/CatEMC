@@ -70,9 +70,10 @@ html_theme = 'furo'
 html_title = 'CatEMC'
 html_static_path = ['_static']
 html_css_files = ['custom.css']
-html_logo = '_static/catemc_logo.svg'
 html_favicon = '_static/catemc_icon.svg'
 html_theme_options = {
+    'light_logo': 'catemc_logo.svg',
+    'dark_logo': 'catemc_logo_dark.svg',
     'navigation_with_keys': True,
     'sidebar_hide_name': True,
     'source_repository': 'https://github.com/basf/CatEMC',

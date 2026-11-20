@@ -23,18 +23,18 @@ plt.rcParams['svg.fonttype'] = 'none'
 
 system_name = 'Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111'
 target_temperatures = [573, 673, 773, 800, 873]
-E_N2 = -16.293 + 0.155  # Etot incl. ZPE RPBE 
-E_H2 = -6.984 + 0.269   # Etot incl. ZPE RPBE
-E_NH3 = -19.502 + 0.906 # Etot incl. ZPE RPBE
+E_N2 = -16.640 + 0.155  # Etot incl. ZPE PBE
+E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
+E_NH3 = -19.540 + 0.906 # Etot incl. ZPE PBE
 dmu_N = np.arange(-1., 0.001, 0.025)
 dmu_H = np.arange(-1., 0.001, 0.025)
 grid = np.array(np.meshgrid(dmu_N, dmu_H, target_temperatures)).T.reshape(-1, 3)
 
 T = 800
-early_dmu_N = -8.227 - E_N2/2
-early_dmu_H = -4.065 - E_H2/2
-equil_dmu_N = -8.993 - E_N2/2
-equil_dmu_H = -3.985 - E_H2/2
+early_dmu_N = -8.579 - E_N2/2
+early_dmu_H = -3.960 - E_H2/2
+equil_dmu_N = -9.167 - E_N2/2
+equil_dmu_H = -3.881 - E_H2/2
 cond1 = np.array([early_dmu_N, early_dmu_H, T])
 cond2 = np.array([equil_dmu_N, equil_dmu_H, T])
 grid = np.vstack([grid, cond1, cond2])

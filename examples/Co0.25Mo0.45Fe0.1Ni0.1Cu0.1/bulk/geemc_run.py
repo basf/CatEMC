@@ -3,17 +3,17 @@ from ase import units
 from ase.io import read
 
 
-MODEL_PATH = '/mnt/nfs/emc_tutorial/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/models/CoMoFeNiCuNH_mace.model'
+MODEL = 'medium-mpa-0'  # MACE-MPA-0 foundation model (https://github.com/ACEsuit/mace)
 TARGET_METAL_SPECIES = ['Co', 'Mo', 'Fe', 'Ni', 'Cu']
 
 
 def create_calculators():
-    from mace.calculators.mace import MACECalculator
+    from mace.calculators import mace_mp
 
-    return [MACECalculator(model_paths=MODEL_PATH,
-                           dispersion=False,
-                           device='cuda',
-                           default_dtype='float64')]
+    return [mace_mp(model=MODEL,
+                    dispersion=False,
+                    device='cuda',
+                    default_dtype='float64')]
 
 
 def get_fitness_kwargs():

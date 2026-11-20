@@ -383,13 +383,17 @@ neighbouring windows connects them.
 :func:`~catemc.generate.assign_mu_windows` creates the windows:
 
 1. The replicas are ranked by their content of the non-metal elements.
-2. The grid is partitioned into as many compact, disjoint windows as there
-   are replicas, with equal numbers of points :math:`J` (up to one point
-   when the grid does not divide evenly), by recursive median splits along
-   the widest direction.
-3. Windows at low chemical potential go to replicas with few non-metal
+2. The grid is partitioned into as many disjoint windows as there are
+   replicas. All windows hold the same number of points :math:`J`, the
+   integer quotient of the number of grid points and the number of
+   replicas. When the division leaves a remainder, some windows hold
+   :math:`J + 1` points.
+3. The grid is cut into slabs along one direction, and every slab into
+   windows along the other direction. The cuts follow the grid lines
+   wherever the point counts allow it.
+4. Windows at low chemical potential go to replicas with few non-metal
    atoms, and windows at high chemical potential to replicas with many.
-4. Each replica starts at the point of its window that is closest to the
+5. Each replica starts at the point of its window that is closest to the
    centre of the window.
 
 .. figure:: _static/figures/mu_windows_light.png
@@ -399,8 +403,9 @@ neighbouring windows connects them.
    :alt: The 21 by 21 grid of N and H chemical potentials divided into 56 windows
 
    μ-windows of the HEA(111) example: 441 grid points divided among 56
-   replicas. The shade shows the number of N and H atoms in the starting
-   structure of the replica that owns the window.
+   replicas, in 7 columns of 8 windows. The shade shows the number of N
+   and H atoms in the starting structure of the replica that owns the
+   window.
 
 .. figure:: _static/figures/mu_windows_dark.png
    :figclass: only-dark
@@ -409,8 +414,44 @@ neighbouring windows connects them.
    :alt: The 21 by 21 grid of N and H chemical potentials divided into 56 windows
 
    μ-windows of the HEA(111) example: 441 grid points divided among 56
-   replicas. The shade shows the number of N and H atoms in the starting
-   structure of the replica that owns the window.
+   replicas, in 7 columns of 8 windows. The shade shows the number of N
+   and H atoms in the starting structure of the replica that owns the
+   window.
+
+The windows are exact rectangles when the grid divides evenly among the
+replicas. In the example it does not: 441 / 56 = 7.875, so 49 windows hold
+8 points and 7 windows hold 7 points. A column is 3 points wide, and a
+window of 7 or 8 points cannot be a rectangle of that width, which gives
+the stepped edges inside the columns.
+
+.. list-table:: Window shapes for a 21 × 21 grid with a spacing of 0.05 eV
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Replicas
+     - :math:`J`
+     - Windows
+   * - 49
+     - 9
+     - 49 squares of 3 × 3 points
+   * - 56
+     - 7 and 8
+     - 7 columns of 8 windows with stepped edges (the figure)
+   * - 9
+     - 49
+     - 9 squares of 7 × 7 points
+
+To obtain rectangular windows for a given number of replicas, choose the
+grid so that it divides evenly. With 56 replicas, 21 × 24 grid points
+give 56 squares of 3 × 3 points.
+
+.. note::
+
+   The shape of a window does not enter the acceptance rules. The μ-walk
+   can move from any point of a window to any other point of it
+   (the multiple-try move of :doc:`surface_gcemc`), and the analysis reweights all
+   samples to all conditions. Compact windows only keep the range of
+   chemical potentials that one replica has to cover small.
 
 On the command line the grid is defined once, in the
 ``chemical_potentials`` section, and used for the windows, the simulation
@@ -420,8 +461,8 @@ and the analysis:
 
    chemical_potentials:
      elements:
-       N: {reference: -8.069, range: [-1.0, 0.0], step: 0.05}
-       H: {reference: -3.3575, range: [-1.0, 0.0], step: 0.05}
+       N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}
+       H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}
 
 The grid values are *relative* chemical potentials,
 :math:`\mu_k = \mu_k^\mathrm{ref} + \Delta\mu_k`. :doc:`surface_gcemc` shows

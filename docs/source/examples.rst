@@ -205,8 +205,10 @@ Before you run an example
 -------------------------
 
 The examples carry the settings of the published simulations, including
-file locations of the machine they ran on. Three things have to be
-adapted.
+file locations of the machine they ran on. The potential is the MACE-MPA-0
+foundation model of `MACE <https://github.com/ACEsuit/mace>`_, where the
+published simulations used models fine-tuned for the two materials. Two
+things have to be adapted.
 
 .. list-table::
    :header-rows: 1
@@ -215,9 +217,6 @@ adapted.
    * - What
      - Command line
      - Python
-   * - Machine-learning potential
-     - ``model_paths`` in the ``calculators`` section
-     - ``MODEL_PATH`` at the top of the run script
    * - Calculation directory
      - ``directory`` (the default ``.`` is the folder of the YAML file)
      - ``dir_name`` in every script of the study
@@ -225,9 +224,10 @@ adapted.
      - ``emc.gpu_devices``, ``emc.procs_per_device``
      - ``gpu_devices``, ``procs_per_device``
 
-The fine-tuned MACE models of the two materials are not part of the
-repository. Any potential that describes the system can be used in their
-place (:doc:`cli`).
+To use another potential, change the ``calculators`` section of the YAML
+file or ``create_calculators()`` in the run script (:doc:`cli`). The
+reference energies of the reservoirs must then come from the level of
+theory of that potential (:doc:`surface_gcemc`).
 
 To try an example before a production run, shorten it on the command line
 without editing the file:

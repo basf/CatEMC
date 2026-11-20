@@ -10,8 +10,8 @@ with ASE, so it needs no GPU and no machine-learning potential.
 .. note::
 
    EMT and a 32-atom cell make this example fast. The numbers are a toy
-   result. The :doc:`tutorials` use production settings and fine-tuned MACE
-   models.
+   result. The :doc:`tutorials` use production settings and the MACE-MPA-0
+   foundation model.
 
 The files of this page are in ``examples/quickstart`` of the repository.
 

@@ -20,21 +20,21 @@ ana = GCEMCAnalysis(
 ana.prepare_data(use_exist=True, raw_score_cutoff=-10000.)
 ana.get_trajectory(replica=10)
 
-E_N2 = -16.293 + 0.155  # Etot incl. ZPE RPBE 
-E_H2 = -6.984 + 0.269   # Etot incl. ZPE RPBE
+E_N2 = -16.640 + 0.155  # Etot incl. ZPE PBE
+E_H2 = -6.773 + 0.267   # Etot incl. ZPE PBE
 dmu_N = np.arange(-1., 0.001, 0.025)
 dmu_H = np.arange(-1., 0.001, 0.025)
 sim_temperatures = [573, 673, 773, 873]
 target_temperature = 800
 grid = np.array(np.meshgrid(dmu_N, dmu_H, sim_temperatures+[target_temperature])).T.reshape(-1, 3)
-early_mu_N = -8.227
+early_mu_N = -8.579
 early_dmu_N = early_mu_N - E_N2/2
-early_mu_H = -4.065
+early_mu_H = -3.960
 early_dmu_H = early_mu_H - E_H2/2
 early_cond = np.array([early_dmu_N, early_dmu_H, target_temperature])
-equil_mu_N = -8.993
+equil_mu_N = -9.167
 equil_dmu_N = equil_mu_N - E_N2/2
-equil_mu_H = -3.985 
+equil_mu_H = -3.881
 equil_dmu_H = equil_mu_H - E_H2/2
 equil_cond = np.array([equil_dmu_N, equil_dmu_H, target_temperature])
 reaction_conditions = np.vstack([grid, early_cond, equil_cond])

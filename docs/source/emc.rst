@@ -70,8 +70,8 @@ settings of the EMC itself.
          population: ...
 
          calculators:               # one entry per calculator
-           - calculator: mace
-             model_paths: /path/to/model
+           - calculator: mace_mp    # MACE-MPA-0 foundation model
+             model: medium-mpa-0
              device: cuda
              default_dtype: float64
              fmax: 0.05
@@ -110,9 +110,9 @@ settings of the EMC itself.
 
          def create_calculators():
              # 1) Called once in every worker. Import the calculator here.
-             from mace.calculators.mace import MACECalculator
-             return [MACECalculator(model_paths='/path/to/model',
-                                    device='cuda', default_dtype='float64')]
+             from mace.calculators import mace_mp
+             return [mace_mp(model='medium-mpa-0',
+                             device='cuda', default_dtype='float64')]
 
 
          def get_fitness_kwargs():
@@ -195,16 +195,16 @@ where :math:`r_i` and :math:`r_j` are covalent radii and
          calculators:
            - calculator: repulsive      # pre-relaxation to 0.5 eV/A
              fmax: 0.5
-           - calculator: mace           # final relaxation, MD and energy
-             model_paths: /path/to/model
+           - calculator: mace_mp        # final relaxation, MD and energy
+             model: medium-mpa-0
              device: cuda
              default_dtype: float64
              fmax: 0.05
 
-      ``calculator`` is one of the short names ``repulsive``, ``emt`` and
-      ``mace``, or the import path of any ASE calculator class such as
-      ``mace.calculators.mace.MACECalculator``. All other keys are passed
-      to the class. ``fmax: null`` evaluates a calculator without relaxing
+      ``calculator`` is one of the short names ``repulsive``, ``emt``,
+      ``mace`` and ``mace_mp``, or the import path of any ASE calculator
+      such as ``mace.calculators.mace_mp``. All other keys are passed to
+      the calculator. ``fmax: null`` evaluates a calculator without relaxing
       with it.
 
       When a calculator needs more preparation than a constructor call,
@@ -224,11 +224,11 @@ where :math:`r_i` and :math:`r_j` are covalent radii and
 
          def create_calculators():
              from catemc.repulsive import RepulsivePotential
-             from mace.calculators.mace import MACECalculator
+             from mace.calculators import mace_mp
              return [
                  RepulsivePotential(),
-                 MACECalculator(model_paths=MODEL_PATH, device='cuda',
-                                default_dtype='float64'),
+                 mace_mp(model='medium-mpa-0', device='cuda',
+                         default_dtype='float64'),
              ]
 
          def get_fitness_kwargs():

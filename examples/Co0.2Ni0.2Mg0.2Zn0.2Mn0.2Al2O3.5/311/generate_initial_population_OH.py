@@ -18,13 +18,13 @@ dir_name = f'/emc/{comp}/{surface}'
 if os.path.isfile(f'{dir_name}/template_{comp}_{surface}_slab_mace_opt.traj',): 
     template = read(f'{dir_name}/template_{comp}_{surface}_slab_mace_opt.traj')
 else:
-    from mace.calculators.mace import MACECalculator
+    from mace.calculators import mace_mp
     template = read(f'{dir_name}/{comp}_{surface}_slab_eqv2_opt.traj')
     template *= (2,1,1)
     template[38].symbol = 'Mn'
     template.constraints = []
-    calc = MACECalculator(model_paths="/emc/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/models/CoNiMgZnMnAlCOH_mace.model", 
-                          dispersion=False, device='cuda', default_dtype='float64')
+    # MACE-MPA-0 foundation model (https://github.com/ACEsuit/mace)
+    calc = mace_mp(model='medium-mpa-0', dispersion=False, device='cuda', default_dtype='float64')
     template.calc = calc
     opt = LBFGS(template, logfile=None)
     opt.run(fmax=0.01, steps=300)
