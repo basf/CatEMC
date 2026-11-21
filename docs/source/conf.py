@@ -75,8 +75,8 @@ html_static_path = ['_static']
 html_css_files = ['custom.css']
 html_favicon = '_static/catemc_icon.svg'
 html_theme_options = {
-    'light_logo': 'catemc_logo.svg?v=12',
-    'dark_logo': 'catemc_logo_dark.svg?v=12',
+    'light_logo': 'catemc_logo.svg?v=13',
+    'dark_logo': 'catemc_logo_dark.svg?v=13',
     'navigation_with_keys': True,
     'sidebar_hide_name': True,
     'source_repository': 'https://github.com/basf/CatEMC',
