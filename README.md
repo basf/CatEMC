@@ -36,8 +36,7 @@ Shuang Han: hanshuangshiren@gmail.com
 
 CatEMC can be driven in two equivalent ways: from Python input files, described here and in the sections below, or from the `catemc` command with one YAML file per system (see [Command-line interface](#command-line-interface)).
 
-A CatEMC simulation is configured in one Python input file. The same file defines the calculator sequence, the fitness settings and the EMC parameters. No separate `calculate_fitness.py` script or command-line argument parser is required.
-
+A CatEMC simulation is configured in one Python input file. The same file defines the calculator sequence, the fitness settings and the EMC parameters.
 A run directory normally contains:
 
 * an initial population trajectory;
