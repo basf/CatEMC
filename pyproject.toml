@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "catemc"
+dynamic = ["version"]
+description = "Evolutionary Monte Carlo for simulating catalysts under reaction conditions"
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Shuang Han", email = "hanshuangshiren@gmail.com" }]
+requires-python = ">=3.9"
+dependencies = [
+    "ase",
+    "acat>=2.0.3",
+    "autoadsorbate",
+    "numpy",
+    "scipy",
+    "pymbar",
+    "pyyaml",
+]
+keywords = [
+    "evolutionary Monte Carlo",
+    "heterogeneous catalysis",
+    "high-entropy alloys",
+    "chemical potential",
+    "surface phase diagram",
+    "atomistic simulation",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+Documentation = "https://catemc.readthedocs.io/en/latest/"
+Source = "https://github.com/basf/CatEMC"
+Issues = "https://github.com/basf/CatEMC/issues"
+
+[project.scripts]
+catemc = "catemc.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "catemc.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["catemc", "catemc.*"]

@@ -13,7 +13,10 @@ with ASE, so it needs no GPU and no machine-learning potential.
    result. The :doc:`tutorials` use production settings and the MACE-MPA-0
    foundation model.
 
-The files of this page are in ``examples/quickstart`` of the repository.
+The command-line version needs nothing but ``pip install catemc``. The files
+of this page are also in ``examples/quickstart`` of the
+`GitHub repository <https://github.com/basf/CatEMC>`_, and the Python version
+is shown in full below.
 
 Run it
 ------

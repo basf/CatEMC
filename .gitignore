@@ -68,8 +68,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
-# Sphinx documentation
+# Sphinx documentation (built pages, never committed)
 docs/_build/
+docs/build/
 
 # PyBuilder
 .pybuilder/

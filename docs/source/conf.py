@@ -1,5 +1,6 @@
 """Sphinx configuration of the CatEMC documentation."""
 from pathlib import Path
+import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -8,7 +9,9 @@ sys.path.insert(0, str(ROOT))
 project = 'CatEMC'
 author = 'Shuang Han'
 copyright = '2025, Shuang Han'
-release = '1.0.0'
+# The version is read from catemc/__init__.py, so it is set in one place only.
+release = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]",
+                    (ROOT / 'catemc' / '__init__.py').read_text()).group(1)
 version = release
 
 extensions = [

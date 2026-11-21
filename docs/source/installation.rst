@@ -4,8 +4,9 @@ Installation
 Requirements
 ------------
 
-CatEMC is a pure Python package. It depends on the following packages,
-which are installed automatically with it:
+CatEMC is a pure Python package for Python 3.9 or newer. It depends on the
+following packages, which are installed automatically with it (together with
+NumPy and SciPy):
 
 .. list-table::
    :header-rows: 1
@@ -25,8 +26,30 @@ which are installed automatically with it:
    * - `PyYAML <https://pyyaml.org>`_
      - the configuration file of the command-line interface
 
+Install from PyPI
+-----------------
+
+CatEMC needs Python 3.9 or newer. Install the latest release from
+`PyPI <https://pypi.org/project/catemc/>`_:
+
+.. code-block:: console
+
+   $ pip install catemc
+
+This also creates the ``catemc`` command. Check it with
+
+.. code-block:: console
+
+   $ catemc --version
+   catemc 1.0.0
+
+To update to a newer release later, run ``pip install --upgrade catemc``.
+
 Install from source
 -------------------
+
+To use the newest code from GitHub, or to change the code, install it from
+source in editable mode:
 
 .. code-block:: console
 
@@ -34,12 +57,9 @@ Install from source
    $ cd CatEMC
    $ pip install -e .
 
-The editable install also creates the ``catemc`` command. Check it with
-
-.. code-block:: console
-
-   $ catemc --version
-   catemc 1.0.0
+The editable install also creates the ``catemc`` command. The examples,
+the tutorial scripts and the sources of this documentation are only in the
+GitHub repository, not in the package on PyPI.
 
 Calculator
 ----------

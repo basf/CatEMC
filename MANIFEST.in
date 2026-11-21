@@ -1,0 +1,9 @@
+# Files of the source distribution (sdist) on PyPI, besides the catemc package.
+# Examples, scripts, images, documentation and tests stay on GitHub only, so
+# that the package stays small.
+include LICENSE README.md pyproject.toml setup.py
+prune docs
+prune examples
+prune scripts
+prune images
+prune tests

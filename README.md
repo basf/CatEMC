@@ -4,7 +4,7 @@
 
 **CatEMC** is a Python package for running evolutionary Monte Carlo (EMC) simulations for complex bulk and surface heterogeneous catalyst materials. The package provides tools to (1) generate populations of structures and μ-windows, (2) run Gibbs ensemble evolutionary Monte Carlo (GE-EMC) bulk simulations at different temperatures, or grand-canonical evolutionary Monte Carlo (GC-EMC) surface simulations at different temperatures and reaction conditions, and (3) analyze GE-EMC data to estimate metal chemical-potential differences or GC-EMC data to estimate structural expectations and free-energy surfaces. For the full tutorial, see the [CatEMC documentation](https://catemc.readthedocs.io/en/latest/).
 
-![png](images/catemc_workflow.png)
+![png](https://raw.githubusercontent.com/basf/CatEMC/main/images/catemc_workflow.png)
 
 ---
 
@@ -64,7 +64,19 @@ A scheduler script only needs to activate the environment, set CPU thread limits
 
 ## Installation
 
-If you plan to use the code directly from this repo, install in editable mode:
+CatEMC needs Python 3.9 or newer. Install the latest release from [PyPI](https://pypi.org/project/catemc/):
+
+```bash
+pip install catemc
+```
+
+This installs the `catemc` command and the required packages (ASE, ACAT, AutoAdsorbate, pymbar, NumPy, SciPy and PyYAML). Calculators such as [MACE](https://github.com/ACEsuit/mace) are not installed with CatEMC. Check the installation with:
+
+```bash
+catemc --version
+```
+
+To use the newest code from GitHub, or to change the code, install from source in editable mode:
 
 ```bash
 git clone https://github.com/basf/CatEMC.git
@@ -467,7 +479,7 @@ ana.get_trajectory(replica=10)
 ```
 You can then visualize the trajectory with the name `*_geemc_10.traj`. Below shows a production trajectory for replica 10 of a spinel HEO bulk GE-EMC simulation:
 
-![png](images/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4_bulk_geemc_10.gif)
+![png](https://raw.githubusercontent.com/basf/CatEMC/main/images/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4_bulk_geemc_10.gif)
 
 ---
 
@@ -836,7 +848,7 @@ ana.get_trajectory(replica=10)
 ```
 You can then visualize the trajectory with the name `*_gcemc_10.traj`. Below shows a production trajectory for replica 10 of an FCC HEA(111) surface GC-EMC simulation under ammonia decomposition condition:
 
-![png](images/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111_gcemc_10.gif)
+![png](https://raw.githubusercontent.com/basf/CatEMC/main/images/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111_gcemc_10.gif)
 
 ## Visualizing results
 
@@ -946,7 +958,7 @@ plt.show()
 plt.clf()
 ```
 Output:
-![png](images/metal_spd.png)
+![png](https://raw.githubusercontent.com/basf/CatEMC/main/images/metal_spd.png)
 
 You can use the following script to visualize adsorbate coverage in the surface phase diagram:
 ```python
@@ -1045,4 +1057,4 @@ plt.show()
 plt.clf()
 ```
 Output:
-![png](images/adsorbate_spd.png)
+![png](https://raw.githubusercontent.com/basf/CatEMC/main/images/adsorbate_spd.png)
