@@ -108,8 +108,8 @@ easily, are passed down to the cold replicas.
    The volume factors cancel in the exchange, because the two replicas
    only trade places.
 
-HEA bulk
---------
+Example 1: HEA bulk
+-------------------
 
 The alloy keeps the nominal composition
 Co\ :sub:`0.25`\ Mo\ :sub:`0.45`\ Fe\ :sub:`0.1`\ Ni\ :sub:`0.1`\ Cu\ :sub:`0.1`
@@ -147,8 +147,8 @@ large rearrangements.
 
          $ python -u emc_run.py
 
-HEO bulk at a fixed oxygen-vacancy concentration
-------------------------------------------------
+Example 2: HEO bulk with oxygen vacancies
+-----------------------------------------
 
 For the spinel oxide the composition
 (Co\ :sub:`0.2`\ Ni\ :sub:`0.2`\ Mg\ :sub:`0.2`\ Zn\ :sub:`0.2`\ Mn\ :sub:`0.2`)Al\ :sub:`2`\ O\ :sub:`3.5`
@@ -194,8 +194,8 @@ arrangement of cations and vacancies, and the repulsive potential
       ``nonmetal_element_pool=['O', 'X']`` tells the moves to treat them as
       a species.
 
-What to look at
----------------
+Practical advice
+----------------
 
 A canonical run is analysed with the same class as a Gibbs-ensemble run.
 The Warren-Cowley parameters show which pairs of metals attract or avoid
@@ -242,9 +242,6 @@ ratios and the correlation time.
                      cutoff=3.5, use_energy_mask=True)
 
 :doc:`analysis` explains the output files.
-
-Canonical or Gibbs?
--------------------
 
 Use the canonical ensemble when the composition of the simulation cell is
 the quantity you want to control, for example to compare the ordering at
