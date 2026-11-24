@@ -7,33 +7,39 @@ write the results as pickle files that are easy to plot.
 
 .. list-table::
    :header-rows: 1
-   :widths: 22 39 39
+   :widths: 16 26 29 29
 
    * -
-     - Bulk (canonical and Gibbs)
+     - Bulk (canonical)
+     - Bulk (Gibbs)
      - Surface (grand canonical)
    * - Python
-     - :class:`catemc.analysis.GEEMCAnalysis`
-     - :class:`catemc.analysis.GCEMCAnalysis`
-   * - Command line
-     - ``catemc analyze config.yaml``
-     - ``catemc analyze config.yaml``
+     - :class:`~catemc.analysis.EMCAnalysis`
+     - :class:`~catemc.analysis.GEEMCAnalysis`
+     - :class:`~catemc.analysis.GCEMCAnalysis`
    * - Results
+     - short-range order
      - chemical-potential differences, short-range order
      - surface composition, coverages, bond statistics, vacancy fraction,
        free-energy surfaces
-   * - For both
-     - trajectories of single replicas, acceptance and correlation
-       diagnostics
-     -
+
+On the command line, ``catemc analyze config.yaml`` picks the class from
+the ``ensemble`` of the file. All three classes also write the
+trajectories of single replicas and report acceptance and correlation
+diagnostics.
+:class:`~catemc.analysis.GEEMCAnalysis` is a subclass of
+:class:`~catemc.analysis.EMCAnalysis`: it has all its methods and adds the
+Widom samples and the chemical-potential differences of the Gibbs
+ensemble.
 
 Collecting the samples
 ----------------------
 
 ``prepare_data()`` collects the accepted structure of every replica at
-every step, together with the Widom records of the Gibbs ensemble, and
-caches them in ``{name}_mbar_data.pkl``, ``{name}_mbar_mc_data.pkl`` and
-``{name}_mbar_widom_data.pkl``. Later analyses reuse the cache.
+every step and caches them in ``{name}_mbar_data.pkl`` and
+``{name}_mbar_mc_data.pkl``. For the Gibbs ensemble it also collects the
+Widom records, cached in ``{name}_mbar_widom_data.pkl``. Later analyses
+reuse the cache.
 
 .. tab-set::
    :sync-group: interface
@@ -75,6 +81,10 @@ Three settings are shared by all analyses:
 
 Chemical-potential differences
 ------------------------------
+
+This analysis uses the Widom attempts of the inter-swap moves, so it is
+available for the Gibbs ensemble only
+(:meth:`~catemc.analysis.GEEMCAnalysis.get_dmu_estimates`).
 
 Theory
 ^^^^^^
@@ -204,6 +214,11 @@ Usage
          Metal chemical-potential differences mu_B - mu_A (eV), listed as 'A2B':
            573 K: Co2Mo ..., Co2Fe ..., Co2Ni ..., Co2Cu ..., Mo2Fe ..., ...
            ...
+         Metal chemical potentials for chemical_potentials.metals of a surface run (eV):
+           metals:
+             Co: {573: 0.0000, 650: 0.0000, 673: 0.0000, ...}
+             Mo: {573: ..., 650: ..., 673: ..., ...}
+             ...
          Wrote Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_mbar_dmu_estimates.pkl
 
    .. tab-item:: Python
@@ -215,6 +230,12 @@ Usage
 ``target_temperatures`` may contain temperatures that were not simulated.
 Include every temperature at which a surface simulation or its analysis
 will need the bulk reservoir.
+
+The printed ``metals`` block gives the chemical potential of every metal
+relative to the first one, from the corrected differences. It is the
+``chemical_potentials.metals`` entry of the configuration file of a
+surface run (:doc:`surface_gcemc`): copy it there. It is printed with the
+default options (``wls_correction: true``, ``excess_only: false``).
 
 The result is a dictionary ``{temperature: {'A2B': value}}`` with
 :math:`\mu_\mathrm{B} - \mu_\mathrm{A}` in eV for all pairs, in the order
@@ -266,6 +287,9 @@ that :math:`m` and :math:`n` attract each other and a positive value that
 they avoid each other. For like species (:math:`\delta_{mm} = 1`) a
 positive value means clustering. A random alloy has
 :math:`\alpha_{mn} = 0` for all pairs.
+
+:meth:`~catemc.analysis.EMCAnalysis.get_sro` works in the same way for
+canonical and Gibbs runs.
 
 .. tab-set::
    :sync-group: interface
@@ -370,20 +394,23 @@ Usage
 
       The analysis reuses the chemical potentials, the reference energies,
       the reservoir and the internal partition functions of the
-      simulation, so only the target conditions have to be given:
+      simulation, so only the target conditions have to be given, in
+      ``reaction_conditions`` (:ref:`analysis-reaction-conditions`):
 
-      * ``expectations.step`` refines the grid (0.025 eV here instead of
-        the 0.05 eV of the simulation), and ``expectations.temperatures``
-        adds temperatures.
-      * ``conditions`` adds single reaction conditions. ``absolute: true``
-        marks the values as absolute chemical potentials :math:`\mu_k`
-        instead of :math:`\Delta\mu_k`.
+      * The simulated conditions are always included, first.
+      * An element given as ``{reference, range, step}`` adds a grid of
+        :math:`\mu_k = E^\mathrm{ref}_k + \Delta\mu_k`, here a finer one
+        (0.025 eV instead of the 0.05 eV of the simulation) at the
+        simulated temperatures and at 800 K.
+      * An element given as a number is an absolute chemical potential
+        :math:`\mu_k`, here at two single conditions of ammonia
+        decomposition.
 
       The expectations at the single conditions are printed:
 
       .. code-block:: text
 
-         expectations: 8407 reaction conditions, saved to ..._mbar_expectations_conditions.npy
+         expectations: 10171 reaction conditions, saved to ..._mbar_expectations_conditions.npy
            condition [-0.3365, -0.707, 800.0]:
              x_surf_Co                ...
              x_surf_Mo                ...
@@ -499,14 +526,15 @@ condition.
       .. code-block:: yaml
 
          analysis:
-           conditions:
-             - {N: -8.579, H: -3.960, T: 800, absolute: true}
-             - {N: -9.167, H: -3.881, T: 800, absolute: true}
            fes:
              bin_width: 0.05
+             reaction_conditions:
+               - {N: -8.579, H: -3.960, T: 800}
+               - {N: -9.167, H: -3.881, T: 800}
 
-      The free energies are evaluated at the conditions listed under
-      ``conditions``.
+      The free energies are evaluated at the entries of
+      ``reaction_conditions``, here two absolute conditions. The simulated
+      conditions enter the reweighting but are not evaluated.
 
    .. tab-item:: Python
       :sync: python
@@ -557,7 +585,7 @@ Trajectories and diagnostics
 
       .. code-block:: python
 
-         ana.get_trajectory(replica=10)     # -> {name}_geemc_10.traj or {name}_gcemc_10.traj
+         ana.get_trajectory(replica=10)     # -> {name}_emc_10.traj, {name}_geemc_10.traj or {name}_gcemc_10.traj
          diagnostics = ana.get_diagnostics(starting_step=300)
 
 ``get_trajectory`` writes the accepted structures of one replica in order.

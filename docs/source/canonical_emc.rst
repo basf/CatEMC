@@ -197,10 +197,12 @@ arrangement of cations and vacancies, and the repulsive potential
 Practical advice
 ----------------
 
-A canonical run is analysed with the same class as a Gibbs-ensemble run.
+A canonical run is analysed with :class:`~catemc.analysis.EMCAnalysis`.
 The Warren-Cowley parameters show which pairs of metals attract or avoid
 each other at each temperature, and the diagnostics report the acceptance
-ratios and the correlation time.
+ratios and the correlation time. A canonical run has no Widom attempts, so
+it gives no chemical-potential differences. These come from the
+:doc:`Gibbs ensemble <bulk_geemc>`.
 
 .. tab-set::
    :sync-group: interface
@@ -227,9 +229,9 @@ ratios and the correlation time.
 
       .. code-block:: python
 
-         from catemc.analysis import GEEMCAnalysis
+         from catemc.analysis import EMCAnalysis
 
-         ana = GEEMCAnalysis(
+         ana = EMCAnalysis(
                  name='Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_canonical',
                  calculation_dir=dir_name,
                  pop_size=48,

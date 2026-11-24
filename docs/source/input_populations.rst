@@ -15,10 +15,9 @@ populations of the four example systems.
        :func:`catemc.generate.assign_mu_windows`
    * - Command line
      - ``catemc generate config.yaml`` (sections ``composition``,
-       ``template``, ``regions`` and ``population``)
+       ``regions`` and ``population``)
    * - Output
-     - ``{name}_input_pop.traj``, and ``{name}_template.traj`` from the
-       command line
+     - ``{name}_input_pop.traj``
 
 What a population contains
 --------------------------
@@ -132,16 +131,20 @@ temperatures between 573 and 1400 K.
       .. literalinclude:: ../../examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/bulk/generate_initial_population.py
          :language: python
 
-``template.build`` accepts any function of ``ase.build`` together with
-its arguments, so ``bulk``, ``fcc111``, ``surface``, ``mx2`` and all other
-builders are available without writing Python.
+The template structure is a file, given as ``population.template``. It is
+read with ASE, so any format that ASE reads works (``.traj``, ``.cif``,
+``POSCAR``, ...), and its metal sites must hold metals of the composition.
+The file of this example was written with the ``ase build`` command in the
+comment. Slabs and other structures are built with ``ase.build`` in Python
+and written with ``ase.io.write``.
 
 Example 2: HEO bulk with oxygen vacancies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The spinel template is read from a structure file. Co and Al of the file
-mark the metal sites, which are then decorated with the six metals, and one
-eighth of the oxygen sites is turned into vacancies.
+The template is a 2×2×2 supercell of the conventional spinel cell of
+``Al2CoO4.cif``. Its Co and Al sites are the metal sites, which are
+decorated with the six metals, and one eighth of the oxygen sites is
+turned into vacancies.
 
 .. tab-set::
    :sync-group: interface
@@ -158,6 +161,8 @@ eighth of the oxygen sites is turned into vacancies.
 
          $ cd examples/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk
          $ catemc generate config.yaml
+         Random seed: 1690741995
+         Template: Al128Co64O256 (448 sites)
          Replica   0  T = 723 K  Al128Co13Mg13Mn12Ni13O224X32Zn13
          Replica   1  T = 723 K  Al128Co13Mg13Mn12Ni13O224X32Zn13
          ...
@@ -190,35 +195,31 @@ Regions of the slab
 
 .. list-table::
    :header-rows: 1
-   :widths: 28 30 42
+   :widths: 34 66
 
    * - Region
-     - Python argument
      - Meaning
-   * - ``regions.fixed``
-     - ``fix_indices``
+   * - ``fix_indices``
      - atoms that are frozen during relaxation and MD and never mutate
-   * - ``regions.mutable_metals``
-     - ``mutable_metal_indices``
+   * - ``mutable_metal_indices``
      - metal atoms that can be swapped and mutated (default: all free
        metals)
-   * - ``regions.mutable_nonmetals``
-     - ``mutable_nonmetal_indices``
+   * - ``mutable_nonmetal_indices``
      - lattice non-metal sites that can become vacancies and back (default:
        all free non-metal sites of the pool)
-   * - ``regions.slab``
-     - ``slab_indices``
+   * - ``slab_indices``
      - atoms that belong to the catalyst and not to the adsorbates (default:
        the whole template)
 
-On the command line a region is selected by ``all``, ``none``, a list of
-indices, or one of ``z_below``, ``z_above``, ``bottom_layers``,
-``top_layers`` and ``symbols``:
+The names are the arguments of the EMC classes and the keys of the
+``regions`` section. On the command line a region is selected by ``all``,
+``none``, a list of indices, or one of ``z_below``, ``z_above``,
+``bottom_layers``, ``top_layers`` and ``symbols``:
 
 .. code-block:: yaml
 
    regions:
-     fixed: {bottom_layers: 2}          # or {z_below: 15.0}
+     fix_indices: {bottom_layers: 2}          # or {z_below: 15.0}
 
 Example 1: HEA(111) for ammonia decomposition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -250,20 +251,22 @@ faster.
          $ cd examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/111
          $ catemc generate config.yaml
          Random seed: 1234
-         Replica   0  T = 573 K  Co54Cu21Fe22Mo98Ni21  8 mu-points, now at (-1.0, -0.95)
-         Replica   1  T = 573 K  Co54Cu21Fe22Mo98Ni21  8 mu-points, now at (-1.0, -0.4)
-         Replica   2  T = 573 K  H5Co54Cu21Fe22Mo98Ni21  8 mu-points, now at (-0.85, -0.6)
-         Replica   3  T = 573 K  Co54Cu21Fe22Mo98N6Ni21  8 mu-points, now at (-0.45, -0.15)
+         Template: Co54Cu21Fe22Mo98Ni21 (216 sites)
+         Replica   0  T = 573 K  Co54Cu21Fe22Mo98Ni21  8 mu-points, now at (-0.95, -0.95)
+         Replica   1  T = 573 K  Co54Cu21Fe22Mo98Ni21  7 mu-points, now at (-0.95, -0.85)
+         Replica   2  T = 573 K  Co54Cu21Fe22Mo98N6Ni21  7 mu-points, now at (-0.5, -0.85)
+         Replica   3  T = 573 K  H8Co54Cu21Fe22Mo98Ni21  7 mu-points, now at (-0.8, -0.85)
          ...
-         Replica  55  T = 873 K  H25Co54Cu21Fe22Mo98N25Ni21  7 mu-points, now at (-0.05, -0.05)
+         Replica  55  T = 873 K  H27Co54Cu21Fe22Mo98N27Ni21  8 mu-points, now at (-0.05, -0.05)
          Wrote 56 replicas to Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111_input_pop.traj
 
       .. note::
 
-         The Python script of this example builds the frozen bottom layers
-         as a special quasi-random structure and uses ordered adlayers at
-         chosen coverages. To reuse a slab or a population prepared in that
-         way, point ``template.file`` or ``population.file`` to it.
+         The template is a slab prepared as in the Python script: a
+         special quasi-random structure in the frozen bottom layers, random
+         decorations above, relaxed with MACE-MPA-0. The Python script also
+         uses ordered adlayers at chosen coverages. To use a population
+         prepared in that way, set ``population.input_pop`` to its file.
 
    .. tab-item:: Python
       :sync: python
@@ -347,6 +350,8 @@ random adlayer of O, H and OH.
 
          $ cd examples/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/311
          $ catemc generate config_OH.yaml
+         Random seed: 559092908
+         Template: Al94Co36Mg4Mn3Ni4O160Zn3 (304 sites)
          Replica   0  T = 1023 K  Al94Co11Mg10Mn9Ni11O155X5Zn9  32 mu-points, now at (-4.3, -0.9)
          Replica   1  T = 1023 K  H4Al94Co11Mg10Mn9Ni11O152X10Zn9  32 mu-points, now at (-4.9, -0.8)
          ...
@@ -453,14 +458,14 @@ give 56 squares of 3 × 3 points.
    samples to all conditions. Compact windows only keep the range of
    chemical potentials that one replica has to cover small.
 
-On the command line the grid is defined once, in the
-``chemical_potentials`` section, and used for the windows, the simulation
-and the analysis:
+On the command line the grid is defined once, in
+``chemical_potentials.nonmetals``, and used for the windows, the
+simulation and the analysis:
 
 .. code-block:: yaml
 
    chemical_potentials:
-     elements:
+     nonmetals:
        N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}
        H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}
 
@@ -512,7 +517,10 @@ Options of ``generate_population``
 
 On the command line the same options are keys of the ``population``
 section, either for the whole population or for one entry of
-``population.variants``.
+``population.variants``. ``population.template`` is the name of the
+template file, ``pop_size`` follows from ``temperatures`` and
+``replicas_per_temperature``, and ``target_metal_species`` and
+``target_nonmetal_species`` from the composition.
 
 Practical advice
 ----------------

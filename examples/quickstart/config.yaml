@@ -12,7 +12,7 @@
 # Prefix of every output file, output folder and statistical ensemble
 # (canonical, gibbs or grand_canonical).
 name: CuNiPdPtAu_bulk
-directory: .
+calculation_dir: .
 ensemble: gibbs
 
 # Any composition: one formula, or the two sublattices separately, e.g.
@@ -20,13 +20,11 @@ ensemble: gibbs
 #   composition: {metals: {Co: 1, Al: 2}, nonmetals: {O: 3.5, X: 0.5}}
 composition: Cu0.25Ni0.25Pd0.2Pt0.2Au0.1
 
-# The lattice that is decorated: a structure file (file: lattice.cif) or
-# any function of ase.build with its arguments.
-template:
-  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.8, cubic: true}
-  repeat: [2, 2, 2]
-
+# "template" is the structure that is decorated, in any file format that ASE
+# can read. This one is a 32-atom fcc cell, written with
+#   ase build -x fcc -a 3.8 --cubic -r 2,2,2 Cu template.traj
 population:
+  template: template.traj
   temperatures: [600, 700, 800, 900]
   replicas_per_temperature: 2
   seed: 1

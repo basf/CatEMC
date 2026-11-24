@@ -280,5 +280,7 @@ Practical advice
   target_temperatures``). MBAR interpolates between the simulated
   temperatures.
 * :doc:`analysis` turns the databases of this run into
-  ``{name}_mbar_dmu_estimates.pkl``, which :doc:`surface_gcemc` reads as its
-  bulk reservoir.
+  ``{name}_mbar_dmu_estimates.pkl``, the ``temperature_dmu_map`` of a
+  surface run in Python (:doc:`surface_gcemc`). ``catemc analyze`` also
+  prints the values as the ``chemical_potentials.metals`` block of the
+  configuration file of a surface run.

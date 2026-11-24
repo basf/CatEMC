@@ -9,15 +9,15 @@
 # Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
 
 name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_canonical
-directory: .
+calculation_dir: .
 ensemble: canonical
 composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1
 
-template:
-  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.776}
-  repeat: [8, 8, 8]
-
 population:
+  # 8x8x8 fcc supercell of Cu with a = 3.776 A (512 atoms), the lattice that
+  # is decorated. Written with
+  #   ase build -x fcc -a 3.776 -r 8,8,8 Cu template_Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk.traj
+  template: template_Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk.traj
   temperatures: [573, 650, 723, 800, 873, 950, 1023, 1100, 1173, 1250, 1323, 1400]
   replicas_per_temperature: 4
 

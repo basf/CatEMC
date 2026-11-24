@@ -144,9 +144,55 @@ def compute_fragment_log_weights(atoms, temperatures,
     return values[inverse]
 
 
-class GEEMCAnalysis(object):
+class EMCAnalysis(object):
 
-    """Analysis class for bulk GE-EMC simulations."""
+    """Analysis class for bulk canonical (NVT or NPT) EMC simulations.
+
+    Parameters
+    ----------
+    name: str
+        Name of the target system, the same as in the EMC run.
+
+    calculation_dir: str
+        Path of the calculation directory of the EMC run.
+
+    pop_size: int
+        Number of replicas in the population.
+
+    target_metal_species: list of strs
+        The metal elements (including vacancy 'X') of the simulation.
+
+    target_nonmetal_species: list of strs, default None
+        The non-metal elements (including vacancy 'X') of the simulation.
+        Only needed for the short-range order with ``metal_only=False``.
+
+    pressure: float, default None
+        The pressure of an NPT run. The enthalpy and N ln V of every 
+        sampled state are then stored as well.
+
+    trim_generation: int, default 100
+        The trim_generation of the EMC run, i.e. the number of steps 
+        stored in each backup database.
+
+    temperature_key: str, default 'temperature'
+        Keyword for the temperature stored in each configuration.
+
+    replica_key: str, default 'replica'
+        Keyword for the replica number stored in each configuration.
+
+    acceptance_key: str, default 'accepted'
+        Keyword for indicating being accepted or not in each configuration.
+
+    category_key: str, default None
+        The category_key of the EMC run. If set, the samples are analysed 
+        separately for each value of the category.
+
+    """
+
+    # Label in the names of the trajectory files of single replicas
+    _traj_label = 'emc'
+    # Collected samples, cached in {name}_mbar_{attribute}.pkl
+    _cached_data = ('data', 'mc_data')
 
     def __init__(self, name,
             calculation_dir,
@@ -158,7 +204,7 @@ class GEEMCAnalysis(object):
             temperature_key='temperature',
             replica_key='replica',
             acceptance_key='accepted',
-            interswap_within_key=None):
+            category_key=None):
 
         self.name = name
         self.calculation_dir = calculation_dir
@@ -170,7 +216,23 @@ class GEEMCAnalysis(object):
         self.temperature_key = temperature_key
         self.replica_key = replica_key
         self.acceptance_key = acceptance_key
-        self.interswap_within_key = interswap_within_key
+        self.category_key = category_key
+
+    def _get_group(self, attr, group_value, T):
+
+        """Return the dictionary of collected samples at temperature T."""
+
+        d = getattr(self, attr)
+        if self.category_key is not None:
+            d = d.setdefault(group_value, {})
+
+        return d.setdefault(T, {})
+
+    def _collect_attempt(self, row, T, rep, group_value, U, dU):
+
+        """Collect additional samples from one MC attempt (none here)."""
+
+        pass
 
     def prepare_data(self,
             starting_step=None,
@@ -178,54 +240,34 @@ class GEEMCAnalysis(object):
             use_exist=True,
             raw_score_cutoff=-10000.):
 
-        """Prepare GE-EMC potential energy, trajectory, and Widom samples."""
+        """Prepare the potential energy and the trajectory of every replica 
+        at every step, and for GE-EMC also the Widom samples."""
 
         if starting_step is None:
             starting_step = 1
 
         collect_data = True
         if use_exist:
-            if self.interswap_within_key is None:
-                widom_path = f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl'
-                data_path = f'{self.calculation_dir}/{self.name}_mbar_data.pkl'
-                mc_path = f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl'
-                if os.path.isfile(widom_path) and os.path.isfile(data_path) and os.path.isfile(mc_path):
-                    with open(widom_path, 'rb') as handle:
-                        self.widom_data = pickle.load(handle)
-                    with open(data_path, 'rb') as handle:
-                        self.data = pickle.load(handle)
-                    with open(mc_path, 'rb') as handle:
-                        self.mc_data = pickle.load(handle)
+            if self.category_key is None:
+                paths = {attr: f'{self.calculation_dir}/{self.name}_mbar_{attr}.pkl'
+                         for attr in self._cached_data}
+                if all(os.path.isfile(path) for path in paths.values()):
+                    for attr, path in paths.items():
+                        with open(path, 'rb') as handle:
+                            setattr(self, attr, pickle.load(handle))
                     collect_data = False
                 else:
                     parprint('Cannot find complete MBAR cache, collect data instead.')
             else:
-                ok = True
-                for group_value in list(getattr(self, 'mc_data', {}).keys()) if hasattr(self, 'mc_data') else []:
-                    pass
-                if hasattr(self, 'widom_data') and hasattr(self, 'data') and hasattr(self, 'mc_data'):
+                if all(hasattr(self, attr) for attr in self._cached_data):
                     collect_data = False
 
         if collect_data:
-            self.widom_data = {}
-            self.data = {}
-            self.mc_data = {}
+            for attr in self._cached_data:
+                setattr(self, attr, {})
             n = 0
             while os.path.isfile(f'{self.calculation_dir}/{self.name}_bak{n}.db'):
                 n += 1
-
-            def init_group(group_value, T):
-                if self.interswap_within_key is None:
-                    self.widom_data.setdefault(T, {})
-                    self.data.setdefault(T, {})
-                    self.mc_data.setdefault(T, {})
-                else:
-                    self.widom_data.setdefault(group_value, {})
-                    self.data.setdefault(group_value, {})
-                    self.mc_data.setdefault(group_value, {})
-                    self.widom_data[group_value].setdefault(T, {})
-                    self.data[group_value].setdefault(T, {})
-                    self.mc_data[group_value].setdefault(T, {})
 
             for i in range(n):
                 if ((i + 1) * self.trim_generation) <= starting_step:
@@ -240,11 +282,12 @@ class GEEMCAnalysis(object):
 
                     T = row.key_value_pairs[self.temperature_key]
                     rep = int(row.key_value_pairs[self.replica_key])
-                    if self.interswap_within_key is None:
+                    if self.category_key is None:
                         group_value = None
                     else: 
-                        group_value = row.key_value_pairs[self.interswap_within_key]
-                    init_group(group_value, T)
+                        group_value = row.key_value_pairs[self.category_key]
+                    for attr in self._cached_data:
+                        self._get_group(attr, group_value, T)
 
                     # The state sampled by this replica at this step is the 
                     # configuration it held when the move was attempted (the
@@ -266,10 +309,7 @@ class GEEMCAnalysis(object):
                                 state.info['key_value_pairs']['enthalpy'] = U_state + self.pressure * V_state
                                 state.info['key_value_pairs']['NlnV'] = N_state * np.log(V_state)
                             state_cache[cache_key] = state
-                        if self.interswap_within_key is None:
-                            rep_list = self.data[T].setdefault(rep, [])
-                        else:
-                            rep_list = self.data[group_value][T].setdefault(rep, [])
+                        rep_list = self._get_group('data', group_value, T).setdefault(rep, [])
                         needed = row.emc_step - len(rep_list)
                         if needed > 0:
                             rep_list.extend([None] * needed)
@@ -283,52 +323,18 @@ class GEEMCAnalysis(object):
 
                     accepted = bool(row.key_value_pairs.get(self.acceptance_key, 0))
                     U = float(row.potential_energy)
-                    if self.interswap_within_key is None:
-                        self.mc_data[T].setdefault(rep, {})[row.emc_step] = {
-                            'energy': U,
-                            'accepted': accepted
-                        }
-                    else:
-                        self.mc_data[group_value][T].setdefault(rep, {})[row.emc_step] = {
-                            'energy': U,
-                            'accepted': accepted
-                        }
+                    self._get_group('mc_data', group_value, T).setdefault(rep, {})[row.emc_step] = {
+                        'energy': U,
+                        'accepted': accepted
+                    }
+                    self._collect_attempt(row, T, rep, group_value, U, dU)
 
-                    is_widom = ((row.data.get('operation', None) == 'interswap') 
-                                and ('mutated_elements' in row.data))
-                    if not is_widom:
-                        continue
-                    symbols = row.toatoms().get_chemical_symbols()
-                    m1, m2 = row.data.mutated_elements
-                    N1 = symbols.count(m1) + 1
-                    N2plus1 = symbols.count(m2)
-                    W_prefactor = N1 / N2plus1
-                    if self.pressure is None:
-                        V_prefactor = 1.
-                    else:
-                        # Same volume term as in the acceptance probability,
-                        # where vacancies (X) do not count as particles.
-                        V_new = row.volume
-                        V_old = V_new / row.volume_ratio
-                        N_new = len(symbols) - symbols.count('X')
-                        N_old = N_new + int(m2 == 'X') - int(m1 == 'X')
-                        V_prefactor = np.exp(N_new * np.log(V_new) - N_old * np.log(V_old))
-                        U += self.pressure * V_new
-
-                    key = f'{m1}2{m2}'
-                    if self.interswap_within_key is None:
-                        key_list = self.widom_data[T].setdefault(key, [])
-                    else:
-                        key_list = self.widom_data[group_value][T].setdefault(key, [])
-                    needed = row.emc_step - len(key_list)
-                    if needed > 0:
-                        key_list.extend([[] for _ in range(needed)])
-                    key_list[row.emc_step - 1].append(
-                        (U, dU, W_prefactor, V_prefactor, rep, row.emc_step)
-                    )
-
-            if self.interswap_within_key is None:
-                for T, dd in self.data.items():
+            if self.category_key is None:
+                sim_groups = {None: self.data}
+            else:
+                sim_groups = self.data
+            for group_value, dgroup in sim_groups.items():
+                for T, dd in dgroup.items():
                     for rep in list(dd.keys()):
                         atoms_prev = None
                         newlist = []
@@ -340,35 +346,17 @@ class GEEMCAnalysis(object):
                                 newlist.append(atoms_prev)
                         dd[rep] = newlist
 
-                with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data.pkl', 'wb') as handle:
-                    pickle.dump(self.widom_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-                with open(f'{self.calculation_dir}/{self.name}_mbar_data.pkl', 'wb') as handle:
-                    pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-                with open(f'{self.calculation_dir}/{self.name}_mbar_mc_data.pkl', 'wb') as handle:
-                    pickle.dump(self.mc_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
+            if self.category_key is None:
+                for attr in self._cached_data:
+                    with open(f'{self.calculation_dir}/{self.name}_mbar_{attr}.pkl', 'wb') as handle:
+                        pickle.dump(getattr(self, attr), handle, protocol=pickle.HIGHEST_PROTOCOL)
             else:
-                for group_value, dgroup in self.data.items():
-                    for T, dd in dgroup.items():
-                        for rep in list(dd.keys()):
-                            atoms_prev = None
-                            newlist = []
-                            for atoms in dd[rep]:
-                                if atoms is not None:
-                                    atoms_prev = atoms
-                                    newlist.append(atoms)
-                                else:
-                                    newlist.append(atoms_prev)
-                            dd[rep] = newlist
-
                 for group_value in self.data.keys():
                     gv_str = str(group_value)
-                    with open(f'{self.calculation_dir}/{self.name}_mbar_widom_data_{gv_str}.pkl', 'wb') as handle:
-                        pickle.dump(self.widom_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
-                    with open(f'{self.calculation_dir}/{self.name}_mbar_data_{gv_str}.pkl', 'wb') as handle:
-                        pickle.dump(self.data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
-                    with open(f'{self.calculation_dir}/{self.name}_mbar_mc_data_{gv_str}.pkl', 'wb') as handle:
-                        pickle.dump(self.mc_data[group_value], handle, protocol=pickle.HIGHEST_PROTOCOL)
+                    for attr in self._cached_data:
+                        with open(f'{self.calculation_dir}/{self.name}_mbar_{attr}_{gv_str}.pkl', 'wb') as handle:
+                            pickle.dump(getattr(self, attr)[group_value], handle, 
+                                        protocol=pickle.HIGHEST_PROTOCOL)
 
     def get_diagnostics(self, starting_step=None, ending_step=None, replica=None):
 
@@ -499,7 +487,7 @@ class GEEMCAnalysis(object):
 
             return results
 
-        if self.interswap_within_key is None:
+        if self.category_key is None:
             results = summarize_mcdata(self.mc_data)
             with open(f'{self.calculation_dir}/{self.name}_mbar_diagnostics.pkl', 'wb') as handle:
                 pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -520,7 +508,7 @@ class GEEMCAnalysis(object):
         if not hasattr(self, 'data'):
             raise RuntimeError('No trajectory data found, run prepare_data() first.')
         traj = []
-        if self.interswap_within_key is None:
+        if self.category_key is None:
             for T, dd in self.data.items():
                 if replica in dd.keys():
                     for atoms in dd[replica]:
@@ -533,9 +521,258 @@ class GEEMCAnalysis(object):
                         for atoms in dd[replica]:
                             if atoms is not None:
                                 traj.append(atoms)
-        write(f'{self.calculation_dir}/{self.name}_geemc_{replica}.traj', traj)
+        write(f'{self.calculation_dir}/{self.name}_{self._traj_label}_{replica}.traj', traj)
 
         return traj
+
+    def get_sro(self, 
+            starting_step=None, 
+            ending_step=None, 
+            sample_stride=1,
+            temperature=None, 
+            cutoff=None, 
+            metal_only=True, 
+            use_energy_mask=True):
+        """
+        Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
+        alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
+
+        starting_step, ending_step, sample_stride: subsampling EMC steps 
+        temperature: if provided, analyze only that T, otherwise all Ts.
+        cutoff: neighbor cutoff for first shell, use natural_cutoffs by default.
+        metal_only: only computing SRO between metal pairs instead of all pairs.
+        use_energy_mask: if True, skip running neighbor_list for replicas whose
+            potential energy equals that at the previous step for acceleration.
+        """
+
+        if not hasattr(self, 'data'):
+            raise RuntimeError('No trajectory data found, run prepare_data() first.')
+        metals = [m for m in (self.target_metal_species or []) if m != 'X']
+        nonmetals = [n for n in (self.target_nonmetal_species or []) if n != 'X']
+        if metal_only:
+            elem_list = metals
+        else:
+            elem_list = metals + nonmetals
+        pairs = list(combinations(elem_list, 2)) + [(e, e) for e in elem_list]
+        if self.category_key is None:
+            sim_groups = {None: self.data}
+        else:
+            sim_groups = self.data
+        all_group_sro = {}
+        for group_value, group_dict in sim_groups.items():
+            sim_temps = sorted(group_dict.keys())
+            if temperature is None:
+                temps = sim_temps
+            else:
+                if temperature not in sim_temps:
+                    raise KeyError(f'Temperature {temperature} not found in data.')
+                temps = [temperature]
+            sro_data_group = {}
+            for T in temps:
+                rep_dict = group_dict[T]
+                max_steps = max((len(lst) for lst in rep_dict.values()), default=0)
+                s0 = 1 if starting_step is None else int(starting_step)
+                s1 = max_steps if ending_step is None else int(min(ending_step, max_steps))
+                if s1 < s0:
+                    raise ValueError('Invalid step range or no steps in requested range.')
+                steps = list(range(s0, s1 + 1, int(sample_stride)))
+                pair_step_alpha = {pair: [] for pair in pairs}
+                last_neigh_info = {}
+                for step in steps:
+                    reps_atoms = []
+                    for rep, alist in rep_dict.items():
+                        if len(alist) >= step and alist[step - 1] is not None:
+                            reps_atoms.append((rep, alist[step - 1]))
+                    R = len(reps_atoms)
+                    if R == 0:
+                        for pair in pairs:
+                            pair_step_alpha[pair].append(np.array([], dtype=float))
+                        continue
+                    rep_neigh_info = {}
+                    for rep, atoms in reps_atoms:
+                        energy = None
+                        try:
+                            energy = atoms.info['key_value_pairs'].get('potential_energy', None)
+                        except Exception:
+                            energy = None
+                        reuse = False
+                        if use_energy_mask and (rep in last_neigh_info):
+                            prev_energy = last_neigh_info[rep].get('energy', None)
+                            if (prev_energy is not None) and (energy is not None) and (energy == prev_energy):
+                                rep_neigh_info[rep] = last_neigh_info[rep]
+                                reuse = True
+                        if not reuse:
+                            syms = np.array(atoms.get_chemical_symbols())
+                            filtered_syms = syms[(syms != 'X') & np.isin(syms, elem_list)]
+                            counts = Counter(filtered_syms.tolist())
+                            if cutoff is None:
+                                cutoff_local = natural_cutoffs(atoms)
+                            else:
+                                cutoff_local = cutoff
+                            i_idx, j_idx = neighbor_list('ij', atoms, cutoff_local)
+                            if i_idx.size == 0:
+                                per_ref = {}
+                            else:
+                                si = syms[i_idx]
+                                sj = syms[j_idx]
+                                per_ref = {}
+                                for m in elem_list:
+                                    mask_i = (si == m)
+                                    if not np.any(mask_i):
+                                        continue
+                                    neigh_syms = sj[mask_i]
+                                    if neigh_syms.size == 0:
+                                        continue
+                                    keep = np.isin(neigh_syms, elem_list)
+                                    neigh_syms = neigh_syms[keep]
+                                    total_neigh = neigh_syms.size
+                                    if total_neigh == 0:
+                                        continue
+                                    uniq, cnts = np.unique(neigh_syms, return_counts=True)
+                                    neigh_map = dict(zip(uniq.tolist(), cnts.tolist()))
+                                    per_ref[m] = (int(total_neigh), neigh_map)
+                            cache_info = {'energy': energy, 'counts': counts, 'per_ref': per_ref}
+                            rep_neigh_info[rep] = cache_info
+                            last_neigh_info[rep] = cache_info
+
+                    total_counts = Counter()
+                    for rep, info in rep_neigh_info.items():
+                        total_counts.update(info.get('counts', Counter()))
+                    total_metal_count = sum(total_counts[e] for e in metals) if metals else 0
+                    total_nonmetal_count = sum(total_counts[e] for e in nonmetals) if nonmetals else 0
+                    cR = {}
+                    for e in elem_list:
+                        if e in metals:
+                            if total_metal_count > 0:
+                                cR[e] = (total_counts.get(e, 0) / total_metal_count)
+                            else:
+                                cR[e] = np.nan
+                        else:
+                            if total_nonmetal_count > 0:
+                                cR[e] = (total_counts.get(e, 0) / total_nonmetal_count)
+                            else:
+                                cR[e] = np.nan
+
+                    for pair in pairs:
+                        m, n = pair
+                        # create full-length per-replica array (index by replica id)
+                        arr = np.full(self.pop_size, np.nan, dtype=float)
+                        for rep, info in rep_neigh_info.items():
+                            per_ref = info.get('per_ref', {})
+                            if m not in per_ref:
+                                continue
+                            total_neigh, neigh_map = per_ref[m]
+                            if total_neigh == 0:
+                                continue
+                            rep_counts = info.get('counts', Counter())
+                            if metal_only:
+                                total_ref_count_rep = sum(rep_counts[e] for e in metals) if metals else 0
+                            else:
+                                total_ref_count_rep = sum(rep_counts[e] for e in elem_list) if elem_list else 0
+                            if total_ref_count_rep == 0:
+                                continue
+                            c_n_rep = float(rep_counts.get(n, 0)) / float(total_ref_count_rep)
+                            P_mn_r = float(neigh_map.get(n, 0)) / float(total_neigh)
+                            delta = 1. if m == n else 0.
+                            denom = delta - c_n_rep
+                            if denom == 0 or np.isnan(denom):
+                                continue
+                            alpha_r = (P_mn_r - c_n_rep) / denom
+                            # store at the replica index so missing replicas remain np.nan
+                            arr[int(rep)] = alpha_r
+                        pair_step_alpha[pair].append(arr)
+                sro_data_group[T] = pair_step_alpha
+
+            if self.category_key is None:
+                fname = f'{self.calculation_dir}/{self.name}_sro_data.pkl' if temperature is None \
+                        else f'{self.calculation_dir}/{self.name}_sro_data_{temperature}K.pkl'
+                with open(fname, 'wb') as handle:
+                    pickle.dump(sro_data_group, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            else:
+                gv_str = str(group_value)
+                fname = f'{self.calculation_dir}/{self.name}_sro_data_{gv_str}.pkl' if temperature is None \
+                        else f'{self.calculation_dir}/{self.name}_sro_data_{gv_str}_{temperature}K.pkl'
+                with open(fname, 'wb') as handle:
+                    pickle.dump(sro_data_group, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+            all_group_sro[group_value] = sro_data_group
+
+        return all_group_sro
+
+
+class GEEMCAnalysis(EMCAnalysis):
+
+    """Analysis class for bulk GE-EMC simulations. It extends EMCAnalysis 
+    with the Widom samples of the inter-swap moves and the chemical potential 
+    differences estimated from them. The parameters are the same as for 
+    EMCAnalysis, with interswap_within_key in place of category_key.
+
+    Parameters
+    ----------
+    interswap_within_key: str, default None
+        The interswap_within_key of the GE-EMC run. If set, the samples are 
+        analysed separately for each group of replicas.
+
+    """
+
+    _traj_label = 'geemc'
+    _cached_data = ('widom_data', 'data', 'mc_data')
+
+    def __init__(self, name,
+            calculation_dir,
+            pop_size,
+            target_metal_species,
+            target_nonmetal_species=None,
+            pressure=None,
+            trim_generation=100,
+            temperature_key='temperature',
+            replica_key='replica',
+            acceptance_key='accepted',
+            interswap_within_key=None):
+
+        super().__init__(name, calculation_dir, pop_size, target_metal_species,
+                target_nonmetal_species=target_nonmetal_species,
+                pressure=pressure,
+                trim_generation=trim_generation,
+                temperature_key=temperature_key,
+                replica_key=replica_key,
+                acceptance_key=acceptance_key,
+                category_key=interswap_within_key)
+        self.interswap_within_key = interswap_within_key
+
+    def _collect_attempt(self, row, T, rep, group_value, U, dU):
+
+        """Collect the Widom sample of an inter-swap attempt."""
+
+        is_widom = ((row.data.get('operation', None) == 'interswap') 
+                    and ('mutated_elements' in row.data))
+        if not is_widom:
+            return
+        symbols = row.toatoms().get_chemical_symbols()
+        m1, m2 = row.data.mutated_elements
+        N1 = symbols.count(m1) + 1
+        N2plus1 = symbols.count(m2)
+        W_prefactor = N1 / N2plus1
+        if self.pressure is None:
+            V_prefactor = 1.
+        else:
+            # Same volume term as in the acceptance probability,
+            # where vacancies (X) do not count as particles.
+            V_new = row.volume
+            V_old = V_new / row.volume_ratio
+            N_new = len(symbols) - symbols.count('X')
+            N_old = N_new + int(m2 == 'X') - int(m1 == 'X')
+            V_prefactor = np.exp(N_new * np.log(V_new) - N_old * np.log(V_old))
+            U += self.pressure * V_new
+
+        key = f'{m1}2{m2}'
+        key_list = self._get_group('widom_data', group_value, T).setdefault(key, [])
+        needed = row.emc_step - len(key_list)
+        if needed > 0:
+            key_list.extend([[] for _ in range(needed)])
+        key_list[row.emc_step - 1].append(
+            (U, dU, W_prefactor, V_prefactor, rep, row.emc_step)
+        )
 
     def get_dmu_estimates(self, 
             starting_step=None, 
@@ -850,180 +1087,6 @@ class GEEMCAnalysis(object):
                 all_group_results[group_value] = dmu_estimates
 
         return all_group_results
-
-    def get_sro(self, 
-            starting_step=None, 
-            ending_step=None, 
-            sample_stride=1,
-            temperature=None, 
-            cutoff=None, 
-            metal_only=True, 
-            use_energy_mask=True):
-        """
-        Compute composite Warren-Cowley pairwise multicomponent SRO at each step:
-        alpha_{mn}(R) = (1/R) sum_r [ (P_mn(r) - c_n(R)) / (delta_mn - c_n(R)) ].
-
-        starting_step, ending_step, sample_stride: subsampling EMC steps 
-        temperature: if provided, analyze only that T, otherwise all Ts.
-        cutoff: neighbor cutoff for first shell, use natural_cutoffs by default.
-        metal_only: only computing SRO between metal pairs instead of all pairs.
-        use_energy_mask: if True, skip running neighbor_list for replicas whose
-            potential energy equals that at the previous step for acceleration.
-        """
-
-        if not hasattr(self, 'data'):
-            raise RuntimeError('No trajectory data found, run prepare_data() first.')
-        metals = [m for m in (self.target_metal_species or []) if m != 'X']
-        nonmetals = [n for n in (self.target_nonmetal_species or []) if n != 'X']
-        if metal_only:
-            elem_list = metals
-        else:
-            elem_list = metals + nonmetals
-        pairs = list(combinations(elem_list, 2)) + [(e, e) for e in elem_list]
-        if self.interswap_within_key is None:
-            sim_groups = {None: self.data}
-        else:
-            sim_groups = self.data
-        all_group_sro = {}
-        for group_value, group_dict in sim_groups.items():
-            sim_temps = sorted(group_dict.keys())
-            if temperature is None:
-                temps = sim_temps
-            else:
-                if temperature not in sim_temps:
-                    raise KeyError(f'Temperature {temperature} not found in data.')
-                temps = [temperature]
-            sro_data_group = {}
-            for T in temps:
-                rep_dict = group_dict[T]
-                max_steps = max((len(lst) for lst in rep_dict.values()), default=0)
-                s0 = 1 if starting_step is None else int(starting_step)
-                s1 = max_steps if ending_step is None else int(min(ending_step, max_steps))
-                if s1 < s0:
-                    raise ValueError('Invalid step range or no steps in requested range.')
-                steps = list(range(s0, s1 + 1, int(sample_stride)))
-                pair_step_alpha = {pair: [] for pair in pairs}
-                last_neigh_info = {}
-                for step in steps:
-                    reps_atoms = []
-                    for rep, alist in rep_dict.items():
-                        if len(alist) >= step and alist[step - 1] is not None:
-                            reps_atoms.append((rep, alist[step - 1]))
-                    R = len(reps_atoms)
-                    if R == 0:
-                        for pair in pairs:
-                            pair_step_alpha[pair].append(np.array([], dtype=float))
-                        continue
-                    rep_neigh_info = {}
-                    for rep, atoms in reps_atoms:
-                        energy = None
-                        try:
-                            energy = atoms.info['key_value_pairs'].get('potential_energy', None)
-                        except Exception:
-                            energy = None
-                        reuse = False
-                        if use_energy_mask and (rep in last_neigh_info):
-                            prev_energy = last_neigh_info[rep].get('energy', None)
-                            if (prev_energy is not None) and (energy is not None) and (energy == prev_energy):
-                                rep_neigh_info[rep] = last_neigh_info[rep]
-                                reuse = True
-                        if not reuse:
-                            syms = np.array(atoms.get_chemical_symbols())
-                            filtered_syms = syms[(syms != 'X') & np.isin(syms, elem_list)]
-                            counts = Counter(filtered_syms.tolist())
-                            if cutoff is None:
-                                cutoff_local = natural_cutoffs(atoms)
-                            else:
-                                cutoff_local = cutoff
-                            i_idx, j_idx = neighbor_list('ij', atoms, cutoff_local)
-                            if i_idx.size == 0:
-                                per_ref = {}
-                            else:
-                                si = syms[i_idx]
-                                sj = syms[j_idx]
-                                per_ref = {}
-                                for m in elem_list:
-                                    mask_i = (si == m)
-                                    if not np.any(mask_i):
-                                        continue
-                                    neigh_syms = sj[mask_i]
-                                    if neigh_syms.size == 0:
-                                        continue
-                                    keep = np.isin(neigh_syms, elem_list)
-                                    neigh_syms = neigh_syms[keep]
-                                    total_neigh = neigh_syms.size
-                                    if total_neigh == 0:
-                                        continue
-                                    uniq, cnts = np.unique(neigh_syms, return_counts=True)
-                                    neigh_map = dict(zip(uniq.tolist(), cnts.tolist()))
-                                    per_ref[m] = (int(total_neigh), neigh_map)
-                            cache_info = {'energy': energy, 'counts': counts, 'per_ref': per_ref}
-                            rep_neigh_info[rep] = cache_info
-                            last_neigh_info[rep] = cache_info
-
-                    total_counts = Counter()
-                    for rep, info in rep_neigh_info.items():
-                        total_counts.update(info.get('counts', Counter()))
-                    total_metal_count = sum(total_counts[e] for e in metals) if metals else 0
-                    total_nonmetal_count = sum(total_counts[e] for e in nonmetals) if nonmetals else 0
-                    cR = {}
-                    for e in elem_list:
-                        if e in metals:
-                            if total_metal_count > 0:
-                                cR[e] = (total_counts.get(e, 0) / total_metal_count)
-                            else:
-                                cR[e] = np.nan
-                        else:
-                            if total_nonmetal_count > 0:
-                                cR[e] = (total_counts.get(e, 0) / total_nonmetal_count)
-                            else:
-                                cR[e] = np.nan
-
-                    for pair in pairs:
-                        m, n = pair
-                        # create full-length per-replica array (index by replica id)
-                        arr = np.full(self.pop_size, np.nan, dtype=float)
-                        for rep, info in rep_neigh_info.items():
-                            per_ref = info.get('per_ref', {})
-                            if m not in per_ref:
-                                continue
-                            total_neigh, neigh_map = per_ref[m]
-                            if total_neigh == 0:
-                                continue
-                            rep_counts = info.get('counts', Counter())
-                            if metal_only:
-                                total_ref_count_rep = sum(rep_counts[e] for e in metals) if metals else 0
-                            else:
-                                total_ref_count_rep = sum(rep_counts[e] for e in elem_list) if elem_list else 0
-                            if total_ref_count_rep == 0:
-                                continue
-                            c_n_rep = float(rep_counts.get(n, 0)) / float(total_ref_count_rep)
-                            P_mn_r = float(neigh_map.get(n, 0)) / float(total_neigh)
-                            delta = 1. if m == n else 0.
-                            denom = delta - c_n_rep
-                            if denom == 0 or np.isnan(denom):
-                                continue
-                            alpha_r = (P_mn_r - c_n_rep) / denom
-                            # store at the replica index so missing replicas remain np.nan
-                            arr[int(rep)] = alpha_r
-                        pair_step_alpha[pair].append(arr)
-                sro_data_group[T] = pair_step_alpha
-
-            if self.interswap_within_key is None:
-                fname = f'{self.calculation_dir}/{self.name}_sro_data.pkl' if temperature is None \
-                        else f'{self.calculation_dir}/{self.name}_sro_data_{temperature}K.pkl'
-                with open(fname, 'wb') as handle:
-                    pickle.dump(sro_data_group, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            else:
-                gv_str = str(group_value)
-                fname = f'{self.calculation_dir}/{self.name}_sro_data_{gv_str}.pkl' if temperature is None \
-                        else f'{self.calculation_dir}/{self.name}_sro_data_{gv_str}_{temperature}K.pkl'
-                with open(fname, 'wb') as handle:
-                    pickle.dump(sro_data_group, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-            all_group_sro[group_value] = sro_data_group
-
-        return all_group_sro
 
 
 class GCEMCAnalysis(object):

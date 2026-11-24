@@ -27,18 +27,24 @@ Run it
    .. tab-item:: Command line
       :sync: cli
 
-      Write a commented starting configuration, then run the three stages:
+      Write a commented starting configuration and its template
+      structure, then run the three stages:
 
       .. code-block:: console
 
          $ catemc init gibbs
-         Wrote config.yaml. Edit it, then run:
+         Wrote config.yaml. Provide the template structure named in population.template, edit the file, then run:
            catemc generate config.yaml
            catemc run config.yaml
            catemc analyze config.yaml
+         $ ase build -x fcc -a 3.8 --cubic -r 2,2,2 Cu template.traj
          $ catemc generate config.yaml
          $ catemc run config.yaml
          $ catemc analyze config.yaml
+
+      ``ase build`` is the command line of ASE. It writes the 32-site fcc
+      cell that ``population.template`` names. Any structure file that ASE
+      reads can be the template.
 
       ``catemc init`` also writes starting files for the other two ensembles:
       ``catemc init canonical`` and ``catemc init grand_canonical``.
@@ -61,13 +67,14 @@ What the three stages do
 Structure generation
 ^^^^^^^^^^^^^^^^^^^^
 
-``catemc generate`` builds the template lattice, decorates it randomly at the
-requested composition, and gives every replica a temperature:
+``catemc generate`` reads the template structure, decorates it randomly at
+the requested composition, and gives every replica a temperature:
 
 .. code-block:: console
 
    $ catemc generate config.yaml
    Random seed: 1
+   Template: Cu32 (32 sites)
    Replica   0  T = 600 K  Au3Cu8Ni8Pd7Pt6
    Replica   1  T = 600 K  Au3Cu8Ni8Pd7Pt6
    Replica   2  T = 700 K  Au3Cu8Ni8Pd7Pt6
@@ -117,11 +124,18 @@ simulated temperatures and at any other temperature you ask for (650 K here):
    Wrote CuNiPdPtAu_bulk_mbar_diagnostics.pkl
    Wrote the Warren-Cowley short-range order parameters.
    Metal chemical-potential differences mu_B - mu_A (eV), listed as 'A2B':
-     600 K: Cu2Ni 0.135, Cu2Pd -0.029, Cu2Pt -0.220, Cu2Au -0.054, Ni2Pd -0.163, ...
-     650 K: Cu2Ni 0.136, Cu2Pd -0.028, Cu2Pt -0.217, Cu2Au -0.054, Ni2Pd -0.163, ...
-     700 K: Cu2Ni 0.136, Cu2Pd -0.027, Cu2Pt -0.216, Cu2Au -0.055, Ni2Pd -0.164, ...
-     800 K: Cu2Ni 0.137, Cu2Pd -0.029, Cu2Pt -0.214, Cu2Au -0.060, Ni2Pd -0.166, ...
-     900 K: Cu2Ni 0.138, Cu2Pd -0.031, Cu2Pt -0.213, Cu2Au -0.067, Ni2Pd -0.169, ...
+     600 K: Cu2Ni 0.134, Cu2Pd -0.035, Cu2Pt -0.222, Cu2Au -0.047, Ni2Pd -0.170, ...
+     650 K: Cu2Ni 0.133, Cu2Pd -0.038, Cu2Pt -0.223, Cu2Au -0.053, Ni2Pd -0.172, ...
+     700 K: Cu2Ni 0.133, Cu2Pd -0.041, Cu2Pt -0.225, Cu2Au -0.059, Ni2Pd -0.174, ...
+     800 K: Cu2Ni 0.132, Cu2Pd -0.046, Cu2Pt -0.229, Cu2Au -0.072, Ni2Pd -0.179, ...
+     900 K: Cu2Ni 0.133, Cu2Pd -0.051, Cu2Pt -0.233, Cu2Au -0.085, Ni2Pd -0.185, ...
+   Metal chemical potentials for chemical_potentials.metals of a surface run (eV):
+     metals:
+       Cu: {600: 0.0000, 650: 0.0000, 700: 0.0000, 800: 0.0000, 900: 0.0000}
+       Ni: {600: 0.1344, 650: 0.1334, 700: 0.1327, 800: 0.1325, 900: 0.1332}
+       Pd: {600: -0.0352, 650: -0.0382, 700: -0.0411, 800: -0.0462, 900: -0.0514}
+       Pt: {600: -0.2218, 650: -0.2234, 700: -0.2252, 800: -0.2287, 900: -0.2334}
+       Au: {600: -0.0473, 650: -0.0528, 700: -0.0590, 800: -0.0721, 900: -0.0854}
    Wrote CuNiPdPtAu_bulk_mbar_dmu_estimates.pkl
 
 .. figure:: _static/figures/quickstart_dmu_light.png
@@ -142,6 +156,10 @@ simulated temperatures and at any other temperature you ask for (650 K here):
    Chemical potentials relative to Cu from the quickstart run (EMT, 32-atom
    cell, 100 steps).
 
+The ``metals`` block lists the same result as chemical potentials relative
+to Cu. It is the ``chemical_potentials.metals`` entry of the configuration
+file of a surface in contact with this bulk (:doc:`surface_gcemc`).
+
 Your numbers will differ in the second decimal, because the worker processes
 do not share one random-number stream. A run this short carries a statistical
 error of about 0.01 to 0.02 eV.
@@ -155,8 +173,8 @@ The files that were written
 
    * - File
      - Content
-   * - ``CuNiPdPtAu_bulk_template.traj``
-     - the undecorated lattice (command line only)
+   * - ``template.traj``
+     - the template structure, written by ``ase build`` (command line only)
    * - ``CuNiPdPtAu_bulk_input_pop.traj``
      - the initial population (command line only)
    * - ``CuNiPdPtAu_bulk.db``, ``..._bak0.db``, ...

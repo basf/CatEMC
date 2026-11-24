@@ -9,17 +9,16 @@
 # Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
 
 name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk
-directory: .
+calculation_dir: .
 ensemble: gibbs
 composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1
 
-# 8x8x8 fcc supercell (512 atoms)
-template:
-  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.776}
-  repeat: [8, 8, 8]
-
 # 12 temperatures x 4 replicas = 48 replicas
 population:
+  # 8x8x8 fcc supercell of Cu with a = 3.776 A (512 atoms), the lattice that
+  # is decorated. Written with
+  #   ase build -x fcc -a 3.776 -r 8,8,8 Cu template_Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk.traj
+  template: template_Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk.traj
   temperatures: [573, 650, 723, 800, 873, 950, 1023, 1100, 1173, 1250, 1323, 1400]
   replicas_per_temperature: 4
 
@@ -60,9 +59,9 @@ analysis:
   sample_stride: 10
   trajectory: {replicas: [10]}
   sro: {cutoff: 3.5, use_energy_mask: true}
-  # Chemical-potential differences between the metals. The surface example
-  # in ../111 reads them at its own temperatures (573, 673, 773, 873 K) and
-  # at the analysis temperature (800 K).
+  # Chemical potentials of the metals, printed as the chemical_potentials.metals
+  # block of the surface example in ../111. They cover its temperatures
+  # (573, 673, 773, 873 K) and its analysis temperature (800 K).
   dmu:
     target_temperatures: [573, 650, 673, 723, 773, 800, 873, 950, 1023, 1100]
     wls_correction: true

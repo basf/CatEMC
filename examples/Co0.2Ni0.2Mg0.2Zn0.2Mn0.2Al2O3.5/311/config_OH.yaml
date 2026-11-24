@@ -7,30 +7,28 @@
 #   catemc run      config_OH.yaml
 #   catemc analyze  config_OH.yaml
 #
-# Run the bulk example in ../bulk first: it provides the chemical-potential
-# differences between the metals (chemical_potentials.metals below).
+# Run the bulk example in ../bulk first: it provides the chemical potentials
+# of the metals (chemical_potentials.metals below).
 #
 # Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
 
 name: Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5OH_311
-directory: .
+calculation_dir: .
 ensemble: grand_canonical
 # Composition of the bulk reservoir. X is an oxygen vacancy.
 composition: Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5X0.5
 
-# Relaxed, stoichiometric (311) slab of the spinel
-template:
-  file: template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4_311_slab_mace_opt.traj
-
 # Atoms below z = 18.8 A are frozen. Above, metals can mutate and lattice
 # oxygen can turn into vacancies (and back).
 regions:
-  fixed: {z_below: 18.8}
+  fix_indices: {z_below: 18.8}
 
 # 14 replicas at 1023 K. Three groups of starting structures with different
 # oxygen-vacancy concentrations in the mutable region, each covered by a
 # random adlayer of up to three of the adsorbate species.
 population:
+  # Relaxed, stoichiometric (311) slab of the spinel
+  template: template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O4_311_slab_mace_opt.traj
   temperatures: [1023]
   replicas_per_temperature: 14
   round_decimals: 2
@@ -38,8 +36,8 @@ population:
   max_adsorbate_species: 3
   variants:
     - {size: 4}                                 # oxygen lattice of the template
-    - {size: 5, nonmetals: {O: 20, X: 1}}
-    - {size: 5, nonmetals: {O: 10, X: 1}}
+    - {size: 5, target_nonmetal_composition: {O: 20, X: 1}}
+    - {size: 5, target_nonmetal_composition: {O: 10, X: 1}}
 
 # Pre-relaxation with a repulsive potential, then the MACE-MPA-0 foundation
 # model.
@@ -61,12 +59,12 @@ fitness:
   neighbor_cutoff: 2.5
 
 adsorbates:
-  species: [O, H, OH]                       # fragments that are inserted and removed
-  other_species: [OH2, H2, O2, O2H, OOH]    # fragments that can form during MD
+  adsorbate_species: [O, H, OH]                       # fragments that are inserted and removed
+  other_adsorbate_species: [OH2, H2, O2, O2H, OOH]    # fragments that can form during MD
   gas_height: 17.5                          # accessible volume = cell area x 17.5 A - metal spheres
   # Internal partition functions Q_int = g0 * Q_rot of the rigid fragments
   # (electronic degeneracy g0 and rotational symmetry number sigma).
-  internal:
+  internal_partition_functions:
     O: {degeneracy: 3, symmetry_number: 1}
     H: {degeneracy: 2, symmetry_number: 1}
     OH: {degeneracy: 2, symmetry_number: 1}
@@ -76,13 +74,23 @@ adsorbates:
     OOH: {degeneracy: 2, symmetry_number: 1}
     O2H: {degeneracy: 2, symmetry_number: 1}
 
-# mu_O = reference + dmu_O and mu_H = reference + dmu_H, with the references
-# E(O2)/2 and E(H2)/2 (PBE total energies incl. zero-point energy).
+# "metals": chemical potential of every metal (eV) at the temperatures of the
+# simulation and of the analysis. Only the differences between the metals
+# enter, so the first metal is the zero. "catemc analyze ../bulk/config.yaml"
+# prints this block (analysis.dmu); replace every ~ with the printed values.
+# "nonmetals": mu_O = reference + dmu_O and mu_H = reference + dmu_H, with the
+# references E(O2)/2 and E(H2)/2 (PBE total energies incl. zero-point energy).
 # y2x is the non-metal to metal ratio y/x of the bulk MxOy: 3.5/3 for oxygen
 # (taken from the composition when omitted).
 chemical_potentials:
-  metals: ../bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl
-  elements:
+  metals:
+    Co: {1023: 0.0}
+    Ni: {1023: ~}
+    Mg: {1023: ~}
+    Zn: {1023: ~}
+    Mn: {1023: ~}
+    Al: {1023: ~}
+  nonmetals:
     O: {reference: -4.3335, range: [-5.0, -3.0], step: 0.1}     # (-8.768 + 0.101) / 2
     H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}      # (-6.773 + 0.267) / 2
 
@@ -121,12 +129,17 @@ analysis:
   sample_stride: 50
   vacancy_species: [O]              # report the lattice-oxygen vacancy fraction
   trajectory: {replicas: [10]}
-  # H2-reduction condition at 1023 K, given as absolute chemical potentials
-  conditions:
-    - {O: -8.821, H: -3.981, T: 1023, absolute: true}
-  # Surface phase diagram on a finer grid
+  # Surface phase diagram. The simulated conditions are always included.
+  # Added here: a finer grid, and the H2-reduction condition at 1023 K given
+  # as absolute chemical potentials mu_O and mu_H (eV).
   expectations:
-    step: {O: 0.02, H: 0.01}
-  # Free-energy surface at the condition listed above
+    reaction_conditions:
+      - O: {reference: -4.3335, range: [-5.0, -3.0], step: 0.02}
+        H: {reference: -3.253, range: [-1.0, 0.0], step: 0.01}
+        T: 1023
+      - {O: -8.821, H: -3.981, T: 1023}
+  # Free-energy surface at the H2-reduction condition
   fes:
     bin_width: 0.05
+    reaction_conditions:
+      - {O: -8.821, H: -3.981, T: 1023}

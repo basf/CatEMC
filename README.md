@@ -91,24 +91,22 @@ Installing the package also installs the `catemc` command. It does the same as t
 
 ```bash
 catemc init gibbs -o config.yaml   # write a commented starting file (canonical, gibbs or grand_canonical)
+ase build -x fcc -a 3.8 --cubic -r 2,2,2 Cu template.traj   # its template structure (population.template)
 catemc check config.yaml           # show what the file resolves to, without running anything
-catemc generate config.yaml        # build the template and the initial population
+catemc generate config.yaml        # decorate the template and write the initial population
 catemc run config.yaml             # run the simulation; run it again to continue
 catemc analyze config.yaml         # post-simulation analysis
 ```
 
-The file written by `catemc init gibbs` (or `canonical`) uses the EMT calculator of ASE and a tiny cell, so the five commands above finish in about a minute and double as a test of the installation. A configuration looks like this:
+The file written by `catemc init gibbs` (or `canonical`) uses the EMT calculator of ASE and a tiny cell, so the commands above finish in about a minute and double as a test of the installation. The template structure is always a file of your own, in any format that ASE reads; `ase build` writes simple ones. A configuration looks like this:
 
 ```yaml
 name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk
 ensemble: gibbs                              # canonical, gibbs or grand_canonical
 composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1     # any composition; X is a vacancy, e.g. Co0.2Ni0.8Al2O3.5X0.5
 
-template:                                    # the lattice: a structure file or any ase.build function
-  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.776}
-  repeat: [8, 8, 8]
-
 population:
+  template: fcc_8x8x8.traj                   # the lattice that is decorated, any file that ASE reads
   temperatures: [573, 650, 723, 800, 873, 950, 1023, 1100, 1173, 1250, 1323, 1400]
   replicas_per_temperature: 4
 
@@ -133,7 +131,7 @@ run:
 analysis:
   starting_step: 300
   sro: {cutoff: 3.5}
-  dmu: {target_temperatures: [573, 673, 773, 800, 873]}
+  dmu: {target_temperatures: [573, 673, 773, 800, 873]}   # also prints chemical_potentials.metals for a surface run
 ```
 
 Units are K, eV, Å, fs and bar, and paths are relative to the YAML file. Any entry can be replaced on the command line, for example `catemc run config.yaml -s run.total_steps=200`. Surfaces add the sections `regions` (which atoms are fixed), `adsorbates` and `chemical_potentials`.

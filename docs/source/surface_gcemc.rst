@@ -126,7 +126,7 @@ given state and cancels in every acceptance probability.
    * - :math:`\mu_k^{(s)}` on a grid
      - ``reaction_conditions``, ``element_column_map``,
        ``element_eref_map``
-     - ``chemical_potentials.elements``
+     - ``chemical_potentials.nonmetals``
    * - :math:`y_k/x`
      - ``element_y2x_map``
      - from ``composition`` (or ``y2x`` of an element)
@@ -509,7 +509,8 @@ reservoirs and the moves.
 
       ``catemc check`` prints the derived quantities, among them the
       accessible volume, the grid, the internal partition functions and
-      whether the bulk reservoir file was found.
+      whether the metal chemical potentials are given at every
+      temperature.
 
    .. tab-item:: Python
       :sync: python
@@ -525,18 +526,25 @@ reservoirs and the moves.
 
 Some points about this input:
 
-* ``adsorbates.species`` (``adsorbate_species``) are the fragments that
-  the moves insert, remove and mutate. ``other_species``
-  (``other_adsorbate_species``) can form on the surface during relaxation
-  and MD, for example NH\ :sub:`3` and H\ :sub:`2`, and are recognized
-  and counted but not inserted.
+* ``adsorbate_species`` are the fragments that the moves insert, remove
+  and mutate. ``other_adsorbate_species`` can form on the surface during
+  relaxation and MD, for example NH\ :sub:`3` and H\ :sub:`2`, and are
+  recognized and counted but not inserted.
+* ``chemical_potentials.metals`` holds the chemical potential of every
+  metal at every temperature, as printed by the analysis of the bulk
+  example (``catemc analyze ../bulk/config.yaml``, :doc:`analysis`).
+  Paste the block printed by your own bulk run there before the surface
+  run. ``nonmetals`` defines the grid of
+  :math:`\Delta\mu_\mathrm{N}` and :math:`\Delta\mu_\mathrm{H}` and their
+  reference energies.
 * A fragment that moves further than ``adsorbate_surface_dmax`` from the
   surface has desorbed and is taken out of the cell.
 * ``ignore_sites: bridge`` restricts insertions to top and hollow sites,
   which speeds up the run. Fragments can still relax into bridge
   positions.
-* The metal reservoir must contain the temperatures of the population
-  (573, 673, 773 and 873 K here). The bulk example requests them in its
+* The metal chemical potentials must be given at the temperatures of the
+  population (573, 673, 773 and 873 K here) and of the analysis (800 K).
+  The bulk example requests them in its
   ``analysis.dmu.target_temperatures``.
 
 Example 2: HEO(311) under H\ :sub:`2`-reduction conditions

@@ -7,37 +7,30 @@
 #   catemc run      config.yaml
 #   catemc analyze  config.yaml
 #
-# Run the bulk example in ../bulk first: it provides the chemical-potential
-# differences between the metals (chemical_potentials.metals below).
+# Run the bulk example in ../bulk first: it provides the chemical potentials
+# of the metals (chemical_potentials.metals below).
 #
 # Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
 
 name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1NH_111
-directory: .
+calculation_dir: .
 ensemble: grand_canonical
 composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1      # composition of the bulk reservoir
 
-# 6x6 fcc(111) slab with 6 layers (216 atoms) in a 35 A high cell, randomly
-# decorated at the bulk composition and relaxed with the last calculator.
-# (The Python script uses a special quasi-random structure for the two fixed
-# bottom layers instead; to reuse a slab prepared that way, replace "build",
-# "cell_height", "randomize" and "relax" by "file: my_relaxed_slab.traj".)
-template:
-  build: {function: fcc111, symbol: Cu, a: 3.776, size: [6, 6, 6], vacuum: 10.0, orthogonal: false}
-  cell_height: 35.0
-  randomize: true
-  relax: {fmax: 0.01, steps: 300}
-
 # The two bottom layers are frozen. All other metal atoms can move and mutate.
 regions:
-  fixed: {z_below: 15.0}
+  fix_indices: {z_below: 15.0}
 
 # 4 temperatures x 14 replicas = 56 replicas. At every temperature two
 # replicas start from the clean surface and twelve from a random adlayer of
 # N, H or NH, so that the starting coverages span the whole range.
 # (The Python script uses ordered adlayers at chosen coverages; a population
-# built that way can be used with "file: my_input_pop.traj".)
+# built that way can be used with "input_pop: my_input_pop.traj".)
 population:
+  # 6x6 fcc(111) slab with 6 layers (216 atoms) in a 35 A high cell: a special
+  # quasi-random structure in the two fixed bottom layers, random decorations
+  # above, relaxed with MACE-MPA-0 (made as in generate_initial_population.py).
+  template: template_Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_111_slab_mace_opt.traj
   temperatures: [573, 673, 773, 873]
   replicas_per_temperature: 14
   seed: 1234
@@ -63,12 +56,12 @@ fitness:
   neighbor_cutoff: 2.5
 
 adsorbates:
-  species: [N, H, NH, NH2, N2]      # fragments that are inserted and removed
-  other_species: [NH3, H2]          # fragments that can form during MD
+  adsorbate_species: [N, H, NH, NH2, N2]    # fragments that are inserted and removed
+  other_adsorbate_species: [NH3, H2]        # fragments that can form during MD
   gas_height: 15.0                  # accessible volume = cell area x 15 A - metal spheres
   # Internal partition functions Q_int = g0 * Q_rot of the rigid fragments
   # (electronic degeneracy g0 and rotational symmetry number sigma).
-  internal:
+  internal_partition_functions:
     N: {degeneracy: 4, symmetry_number: 1}
     H: {degeneracy: 2, symmetry_number: 1}
     NH: {degeneracy: 2, symmetry_number: 1}
@@ -77,12 +70,21 @@ adsorbates:
     NH3: {degeneracy: 1, symmetry_number: 3}
     H2: {degeneracy: 1, symmetry_number: 2}
 
-# mu_N = reference + dmu_N and mu_H = reference + dmu_H, with the references
-# E(N2)/2 and E(H2)/2 (PBE total energies incl. zero-point energy, the
-# functional of the MACE-MPA-0 training data).
+# "metals": chemical potential of every metal (eV) at the temperatures of the
+# simulation and of the analysis. Only the differences between the metals
+# enter, so the first metal is the zero. "catemc analyze ../bulk/config.yaml"
+# prints this block (analysis.dmu); replace every ~ with the printed values.
+# "nonmetals": mu_N = reference + dmu_N and mu_H = reference + dmu_H, with the
+# references E(N2)/2 and E(H2)/2 (PBE total energies incl. zero-point energy,
+# the functional of the MACE-MPA-0 training data).
 chemical_potentials:
-  metals: ../bulk/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk_mbar_dmu_estimates.pkl
-  elements:
+  metals:
+    Co: {573: 0.0, 673: 0.0, 773: 0.0, 800: 0.0, 873: 0.0}
+    Mo: {573: ~, 673: ~, 773: ~, 800: ~, 873: ~}
+    Fe: {573: ~, 673: ~, 773: ~, 800: ~, 873: ~}
+    Ni: {573: ~, 673: ~, 773: ~, 800: ~, 873: ~}
+    Cu: {573: ~, 673: ~, 773: ~, 800: ~, 873: ~}
+  nonmetals:
     N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}    # (-16.640 + 0.155) / 2
     H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}     # (-6.773 + 0.267) / 2
 
@@ -121,15 +123,20 @@ analysis:
   sample_stride: 50
   z_surf: 22.0                      # atoms above this height are surface atoms
   trajectory: {replicas: [10]}
-  # Early-stage and equilibrium ammonia decomposition at 800 K, given as
-  # absolute chemical potentials mu_N and mu_H.
-  conditions:
-    - {N: -8.579, H: -3.960, T: 800, absolute: true}
-    - {N: -9.167, H: -3.881, T: 800, absolute: true}
-  # Surface phase diagram: reweight to a finer grid and to 800 K
+  # Surface phase diagram. The simulated conditions are always included.
+  # Added here: a finer grid at the simulated temperatures and at 800 K, and
+  # early-stage and equilibrium ammonia decomposition at 800 K, given as
+  # absolute chemical potentials mu_N and mu_H (eV).
   expectations:
-    step: {N: 0.025, H: 0.025}
-    temperatures: [800]
-  # Free-energy surfaces at the two conditions listed above
+    reaction_conditions:
+      - N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.025}
+        H: {reference: -3.253, range: [-1.0, 0.0], step: 0.025}
+        T: [573, 673, 773, 873, 800]
+      - {N: -8.579, H: -3.960, T: 800}
+      - {N: -9.167, H: -3.881, T: 800}
+  # Free-energy surfaces at the two ammonia-decomposition conditions
   fes:
     bin_width: 0.05
+    reaction_conditions:
+      - {N: -8.579, H: -3.960, T: 800}
+      - {N: -9.167, H: -3.881, T: 800}

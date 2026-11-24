@@ -26,8 +26,11 @@ The classes you call
      - Gibbs ensemble
    * - :class:`catemc.gcemc.GCEMC`
      - grand-canonical ensemble
+   * - :class:`catemc.analysis.EMCAnalysis`
+     - short-range order of a canonical bulk run
    * - :class:`catemc.analysis.GEEMCAnalysis`
-     - short-range order and chemical-potential differences of a bulk run
+     - short-range order and chemical-potential differences of a Gibbs
+       bulk run
    * - :class:`catemc.analysis.GCEMCAnalysis`
      - surface phase diagrams and free energies of a surface run
    * - :class:`catemc.repulsive.RepulsivePotential`

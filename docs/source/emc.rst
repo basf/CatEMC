@@ -66,8 +66,7 @@ settings of the EMC itself.
          name: my_system
          ensemble: gibbs            # canonical, gibbs or grand_canonical
          composition: ...           # see "Structure generation"
-         template: ...
-         population: ...
+         population: ...            # template structure, temperatures, replicas
 
          calculators:               # one entry per calculator
            - calculator: mace_mp    # MACE-MPA-0 foundation model
@@ -213,8 +212,8 @@ where :math:`r_i` and :math:`r_j` are covalent radii and
       .. code-block:: yaml
 
          calculators:
-           factory: my_calculators.py:create_calculators
-           kwargs: {device: cuda}
+           calculator_factory: my_calculators.py:create_calculators
+           calculator_factory_kwargs: {device: cuda}
            fmax: [0.5, 0.05]
 
    .. tab-item:: Python

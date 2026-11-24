@@ -42,8 +42,8 @@ of the same step, and the equations of the paper that the step implements.
    * - Tutorial
      - What you learn
    * - :doc:`input_populations`
-     - Build the template lattice, decorate it at any composition, add
-       vacancies and adsorbates, and assign temperatures and μ-windows.
+     - Decorate a template structure at any composition, add vacancies
+       and adsorbates, and assign temperatures and μ-windows.
    * - :doc:`emc`
      - How a simulation is set up: calculators, relaxation and MD settings,
        moves and their rates.

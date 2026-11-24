@@ -23,7 +23,6 @@ import inspect
 import math
 import numpy as np
 import os
-import pickle
 import random
 import re
 
@@ -35,8 +34,8 @@ ENSEMBLES = {
     'gc': 'grand_canonical', 'egc': 'grand_canonical',
 }
 
-SECTIONS = ('name', 'directory', 'ensemble', 'composition', 'template',
-            'regions', 'population', 'calculators', 'fitness', 'emc', 'run',
+SECTIONS = ('name', 'calculation_dir', 'ensemble', 'composition', 'regions',
+            'population', 'calculators', 'fitness', 'emc', 'run',
             'adsorbates', 'chemical_potentials', 'analysis')
 
 # Elements assigned to the non-metal sublattice when the composition is
@@ -294,27 +293,33 @@ def select(atoms, spec, where='selection'):
     return np.where(mask)[0].tolist()
 
 
-def _integer_counts(composition, n):
-    """Distribute ``n`` sites over the species in proportion to ``composition``."""
-    total = sum(composition.values())
-    exact = {k: v / total * n for k, v in composition.items()}
-    counts = {k: int(math.floor(v + 1e-9)) for k, v in exact.items()}
-    rest = n - sum(counts.values())
-    for k in sorted(exact, key=lambda k: exact[k] - counts[k], reverse=True)[:rest]:
-        counts[k] += 1
-    return counts
-
-
 def _axis(spec, where):
     """Chemical-potential axis from ``values`` or ``range`` + ``step``."""
     if spec.get('values') is not None:
+        if spec.get('range') is not None or spec.get('step') is not None:
+            raise ConfigError(f"{where} needs either 'values' or 'range' and "
+                              "'step', not both.")
         return np.array(_as_list(spec['values']), dtype=float)
     if spec.get('range') is None or spec.get('step') is None:
         raise ConfigError(f"{where} needs 'values' or both 'range' and 'step'.")
     lo, hi = (float(v) for v in spec['range'])
     step = float(spec['step'])
+    if step <= 0 or hi < lo:
+        raise ConfigError(f"{where} needs a positive 'step' and a 'range' [low, high].")
     n = int(round((hi - lo) / step)) + 1
     return np.round(lo + step * np.arange(n), 10)
+
+
+def _mu_spec(par, where, allowed=('reference', 'range', 'step', 'values')):
+    """Check one ``{reference, range, step}`` or ``{reference, values}`` entry."""
+    if not isinstance(par, dict):
+        raise ConfigError(f'{where} must be a mapping such as '
+                          '{reference: -8.2425, range: [-1.0, 0.0], step: 0.05}.')
+    _check_keys(par, allowed, where)
+    if par.get('reference') is None:
+        raise ConfigError(f"{where} needs 'reference', the reference energy "
+                          'to which range and step (or values) are added.')
+    return par
 
 
 def make_grid(axes, temperatures=None):
@@ -341,7 +346,9 @@ def internal_partition_functions(species, temperatures):
     ----------
     species : dict
         ``{name: {'degeneracy': g0, 'symmetry_number': sigma}}`` with ACAT
-        fragment names. A plain number is used directly as ``Q_int``.
+        fragment names. A plain number is used directly as ``Q_int`` at all
+        temperatures, and a ``{temperature: Q_int}`` mapping gives the value
+        at each temperature.
     temperatures : sequence of float
         Temperatures in K.
 
@@ -353,21 +360,31 @@ def internal_partition_functions(species, temperatures):
     """
     from acat.settings import adsorbate_molecule
 
+    where = 'adsorbates.internal_partition_functions'
     internal = {T: {} for T in temperatures}
     for name, par in species.items():
         if isinstance(par, (int, float)):
             for T in temperatures:
                 internal[T][name] = float(par)
             continue
-        _check_keys(par, ('degeneracy', 'symmetry_number'),
-                    f'adsorbates.internal.{name}')
+        if not isinstance(par, dict):
+            raise ConfigError(f'{where}.{name} must be a number or a mapping.')
+        if par and all(isinstance(k, (int, float)) for k in par):
+            for T in temperatures:
+                value = _temperature_value(par, T)
+                if value is None:
+                    raise ConfigError(f'{where}.{name} has no value at {T} K.')
+                internal[T][name] = float(value)
+            continue
+        _check_keys(par, ('degeneracy', 'symmetry_number'), f'{where}.{name}')
         g0 = float(par.get('degeneracy', 1))
         sigma = float(par.get('symmetry_number', 1))
         molecule = adsorbate_molecule(name)
         if molecule is None:
             raise ConfigError(
                 f"'{name}' is not a known ACAT fragment. Give its internal "
-                'partition function as a number or use a pickle file.')
+                'partition function as a number, or as a mapping '
+                '{temperature: value}.')
         if len(molecule) > 1:
             inertias = molecule.get_moments_of_inertia() * units._amu / 1e20
             linear = inertias.min() < 1e-6 * inertias.max()
@@ -382,6 +399,14 @@ def internal_partition_functions(species, temperatures):
                 q_rot *= (8 * np.pi**2 * units._k * T / units._hplanck**2)**1.5
             internal[T][name] = float(q_rot * g0)
     return internal
+
+
+def _temperature_value(mapping, T):
+    """Value of a ``{temperature: value}`` mapping at temperature ``T``."""
+    for key, value in mapping.items():
+        if isinstance(key, (int, float)) and math.isclose(float(key), float(T)):
+            return value
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -427,7 +452,7 @@ class Config(object):
         if not self.raw.get('name'):
             raise ConfigError("The 'name' entry (system name) is required.")
         self.name = str(self.raw['name'])
-        self.directory = self.resolve(self.raw.get('directory', '.'))
+        self.directory = self.resolve(self.raw.get('calculation_dir', '.'))
         ensemble = str(self.raw.get('ensemble', '')).lower().replace('-', '_')
         if ensemble not in ENSEMBLES:
             raise ConfigError(
@@ -481,112 +506,48 @@ class Config(object):
 
     @property
     def population_path(self):
-        path = self.section('population').get('file')
+        path = self.section('population').get('input_pop')
         return self.output('_input_pop.traj') if path is None else self.resolve(path)
-
-    @property
-    def template_path(self):
-        return self.output('_template.traj')
 
     # -- template and regions -----------------------------------------------
 
-    def build_template(self):
-        """Build the bare template lattice from the ``template`` section."""
-        spec = self.section('template')
-        _check_keys(spec, ('file', 'index', 'build', 'scale_cell', 'repeat',
-                           'cell_height', 'metal_sites', 'randomize', 'relax'),
-                    'template')
-        if spec.get('file') is not None:
-            if not os.path.isfile(self.resolve(spec['file'])):
-                raise ConfigError(
-                    f"The template file {self.resolve(spec['file'])} was not found.")
-            atoms = read(self.resolve(spec['file']), index=spec.get('index', -1))
-        elif spec.get('build') is not None:
-            atoms = self._build(spec['build'], 'template.build')
-        else:
-            raise ConfigError("The 'template' section needs 'file' or 'build'.")
-        atoms.info = {}
-        atoms.calc = None
+    def get_template(self):
+        """Template structure: the file ``population.template``, read with ASE.
 
-        if spec.get('scale_cell') is not None:
-            target = np.array(spec['scale_cell'], dtype=float)
-            if target.shape == (3,):
-                cell = atoms.cell.array.copy()
-                cell *= (target / np.linalg.norm(cell, axis=1))[:, None]
-                target = cell
-            atoms.set_cell(target, scale_atoms=True)
-        if spec.get('repeat') is not None:
-            atoms = atoms.repeat(tuple(int(i) for i in spec['repeat']))
-        if spec.get('cell_height') is not None:
-            atoms.cell[2][2] = float(spec['cell_height'])
-            atoms.center(axis=2)
-
-        # Template elements that mark metal lattice sites but are not part
-        # of the metal pool are relabelled so that they can be decorated.
-        pool = set(self.metal_pool)
-        for atom in atoms:
-            if atom.symbol in _as_list(spec.get('metal_sites')) and atom.symbol not in pool:
-                atom.symbol = self.metal_pool[0]
-        if not any(atom.symbol in pool for atom in atoms):
-            raise ConfigError(
-                'The template contains none of the metals in the composition. '
-                "List the template elements that mark the metal sites in "
-                "'template.metal_sites'.")
-        return atoms
-
-    def _build(self, spec, where):
-        """Call a function of :mod:`ase.build` described by a mapping.
-
-        ``function`` names the builder and the remaining entries are its
-        keyword arguments. An argument that is itself a mapping with a
-        ``function`` entry is built first, and ``file`` reads a structure, so
-        that e.g. ``surface`` can cut a slab from a bulk cell.
-        """
-        import ase.build
-        if not isinstance(spec, dict):
-            raise ConfigError(f'{where} must be a mapping.')
-        kwargs = dict(spec)
-        if 'function' not in kwargs:
-            if 'file' in kwargs:
-                return read(self.resolve(kwargs['file']), index=kwargs.get('index', -1))
-            raise ConfigError(f"{where} needs a 'function' entry.")
-        name = kwargs.pop('function')
-        if not callable(getattr(ase.build, str(name), None)):
-            raise ConfigError(
-                f"{where}.function must name a function of ase.build, e.g. bulk, "
-                f"fcc111 or surface.{_suggest(name, dir(ase.build))}")
-        for key, value in kwargs.items():
-            if isinstance(value, dict) and ('function' in value or 'file' in value):
-                kwargs[key] = self._build(value, f'{where}.{key}')
-            elif isinstance(value, list):
-                kwargs[key] = tuple(value)
-        return getattr(ase.build, name)(**kwargs)
-
-    def get_template(self, require_saved=False):
-        """Template used by ``run`` and ``analyze``.
-
-        The template written by ``catemc generate`` is used when present, so
-        that all atom indices stay consistent with the input population.
+        The file can be in any format that ASE reads. If it holds several
+        structures, the last one is used.
         """
         if self._template is not None:
             return self._template
-        if os.path.isfile(self.template_path):
-            self._template = read(self.template_path)
-        else:
-            spec = self.section('template')
-            if require_saved or spec.get('randomize') or spec.get('relax'):
-                raise ConfigError(
-                    f'{self.template_path} not found. Run "catemc generate" first.')
-            self._template = self.build_template()
-        return self._template
+        path = self.section('population').get('template')
+        if path is None:
+            raise ConfigError(
+                "'population.template' is required: the file of the template "
+                'structure, in any format that ASE can read.')
+        if not isinstance(path, str):
+            raise ConfigError(
+                "'population.template' must be the name of a structure file "
+                'that ASE can read.')
+        path = self.resolve(path)
+        if not os.path.isfile(path):
+            raise ConfigError(f'The template file {path} was not found.')
+        atoms = read(path)
+        atoms.info = {}
+        atoms.calc = None
+        if not any(atom.symbol in self.metal_pool for atom in atoms):
+            raise ConfigError(
+                f'The template {path} contains none of the metals in the '
+                'composition. Its metal sites must hold metals of the composition.')
+        self._template = atoms
+        return atoms
 
     def get_regions(self, template):
         """Index lists derived from the ``regions`` section."""
         spec = self.section('regions')
-        _check_keys(spec, ('fixed', 'mutable_metals', 'mutable_nonmetals', 'slab'),
-                    'regions')
+        _check_keys(spec, ('fix_indices', 'mutable_metal_indices',
+                           'mutable_nonmetal_indices', 'slab_indices'), 'regions')
         symbols = template.get_chemical_symbols()
-        fixed = select(template, spec.get('fixed'), 'regions.fixed')
+        fixed = select(template, spec.get('fix_indices'), 'regions.fix_indices')
         free = [i for i in range(len(template)) if i not in set(fixed)]
         regions = {
             'fix_indices': fixed or None,
@@ -594,22 +555,23 @@ class Config(object):
             'mutable_nonmetal_indices': None,
             'free_indices': free,
         }
-        if spec.get('mutable_metals') is not None:
+        if spec.get('mutable_metal_indices') is not None:
             regions['mutable_metal_indices'] = select(
-                template, spec['mutable_metals'], 'regions.mutable_metals')
+                template, spec['mutable_metal_indices'], 'regions.mutable_metal_indices')
         elif fixed or self.is_gc:
             regions['mutable_metal_indices'] = [
                 i for i in free if symbols[i] in self.metal_pool]
         if self.nonmetal_pool is not None:
-            if spec.get('mutable_nonmetals') is not None:
+            if spec.get('mutable_nonmetal_indices') is not None:
                 regions['mutable_nonmetal_indices'] = select(
-                    template, spec['mutable_nonmetals'], 'regions.mutable_nonmetals')
+                    template, spec['mutable_nonmetal_indices'],
+                    'regions.mutable_nonmetal_indices')
             elif fixed or self.is_gc:
                 regions['mutable_nonmetal_indices'] = [
                     i for i in free if symbols[i] in self.nonmetal_pool]
         if self.is_gc:
             regions['slab_indices'] = select(
-                template, spec.get('slab', 'all'), 'regions.slab')
+                template, spec.get('slab_indices', 'all'), 'regions.slab_indices')
         return regions
 
     # -- calculators and fitness --------------------------------------------
@@ -619,16 +581,21 @@ class Config(object):
         spec = self.raw.get('calculators')
         if not spec:
             raise ConfigError("The 'calculators' section is required.")
-        if isinstance(spec, dict) and 'factory' in spec:
-            _check_keys(spec, ('factory', 'kwargs', 'fmax'), 'calculators')
-            factory = str(spec['factory'])
+        if isinstance(spec, dict):
+            _check_keys(spec, ('calculator_factory', 'calculator_factory_kwargs',
+                               'fmax'), 'calculators')
+            if spec.get('calculator_factory') is None:
+                raise ConfigError("'calculators' needs 'calculator_factory', or "
+                                  'a list with one entry per calculator.')
+            factory = str(spec['calculator_factory'])
             target, _, func = factory.rpartition(':')
             if not target:
-                raise ConfigError("'calculators.factory' must look like "
+                raise ConfigError("'calculators.calculator_factory' must look like "
                                   "'file.py:function' or 'package.module:function'.")
             if target.endswith('.py'):
                 factory = f'{self.resolve(target)}:{func}'
-            return ({'factory': factory, 'factory_kwargs': spec.get('kwargs') or {}},
+            return ({'factory': factory,
+                     'factory_kwargs': spec.get('calculator_factory_kwargs') or {}},
                     _as_list(spec.get('fmax')))
         stages, fmax_list = [], []
         for i, stage in enumerate(_as_list(spec)):
@@ -661,35 +628,25 @@ class Config(object):
     # -- grand-canonical quantities -----------------------------------------
 
     def get_mu_elements(self):
-        """Chemical-potential settings of the reservoir elements, in column order."""
+        """Settings of the non-metal reservoir elements, in column order."""
         spec = self.section('chemical_potentials')
-        _check_keys(spec, ('metals', 'elements'), 'chemical_potentials')
-        elements = spec.get('elements')
+        _check_keys(spec, ('metals', 'nonmetals'), 'chemical_potentials')
+        elements = spec.get('nonmetals')
         if not elements:
-            raise ConfigError("'chemical_potentials.elements' is required for "
+            raise ConfigError("'chemical_potentials.nonmetals' is required for "
                               'a grand-canonical simulation.')
+        if not isinstance(elements, dict):
+            raise ConfigError("'chemical_potentials.nonmetals' must map each "
+                              'element to its settings.')
         for element, par in elements.items():
-            _check_keys(par or {}, ('reference', 'range', 'step', 'values', 'y2x'),
-                        f'chemical_potentials.elements.{element}')
-        return {str(k): dict(v or {}) for k, v in elements.items()}
+            _mu_spec(par, f'chemical_potentials.nonmetals.{element}',
+                     allowed=('reference', 'range', 'step', 'values', 'y2x'))
+        return {str(k): dict(v) for k, v in elements.items()}
 
-    def get_mu_axes(self, steps=None, ranges=None):
-        axes = []
-        for element, par in self.get_mu_elements().items():
-            par = dict(par)
-            if steps and element in steps:
-                par['step'] = steps[element]
-                par.pop('values', None)
-                par.setdefault('range', None)
-                if par['range'] is None:
-                    raise ConfigError(
-                        f"A finer analysis step for {element} needs 'range' in "
-                        'chemical_potentials.elements.')
-            if ranges and element in ranges:
-                par['range'] = ranges[element]
-                par.pop('values', None)
-            axes.append(_axis(par, f'chemical_potentials.elements.{element}'))
-        return axes
+    def get_mu_axes(self):
+        """Chemical-potential differences of the simulation grid, per element."""
+        return [_axis(par, f'chemical_potentials.nonmetals.{element}')
+                for element, par in self.get_mu_elements().items()]
 
     def get_element_maps(self):
         """``element_column_map``, ``element_eref_map`` and ``element_y2x_map``."""
@@ -698,46 +655,58 @@ class Config(object):
         column, eref, y2x = {}, {}, {}
         for i, (element, par) in enumerate(elements.items()):
             column[element] = i
-            eref[element] = float(par.get('reference', 0.))
+            eref[element] = float(par['reference'])
             if par.get('y2x') is not None:
                 y2x[element] = float(par['y2x'])
             else:
                 y2x[element] = (self.nonmetals or {}).get(element, 0.) / n_metal
         return column, eref, y2x
 
-    def _load_pickle(self, path, what):
-        path = self.resolve(path)
-        if not os.path.isfile(path):
-            raise ConfigError(f'{what} {path} not found.')
-        with open(path, 'rb') as handle:
-            return pickle.load(handle)
-
-    def get_metal_dmu_map(self, temperatures=None):
+    def get_metal_dmu_map(self, temperatures):
         """Metal chemical-potential differences ``{T: {'A2B': mu_B - mu_A}}``.
 
-        This is the ``{name}_mbar_dmu_estimates.pkl`` file written by the
-        analysis of a Gibbs-ensemble run of the bulk material.
+        They are built from ``chemical_potentials.metals``, which gives the
+        chemical potential of every metal as one number for all temperatures
+        or as a ``{temperature: value}`` mapping. Only the differences between
+        the metals enter, so any metal can serve as the zero.
         """
-        path = self.section('chemical_potentials').get('metals')
-        if path is None:
+        spec = self.section('chemical_potentials').get('metals')
+        if spec is None:
             return None
-        tdmu = path if isinstance(path, dict) else self._load_pickle(
-            path, 'The metal chemical-potential file (chemical_potentials.metals)')
-        missing = [T for T in temperatures or [] if T not in tdmu]
-        if missing:
+        where = 'chemical_potentials.metals'
+        if not isinstance(spec, dict):
             raise ConfigError(
-                f'The metal chemical potentials are not available at {missing} K. '
-                "Add these temperatures to 'analysis.dmu.target_temperatures' of "
-                'the bulk Gibbs-ensemble run and analyze it again.')
+                f"'{where}' must map every metal to its chemical potential: one "
+                'number, or a mapping {temperature: value}.')
+        metals = [m for m in self.metal_pool if m != 'X']
+        _check_keys(spec, metals, where)
+        missing = [m for m in metals if m not in spec]
+        if missing:
+            raise ConfigError(f'{where} misses {", ".join(missing)}.')
+        tdmu = {}
+        for T in temperatures:
+            mu = {}
+            for m in metals:
+                value = spec[m]
+                if isinstance(value, dict):
+                    value = _temperature_value(value, T)
+                if value is None or not np.isfinite(float(value)):
+                    raise ConfigError(
+                        f'{where}.{m} has no value at {T} K. The Gibbs-ensemble '
+                        'analysis of the bulk (analysis.dmu) prints the metal '
+                        'chemical potentials at its target_temperatures in this form.')
+                mu[m] = float(value)
+            tdmu[T] = {f'{a}2{b}': mu[b] - mu[a]
+                       for i, a in enumerate(metals) for b in metals[i + 1:]}
         return tdmu
 
     def get_internal_map(self, temperatures):
-        spec = self.section('adsorbates').get('internal')
+        spec = self.section('adsorbates').get('internal_partition_functions')
         if spec is None:
             return None
-        if isinstance(spec, str):
-            return self._load_pickle(
-                spec, 'The internal partition-function file (adsorbates.internal)')
+        if not isinstance(spec, dict):
+            raise ConfigError("'adsorbates.internal_partition_functions' must map "
+                              'every fragment to its settings.')
         return internal_partition_functions(spec, temperatures)
 
     def get_volume(self, template):
@@ -760,15 +729,16 @@ class Config(object):
         from acat.adsorption_sites import SlabAdsorptionSites
         kwargs = {'surface': 'autoadsorbate', 'composition_effect': False,
                   'ignore_sites': self.section('emc').get('ignore_sites')}
-        kwargs.update(self.section('adsorbates').get('sites') or {})
+        kwargs.update(self.section('adsorbates').get('adsorption_sites') or {})
         return SlabAdsorptionSites(template, **kwargs)
 
     def get_adsorbate_species(self):
         spec = self.section('adsorbates')
-        _check_keys(spec, ('species', 'other_species', 'internal', 'gas_height',
-                           'volume', 'sites'), 'adsorbates')
-        species = _as_list(spec.get('species')) or None
-        other = spec.get('other_species')
+        _check_keys(spec, ('adsorbate_species', 'other_adsorbate_species',
+                           'internal_partition_functions', 'gas_height', 'volume',
+                           'adsorption_sites'), 'adsorbates')
+        species = _as_list(spec.get('adsorbate_species')) or None
+        other = spec.get('other_adsorbate_species')
         return species, (None if other is None else _as_list(other))
 
 
@@ -779,23 +749,25 @@ class Config(object):
 def generate(cfg, force=False, log=print):
     """Generate the initial population (``catemc generate``).
 
-    Writes ``{name}_template.traj`` and ``{name}_input_pop.traj`` to the
-    calculation directory and returns the population.
+    Decorates the template structure (``population.template``), writes
+    ``{name}_input_pop.traj`` to the calculation directory and returns the
+    population.
     """
     from catemc.generate import generate_population, assign_mu_windows
 
     pop_path = cfg.output('_input_pop.traj')
-    if cfg.section('population').get('file') is not None:
+    if cfg.section('population').get('input_pop') is not None:
         raise ConfigError(
-            "'population.file' points to an existing population, so there is "
-            'nothing to generate. Remove that entry to build a new population.')
+            "'population.input_pop' points to an existing population, so there "
+            'is nothing to generate. Remove that entry to build a new population.')
     if os.path.isfile(pop_path) and not force:
         raise ConfigError(f'{pop_path} already exists. Use --force to overwrite it.')
     os.makedirs(cfg.directory, exist_ok=True)
 
     spec = dict(cfg.section('population'))
-    own_keys = ('temperatures', 'replicas_per_temperature', 'seed', 'variants',
-                'metals', 'nonmetals', 'round_decimals', 'file')
+    own_keys = ('template', 'temperatures', 'replicas_per_temperature', 'seed',
+                'variants', 'target_metal_composition',
+                'target_nonmetal_composition', 'round_decimals', 'input_pop')
     reserved = ('template', 'pop_size', 'target_metal_species',
                 'target_metal_composition', 'target_nonmetal_species',
                 'target_nonmetal_composition', 'allowed_indices',
@@ -815,37 +787,9 @@ def generate(cfg, force=False, log=print):
     np.random.seed(seed)
     log(f'Random seed: {seed}')
 
-    # 1) Template lattice
-    tspec = cfg.section('template')
-    template = cfg.build_template()
-    symbols = template.get_chemical_symbols()
-    if tspec.get('randomize'):
-        # Random decoration at the target composition, done separately for
-        # the fixed and the free region so that both match the composition.
-        fixed = set(cfg.get_regions(template)['fix_indices'] or [])
-        metal_sites = [i for i, s in enumerate(symbols) if s in cfg.metal_pool]
-        for group in ([i for i in metal_sites if i in fixed],
-                      [i for i in metal_sites if i not in fixed]):
-            counts = _integer_counts(cfg.metals, len(group))
-            new = [s for s, c in counts.items() for _ in range(c)]
-            random.shuffle(new)
-            for i, s in zip(group, new):
-                template[i].symbol = s
-    if tspec.get('relax'):
-        relax = {} if tspec['relax'] is True else dict(tspec['relax'])
-        _check_keys(relax, ('fmax', 'steps', 'optimizer'), 'template.relax')
-        from ase import optimize
-        factory_kwargs, _ = cfg.get_calculator_factory_kwargs()
-        real = [a.index for a in template if a.symbol != 'X']
-        relaxed = template[real]
-        relaxed.calc = _as_list(create_calculators(**factory_kwargs))[-1]
-        opt = getattr(optimize, relax.get('optimizer', 'LBFGS'))(relaxed, logfile=None)
-        opt.run(fmax=float(relax.get('fmax', 0.01)), steps=int(relax.get('steps', 300)))
-        template.positions[real] = relaxed.positions
-        log(f'Template relaxed in {opt.nsteps} steps.')
-    template.calc = None
-    write(cfg.template_path, template)
-    cfg._template = template
+    # 1) Template structure
+    template = cfg.get_template()
+    log(f'Template: {template.get_chemical_formula()} ({len(template)} sites)')
     regions = cfg.get_regions(template)
     allowed = regions['free_indices'] if regions['fix_indices'] else None
 
@@ -879,19 +823,20 @@ def generate(cfg, force=False, log=print):
     os.chdir(cfg.directory)   # generate_population writes scratch files here
     try:
         for v, (variant, size) in enumerate(zip(variants, sizes)):
-            _check_keys(variant, ('size', 'metals', 'nonmetals') + tuple(passthrough),
+            _check_keys(variant, ('size', 'target_metal_composition',
+                                  'target_nonmetal_composition') + tuple(passthrough),
                         f'population.variants[{v}]')
             if size == 0:
                 continue
-            metals = variant_composition(variant, 'metals', cfg.metals)
+            metals = variant_composition(variant, 'target_metal_composition', cfg.metals)
             if metals is not None and set(metals) != set(cfg.metal_pool):
                 raise ConfigError(
-                    f'population.variants[{v}].metals must contain the same '
-                    f"elements as the composition ({', '.join(cfg.metal_pool)}).")
+                    f'population.variants[{v}].target_metal_composition must contain '
+                    f"the same elements as the composition ({', '.join(cfg.metal_pool)}).")
             # Surface slabs keep the non-metal lattice of the template unless
             # a composition is requested explicitly.
             nonmetals = variant_composition(
-                variant, 'nonmetals', None if cfg.is_gc else cfg.nonmetals)
+                variant, 'target_nonmetal_composition', None if cfg.is_gc else cfg.nonmetals)
             extra = dict(shared)
             extra.update({k: variant[k] for k in passthrough if k in variant})
             if not extra.get('adsorbate_species'):
@@ -1081,40 +1026,74 @@ def _method_kwargs(method, common, task, where, skip=(), extra=()):
     return kwargs
 
 
-def get_analysis_conditions(cfg, task, common):
-    """Reaction conditions of a GC analysis task.
+def get_analysis_conditions(cfg, conditions):
+    """Reaction conditions of a grand-canonical analysis task.
 
-    Returns the condition array (temperature in the last column) and the
-    row indices of the individually listed ``conditions``.
+    The simulated states (the grid of ``chemical_potentials.nonmetals`` at
+    every simulated temperature) always come first, because MBAR needs
+    them. The entries of ``reaction_conditions`` follow. In every entry each
+    reservoir element is either a number, the absolute chemical potential
+    in eV, or a mapping ``{reference, range, step}`` (or ``{reference,
+    values}``) for the chemical potentials ``reference + values``. ``T`` is
+    one temperature or a list of them.
+
+    Returns the condition array (chemical potentials relative to the
+    references of ``chemical_potentials.nonmetals``, temperature in the last
+    column), the row indices of the ``reaction_conditions`` and the row
+    indices of the entries that are one single condition.
     """
-    steps = task.get('step')
-    ranges = task.get('range')
-    temperatures = list(cfg.temperatures)
-    for T in _as_list(task.get('temperatures', common.get('temperatures'))):
-        if T not in temperatures:
-            temperatures.append(T)
-    grid = make_grid(cfg.get_mu_axes(steps=steps, ranges=ranges), temperatures)
     column, eref, _ = cfg.get_element_maps()
-    rows = []
-    for cond in _as_list(task.get('conditions', common.get('conditions'))):
-        cond = dict(cond)
-        absolute = cond.pop('absolute', False)
-        absolute = list(column) if absolute is True else _as_list(absolute or None)
-        if 'T' not in cond:
-            raise ConfigError("Every analysis condition needs a temperature 'T'.")
-        row = np.zeros(len(column) + 1)
-        row[-1] = float(cond.pop('T'))
-        _check_keys(cond, column, 'analysis.conditions')
-        for element, col in column.items():
+    grid = make_grid(cfg.get_mu_axes(), cfg.temperatures)
+    blocks, points = [grid], []
+    n = len(grid)
+    for i, cond in enumerate(_as_list(conditions)):
+        where = f'analysis.reaction_conditions[{i}]'
+        if not isinstance(cond, dict):
+            raise ConfigError(f"{where} must be a mapping with one entry per "
+                              "reservoir element and the temperature 'T'.")
+        _check_keys(cond, list(column) + ['T'], where)
+        if cond.get('T') is None:
+            raise ConfigError(f"{where} needs the temperature 'T' (one value or a list).")
+        axes = []
+        for element in column:
             if element not in cond:
-                raise ConfigError(f"Analysis condition misses element '{element}'.")
-            row[col] = float(cond[element]) - (
-                eref[element] if element in absolute else 0.)
-        rows.append(row)
-    extra = list(range(len(grid), len(grid) + len(rows)))
-    if rows:
-        grid = np.vstack([grid] + rows)
-    return grid, extra
+                raise ConfigError(f"{where} misses the element '{element}'.")
+            value = cond[element]
+            if isinstance(value, dict):
+                par = _mu_spec(value, f'{where}.{element}')
+                axis = (float(par['reference']) - eref[element]
+                        + _axis(par, f'{where}.{element}'))
+            else:
+                axis = np.array([float(value) - eref[element]])
+            axes.append(np.round(axis, 10))
+        block = make_grid(axes, [float(T) for T in _as_list(cond['T'])])
+        if len(block) == 1:
+            points.append(n)
+        blocks.append(block)
+        n += len(block)
+    return np.vstack(blocks), list(range(len(grid), n)), points
+
+
+def format_metal_potentials(dmu, metals):
+    """Lines of a ``chemical_potentials.metals`` block from the output of
+    :meth:`catemc.analysis.GEEMCAnalysis.get_dmu_estimates`: the chemical
+    potential of every metal at every temperature, relative to the first
+    metal."""
+    metals = [m for m in metals if m != 'X']
+    lines = ['  metals:']
+    for m in metals:
+        values = []
+        for T, pairs in dmu.items():
+            if m == metals[0]:
+                mu = 0.
+            elif f'{metals[0]}2{m}' in pairs:
+                mu = float(pairs[f'{metals[0]}2{m}'])
+            else:
+                mu = -float(pairs[f'{m}2{metals[0]}'])
+            T = int(T) if float(T).is_integer() else float(T)
+            values.append(f'{T}: {mu:.4f}')
+        lines.append(f"    {m}: {{{', '.join(values)}}}")
+    return lines
 
 
 def analyze(cfg, fresh=False, log=print):
@@ -1132,6 +1111,10 @@ def analyze(cfg, fresh=False, log=print):
         tasks = ('trajectory', 'diagnostics', 'expectations', 'fes')
         methods = (cls.prepare_data, cls.get_diagnostics,
                    cls.get_structural_expectations, cls.get_structural_fes)
+    elif cfg.ensemble == 'canonical':
+        cls = ana_module.EMCAnalysis
+        tasks = ('trajectory', 'diagnostics', 'sro')
+        methods = (cls.prepare_data, cls.get_diagnostics, cls.get_sro)
     else:
         cls = ana_module.GEEMCAnalysis
         tasks = ('trajectory', 'diagnostics', 'sro', 'dmu')
@@ -1142,7 +1125,7 @@ def analyze(cfg, fresh=False, log=print):
     common_names = {p for m in methods for p in inspect.signature(m).parameters
                     if p != 'self'}
     _check_keys(spec, set(tasks) | set(init_names) | common_names |
-                {'temperatures', 'conditions'}, 'analysis')
+                ({'reaction_conditions'} if cfg.is_gc else set()), 'analysis')
     common = {k: v for k, v in spec.items() if k not in tasks}
 
     init = {'pop_size': cfg.pop_size,
@@ -1155,8 +1138,9 @@ def analyze(cfg, fresh=False, log=print):
     else:
         if emc.get('pressure') is not None:
             init['pressure'] = float(emc['pressure']) * units.bar
-        if emc.get('interswap_within_key') is not None:
-            init['interswap_within_key'] = emc['interswap_within_key']
+        key = 'category_key' if cfg.ensemble == 'canonical' else 'interswap_within_key'
+        if emc.get(key) is not None:
+            init[key] = emc[key]
     for key in ('trim_generation', 'temperature_key', 'replica_key', 'acceptance_key'):
         if key in emc:
             init[key] = emc[key]
@@ -1202,8 +1186,8 @@ def analyze(cfg, fresh=False, log=print):
             log('Wrote the Warren-Cowley short-range order parameters.')
         task = _task(spec, 'dmu')
         if task is not None:
-            dmu = ana.get_dmu_estimates(**_method_kwargs(
-                cls.get_dmu_estimates, common, task, 'analysis.dmu'))
+            kwargs = _method_kwargs(cls.get_dmu_estimates, common, task, 'analysis.dmu')
+            dmu = ana.get_dmu_estimates(**kwargs)
             results['dmu'] = dmu
             if emc.get('interswap_within_key') is None:
                 log('Metal chemical-potential differences mu_B - mu_A (eV), '
@@ -1211,6 +1195,11 @@ def analyze(cfg, fresh=False, log=print):
                 for T, values in dmu.items():
                     log(f'  {T} K: ' + ', '.join(
                         f'{k} {v:.3f}' for k, v in values.items()))
+                if kwargs.get('wls_correction', True) and not kwargs.get('excess_only'):
+                    log('Metal chemical potentials for chemical_potentials.metals '
+                        'of a surface run (eV):')
+                    for line in format_metal_potentials(dmu, ana.target_metal_species):
+                        log(line)
             log(f"Wrote {cfg.output('_mbar_dmu_estimates.pkl')}")
         return ana, results
 
@@ -1229,18 +1218,19 @@ def analyze(cfg, fresh=False, log=print):
         if task is None:
             continue
         task = dict(task)
-        conditions, extra = get_analysis_conditions(cfg, task, common)
+        conditions, listed, extra = get_analysis_conditions(
+            cfg, task.get('reaction_conditions', common.get('reaction_conditions')))
         kwargs = _method_kwargs(
             method, common, task, f'analysis.{key}', skip=('reaction_conditions',),
-            extra=('step', 'range', 'temperatures', 'conditions'))
+            extra=('reaction_conditions',))
         kwargs.update(shared)
         target_temperatures = sorted(set(conditions[:, -1].tolist()))
         kwargs['temperature_dmu_map'] = cfg.get_metal_dmu_map(target_temperatures)
-        if cfg.section('adsorbates').get('internal') is not None:
+        if cfg.section('adsorbates').get('internal_partition_functions') is not None:
             kwargs['temperature_species_internal_map'] = cfg.get_internal_map(
                 target_temperatures)
-        if key == 'fes' and extra and 'sample_condition_indices' not in kwargs:
-            kwargs['sample_condition_indices'] = extra
+        if key == 'fes' and listed and 'sample_condition_indices' not in kwargs:
+            kwargs['sample_condition_indices'] = listed
         results[key] = method(ana, reaction_conditions=conditions, **kwargs)
         np.save(cfg.output(f'_mbar_{key}_conditions.npy'), conditions)
         log(f'{key}: {len(conditions)} reaction conditions, saved to '
@@ -1266,26 +1256,16 @@ def summarize(cfg, log=print):
 
     cls = get_emc_class(cfg)
     row('System', cfg.name)
-    row('Directory', cfg.directory)
+    row('Calculation directory', cfg.directory)
     row('Ensemble', f'{cfg.ensemble} ({cls.__name__})')
     row('Metals', cfg.metals)
     row('Non-metals', cfg.nonmetals)
     row('Temperatures (K)', cfg.temperatures)
     row('Population size', cfg.pop_size)
-    saved = os.path.isfile(cfg.template_path)
-    tspec = cfg.section('template')
-    if not saved and (tspec.get('randomize') or tspec.get('relax')):
-        template = cfg.build_template()
-        note = 'built from the config, before randomization/relaxation'
-    else:
-        template = cfg.get_template()
-        note = cfg.template_path if saved else 'built from the config'
-    row('Template', f'{template.get_chemical_formula()} ({len(template)} sites; {note})')
-    cfg._template = template
-    try:
-        kwargs = get_emc_kwargs(cfg, with_objects=False)
-    finally:
-        cfg._template = None
+    template = cfg.get_template()
+    row('Template', f"{template.get_chemical_formula()} ({len(template)} sites; "
+        f"{cfg.resolve(cfg.section('population')['template'])})")
+    kwargs = get_emc_kwargs(cfg, with_objects=False)
     for key in ('fix_indices', 'mutable_metal_indices', 'mutable_nonmetal_indices',
                 'slab_indices'):
         if key in kwargs:
@@ -1306,7 +1286,7 @@ def summarize(cfg, log=print):
         tdmu = kwargs['temperature_dmu_map']
         row('Metal reservoir', 'none (no metal chemical potentials given)'
             if tdmu is None else tdmu if isinstance(tdmu, str)
-            else f'chemical-potential differences at {sorted(tdmu)} K')
+            else f'chemical potentials at {sorted(tdmu)} K')
     row('Calculators', kwargs['calculator_factory_kwargs'])
     hidden = ('name', 'calculation_dir', 'calculator_factory',
               'calculator_factory_kwargs', 'fitness_kwargs', 'fix_indices',

@@ -39,8 +39,10 @@ files.
       H\ :sub:`2`-reduction conditions.
 
 Run a surface example after the bulk example of the same material. The
-surface run reads the chemical-potential differences of the metals that
-the bulk analysis writes.
+surface run needs the chemical potentials of the metals that the bulk
+analysis computes: the Python scripts read them from the file the bulk
+analysis writes, and ``catemc analyze`` of the bulk prints them as the
+``chemical_potentials.metals`` block of the surface configuration file.
 
 Quickstart
 ----------
@@ -56,6 +58,8 @@ Quickstart
    * - ``config.yaml``
      - the same study for the command line. It is the file that
        ``catemc init gibbs`` writes.
+   * - ``template.traj``
+     - the 32-site fcc cell that is decorated, written with ``ase build``
    * - ``run_cli.sh``
      - the four commands
 
@@ -92,6 +96,9 @@ a catalyst for ammonia decomposition.
    * - ``config_canonical.yaml``
      - command-line version of the canonical study
      - :doc:`canonical_emc`
+   * - ``template_..._bulk.traj``
+     - the 512-site fcc cell that the command line decorates
+     - :doc:`input_populations`
 
 .. list-table:: ``examples/Co0.25Mo0.45Fe0.1Ni0.1Cu0.1/111``
    :header-rows: 1
@@ -119,6 +126,9 @@ a catalyst for ammonia decomposition.
    * - ``config.yaml``, ``run_cli.sh``
      - command-line version of the whole study
      - :doc:`surface_gcemc`
+   * - ``template_..._111_slab_mace_opt.traj``
+     - the relaxed slab that the command line decorates
+     - :doc:`input_populations`
 
 .. _ex-heo:
 
@@ -157,6 +167,10 @@ a spinel with one oxygen vacancy per eight oxygen sites.
    * - ``config_canonical.yaml``
      - command-line version of the canonical study
      - :doc:`canonical_emc`
+   * - ``template_..._bulk.traj``
+     - 2×2×2 supercell of ``Al2CoO4.cif`` that the command line
+       decorates
+     - :doc:`input_populations`
 
 The (311) folder contains two studies of the same surface. The files with
 ``OH`` in their name use O and H reservoirs (H\ :sub:`2` reduction, the
@@ -207,7 +221,7 @@ Before you run an example
 The examples carry the settings of the published simulations, including
 file locations of the machine they ran on. The potential is the MACE-MPA-0
 foundation model of `MACE <https://github.com/ACEsuit/mace>`_, where the
-published simulations used models fine-tuned for the two materials. Two
+published simulations used models fine-tuned for the two materials. Three
 things have to be adapted.
 
 .. list-table::
@@ -218,11 +232,17 @@ things have to be adapted.
      - Command line
      - Python
    * - Calculation directory
-     - ``directory`` (the default ``.`` is the folder of the YAML file)
+     - ``calculation_dir`` (the default ``.`` is the folder of the YAML
+       file)
      - ``dir_name`` in every script of the study
    * - GPUs and worker processes
      - ``emc.gpu_devices``, ``emc.procs_per_device``
      - ``gpu_devices``, ``procs_per_device``
+   * - Metal chemical potentials of a surface run
+     - ``chemical_potentials.metals``: the block that ``catemc analyze``
+       of the bulk prints
+     - the path of ``{name}_mbar_dmu_estimates.pkl`` of the bulk in the
+       run and analysis scripts
 
 To use another potential, change the ``calculators`` section of the YAML
 file or ``create_calculators()`` in the run script (:doc:`cli`). The
@@ -250,8 +270,8 @@ Starting your own system
 
       1. ``catemc init gibbs`` (or ``canonical``, ``grand_canonical``)
          writes a commented file.
-      2. Set ``composition`` and ``template`` to your material and
-         ``calculators`` to your potential.
+      2. Set ``composition`` and ``population.template`` (a structure
+         file of your material) and ``calculators`` to your potential.
       3. ``catemc check config.yaml`` after every edit.
       4. ``catemc generate config.yaml``, then look at the population
          with ``ase gui``.

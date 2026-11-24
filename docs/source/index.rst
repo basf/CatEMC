@@ -75,7 +75,7 @@ or class in Python and one command on the command line.
      <rect class="d-box" x="10" y="20" width="260" height="210" rx="12"/>
      <rect class="d-blue" x="10" y="20" width="260" height="6" rx="3"/>
      <text class="d-text d-head" x="30" y="56">1 · Structure generation</text>
-     <text class="d-muted d-small" x="30" y="78">template lattice, random decorations,</text>
+     <text class="d-muted d-small" x="30" y="78">template structure, random decorations,</text>
      <text class="d-muted d-small" x="30" y="94">temperatures and μ-windows</text>
      <g transform="translate(40 112)">
        <circle class="d-blue" cx="10" cy="14" r="9"/><circle class="d-orange" cx="30" cy="14" r="9"/>
@@ -119,7 +119,7 @@ or class in Python and one command on the command line.
        <path class="d-accent-blue" d="M4 40 C40 36 70 30 100 22 S170 10 206 6"/>
        <path class="d-accent-violet" d="M4 16 C50 20 90 30 120 36 S180 44 206 46"/>
      </g>
-     <text class="d-muted d-mono" x="650" y="186">GEEMCAnalysis / GCEMCAnalysis</text>
+     <text class="d-muted d-mono" x="650" y="186">EMC / GEEMC / GCEMC Analysis</text>
      <text class="d-text d-mono" x="650" y="210">$ catemc analyze config.yaml</text>
      <!-- arrows -->
      <path class="d-line" d="M274 125 L314 125" marker-end="url(#wf-arrow)"/>
@@ -154,9 +154,10 @@ only translates the YAML file into the arguments of the Python classes.
          name: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1_bulk
          ensemble: gibbs
          composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1
-         template:
-           build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.776}
-           repeat: [8, 8, 8]
+         population:
+           template: fcc_8x8x8.traj        # any structure file that ASE reads
+           temperatures: [573, 650, 723, 800, 873, 950, 1023, 1100, 1173, 1250, 1323, 1400]
+           replicas_per_temperature: 4
 
    .. tab-item:: Python
 

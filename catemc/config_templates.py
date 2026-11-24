@@ -5,7 +5,8 @@
 The two bulk templates use the EMT calculator of ASE and a tiny cell, so
 that they run in about a minute on a laptop. Replace the ``calculators``
 section with your own potential and enlarge the cell, the population and
-the number of steps for production runs.
+the number of steps for production runs. The template structure is a file
+that the user provides (any format that ASE can read).
 """
 
 _HEADER = '''\
@@ -23,7 +24,7 @@ _HEADER = '''\
 # Prefix of every output file, output folder and statistical ensemble
 # (canonical, gibbs or grand_canonical).
 name: {name}
-directory: .
+calculation_dir: .
 ensemble: {ensemble}
 '''
 
@@ -33,13 +34,11 @@ _BULK_SYSTEM = '''
 #   composition: {metals: {Co: 1, Al: 2}, nonmetals: {O: 3.5, X: 0.5}}
 composition: Cu0.25Ni0.25Pd0.2Pt0.2Au0.1
 
-# The lattice that is decorated: a structure file (file: lattice.cif) or
-# any function of ase.build with its arguments.
-template:
-  build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.8, cubic: true}
-  repeat: [2, 2, 2]
-
+# "template" is the structure that is decorated, in any file format that ASE
+# can read. This one is a 32-atom fcc cell, written with
+#   ase build -x fcc -a 3.8 --cubic -r 2,2,2 Cu template.traj
 population:
+  template: template.traj
   temperatures: [600, 700, 800, 900]
   replicas_per_temperature: 2
   seed: 1
@@ -72,7 +71,7 @@ run:
 analysis:
   starting_step: 20             # discard the equilibration steps
   sample_stride: 1
-  trajectory: {{replicas: [0]}}   # {{name}}_geemc_0.traj
+  trajectory: {{replicas: [0]}}   # {{name}}_{label}_0.traj
   diagnostics: true             # acceptance ratios per move
   sro: {{cutoff: 3.5}}            # Warren-Cowley short-range order
 {dmu}'''
@@ -90,7 +89,7 @@ emc:
   procs_per_device: 2           # worker processes (per GPU)
   # gpu_devices: [0]
   # pressure: 1.01325           # bar; NpT instead of NVT
-''' + _BULK_TAIL.format(dmu='')
+''' + _BULK_TAIL.format(label='emc', dmu='')
 
 GIBBS = _HEADER.format(
     title='Gibbs ensemble', name='CuNiPdPtAu_bulk',
@@ -108,7 +107,7 @@ emc:
   procs_per_device: 2           # worker processes (per GPU)
   # gpu_devices: [0]
   # pressure: 1.01325           # bar; NpT instead of NVT
-''' + _BULK_TAIL.format(dmu='''\
+''' + _BULK_TAIL.format(label='geemc', dmu='''\
   dmu:                          # metal chemical-potential differences
     target_temperatures: [600, 650, 700, 800, 900]
 ''')
@@ -119,19 +118,15 @@ GRAND_CANONICAL = _HEADER.format(
 # Composition of the bulk the surface is cut from.
 composition: Cu0.5Ni0.25Pd0.25
 
-# The clean slab: a structure file (file: slab.traj) or any function of
-# ase.build with its arguments.
-template:
-  build: {function: fcc111, symbol: Cu, a: 3.7, size: [4, 4, 5], vacuum: 10.0}
-  randomize: true               # random metal decoration at the composition
-  relax: {fmax: 0.02, steps: 300}   # relax the slab with the last calculator
-
 # Which atoms may move and mutate. Selections: all, none, a list of indices,
 # or z_below / z_above / bottom_layers / top_layers / symbols.
 regions:
-  fixed: {bottom_layers: 2}
+  fix_indices: {bottom_layers: 2}
 
 population:
+  # The clean slab that is decorated, in any file format that ASE can read,
+  # for example a relaxed slab at the bulk composition.
+  template: slab.traj
   temperatures: [573, 673, 773, 873]
   replicas_per_temperature: 6
   seed: 1
@@ -155,10 +150,10 @@ fitness:
   neighbor_cutoff: 2.5
 
 adsorbates:
-  species: [N, H, NH, NH2, N2]  # fragments that are inserted and removed
-  other_species: [NH3, H2]      # fragments that can form during MD
+  adsorbate_species: [N, H, NH, NH2, N2]  # fragments that are inserted and removed
+  other_adsorbate_species: [NH3, H2]      # fragments that can form during MD
   gas_height: 15.0              # height of the accessible volume above the cell area
-  internal:                     # rigid-rotor internal partition functions
+  internal_partition_functions: # rigid rotor, or a number, or {temperature: value}
     N: {degeneracy: 4}
     H: {degeneracy: 2}
     NH: {degeneracy: 2, symmetry_number: 1}
@@ -167,11 +162,18 @@ adsorbates:
     NH3: {degeneracy: 1, symmetry_number: 3}
     H2: {degeneracy: 1, symmetry_number: 2}
 
-# Reservoir. "reference" is the elemental reference energy (half the energy
-# of N2 and H2 here) and the grid is relative to it: mu = reference + dmu.
+# Reservoir. "metals": chemical potential of every metal (eV) at every
+# temperature of the simulation and the analysis, as printed by
+# "catemc analyze" of the bulk Gibbs-ensemble run (analysis.dmu). Only the
+# differences between the metals matter. "nonmetals": "reference" is the
+# elemental reference energy (half the energy of N2 and H2 here) and the grid
+# is relative to it: mu = reference + dmu.
 chemical_potentials:
-  # metals: ../bulk/NAME_bulk_mbar_dmu_estimates.pkl   # from the Gibbs-ensemble run
-  elements:
+  # metals:
+  #   Cu: {573: 0.0, 673: 0.0, 773: 0.0, 800: 0.0, 873: 0.0}
+  #   Ni: {573: ..., 673: ..., 773: ..., 800: ..., 873: ...}
+  #   Pd: {573: ..., 673: ..., 773: ..., 800: ..., 873: ...}
+  nonmetals:
     N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}
     H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}
 
@@ -203,11 +205,19 @@ analysis:
   z_surf: 22.0                  # atoms above this height are surface atoms
   trajectory: {replicas: [0]}
   diagnostics: true
-  expectations:                 # surface phase diagram on a finer grid
-    step: {N: 0.025, H: 0.025}
-    temperatures: [800]         # extra temperatures to reweight to
-  # conditions:                 # extra single conditions
-  #   - {N: -9.167, H: -3.881, T: 800, absolute: true}
+  # Surface phase diagram. The simulated conditions are always included;
+  # reaction_conditions adds more: a grid (mu = reference + values) or single
+  # conditions given as absolute chemical potentials (eV), each at T.
+  expectations:
+    reaction_conditions:
+      - N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.025}
+        H: {reference: -3.253, range: [-1.0, 0.0], step: 0.025}
+        T: 800
+      - {N: -9.167, H: -3.881, T: 800}
+  # fes:                        # free energies of the sampled structures
+  #   bin_width: 0.05
+  #   reaction_conditions:
+  #     - {N: -9.167, H: -3.881, T: 800}
 '''
 
 TEMPLATES = {

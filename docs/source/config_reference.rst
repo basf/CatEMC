@@ -15,13 +15,12 @@ Layout
 .. code-block:: yaml
 
    name: MySystem                  # prefix of all output files
-   directory: .                    # where the files are written
+   calculation_dir: .              # where the files are written
    ensemble: gibbs                 # canonical, gibbs or grand_canonical
    composition: Co0.25Mo0.45Fe0.1Ni0.1Cu0.1
 
-   template: {...}                 # the lattice that is decorated
    regions: {...}                  # which atoms are fixed or mutable
-   population: {...}               # temperatures and starting structures
+   population: {...}               # template structure, temperatures, starting structures
    calculators: [...]              # the potentials
    fitness: {...}                  # relaxation and MD settings
    emc: {...}                      # moves, rates and resources
@@ -41,16 +40,11 @@ Layout
      - Gibbs
      - Grand canonical
      - Used by
-   * - ``name``, ``directory``, ``ensemble``, ``composition``
+   * - ``name``, ``calculation_dir``, ``ensemble``, ``composition``
      - required
      - required
      - required
      - all commands
-   * - ``template``
-     - required
-     - required
-     - required
-     - ``generate`` (then read from ``{name}_template.traj``)
    * - ``regions``
      - optional
      - optional
@@ -60,7 +54,7 @@ Layout
      - required
      - required
      - required
-     - ``generate``, ``run``
+     - ``generate``, ``run``, ``analyze``
    * - ``calculators``, ``fitness``, ``emc``, ``run``
      - required
      - required
@@ -93,7 +87,7 @@ System
    * - ``name``
      - required
      - system name. Every output file starts with it.
-   * - ``directory``
+   * - ``calculation_dir``
      - ``.``
      - calculation directory. It is created when it does not exist.
    * - ``ensemble``
@@ -134,88 +128,6 @@ sublattice of a compound:
      metals: {Mo: 0.5, W: 0.5}        # a formula such as Mo0.5W0.5 works as well
      nonmetals: {B: 1.8, X: 0.2}
 
-``template``
-------------
-
-The template is the undecorated lattice: every site that an atom or a
-vacancy of the composition can occupy. It comes from a structure file or
-from a function of ``ase.build``.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 16 62
-
-   * - Key
-     - Default
-     - Meaning
-   * - ``file``
-     -
-     - structure file in any format ASE reads (``.traj``, ``.cif``,
-       ``POSCAR``, ...)
-   * - ``index``
-     - ``-1``
-     - image of ``file`` to use
-   * - ``build``
-     -
-     - mapping with ``function``, the name of a function of
-       ``ase.build``, and its arguments
-   * - ``scale_cell``
-     -
-     - three cell lengths or a full 3×3 cell. The atoms are scaled with
-       the cell.
-   * - ``repeat``
-     -
-     - three repetitions, for example ``[4, 4, 4]``
-   * - ``cell_height``
-     -
-     - height of the cell along z. The slab is centred in it.
-   * - ``metal_sites``
-     -
-     - elements of the template that mark metal sites although they are
-       not part of the composition, for example ``[Co]`` in a CoAl\
-       :sub:`2`\ O\ :sub:`4` file that is decorated with five other
-       metals
-   * - ``randomize``
-     - ``false``
-     - decorate the metal sites randomly at the composition, separately
-       for the fixed and the free region. For slabs whose frozen layers
-       should have the bulk composition.
-   * - ``relax``
-     - ``false``
-     - relax the template with the last calculator before the population
-       is generated. ``true`` or ``{fmax: 0.01, steps: 300, optimizer:
-       LBFGS}``.
-
-Exactly one of ``file`` and ``build`` is required. The other keys are
-applied in the order of the table.
-
-.. code-block:: yaml
-
-   # fcc bulk, 4 x 4 x 4 cubic cells
-   template:
-     build: {function: bulk, name: Cu, crystalstructure: fcc, a: 3.6, cubic: true}
-     repeat: [4, 4, 4]
-
-   # fcc(111) slab
-   template:
-     build: {function: fcc111, symbol: Cu, a: 3.776, size: [6, 6, 6], vacuum: 10.0}
-
-   # any surface of any crystal: cut it from a bulk file
-   template:
-     build:
-       function: surface
-       lattice: {file: spinel_conventional.cif}
-       indices: [3, 1, 1]
-       layers: 4
-       vacuum: 10.0
-
-An argument that is itself a mapping with ``function`` or ``file`` is
-built first, as ``lattice`` in the last example.
-
-``catemc generate`` writes the final template to ``{name}_template.traj``.
-``catemc run`` and ``catemc analyze`` read that file, so the atom indices
-of all three stages agree.
-
 ``regions``
 -----------
 
@@ -226,22 +138,21 @@ of all three stages agree.
    * - Key
      - Default
      - Meaning
-   * - ``fixed``
+   * - ``fix_indices``
      - none
-     - atoms that never move and never change (``fix_indices``)
-   * - ``mutable_metals``
+     - atoms that never move and never change
+   * - ``mutable_metal_indices``
      - all metal sites that are not fixed
-     - metal sites the moves may act on (``mutable_metal_indices``)
-   * - ``mutable_nonmetals``
+     - metal sites the moves may act on
+   * - ``mutable_nonmetal_indices``
      - all non-metal sites that are not fixed
      - non-metal sites the moves may act on
-       (``mutable_nonmetal_indices``)
-   * - ``slab``
+   * - ``slab_indices``
      - ``all``
-     - atoms of the template that form the slab (``slab_indices``, grand
-       canonical only)
+     - atoms of the template that form the slab (grand canonical only)
 
-Each entry is a *selection*:
+The keys are the arguments of the same names of the EMC classes. Each
+entry is a *selection*:
 
 .. list-table::
    :header-rows: 1
@@ -273,6 +184,9 @@ Each entry is a *selection*:
    * - Key
      - Default
      - Meaning
+   * - ``template``
+     - required
+     - template structure (below)
    * - ``temperatures``
      - required
      - list of temperatures
@@ -282,11 +196,11 @@ Each entry is a *selection*:
    * - ``seed``
      - random
      - random seed. The seed that was used is printed.
-   * - ``file``
+   * - ``input_pop``
      -
-     - use an existing population instead of
+     - use an existing population file instead of
        ``{name}_input_pop.traj``. ``catemc generate`` is then not needed.
-   * - ``metals``, ``nonmetals``
+   * - ``target_metal_composition``, ``target_nonmetal_composition``
      - ``composition``
      - composition of the starting structures when it differs from
        ``composition``: a formula, a mapping, or ``template`` to keep the
@@ -296,7 +210,7 @@ Each entry is a *selection*:
      -
      - groups of starting structures (below)
    * - ``adsorbate_species``
-     - ``adsorbates.species``
+     - ``adsorbates.adsorbate_species``
      - fragments of the random starting adlayers. ``[]`` gives clean
        surfaces.
    * - ``adsorbate_coverage``
@@ -320,21 +234,40 @@ Each entry is a *selection*:
      - 3
      - decimals of the chemical potentials stored in the μ-windows
 
+``template`` is the file of the template structure, in any format that
+ASE reads (``.traj``, ``.cif``, ``POSCAR``, ...). It is the undecorated
+lattice: every site that an atom or a vacancy of the composition can
+occupy, with metals of the composition on the metal sites. If the file
+holds several structures, the last one is used. All atom indices of
+``regions`` refer to it, and ``catemc run`` and ``catemc analyze`` read
+the same file. ASE builds most templates in one command, for example a
+cubic fcc bulk of 32 sites:
+
+.. code-block:: console
+
+   $ ase build -x fcc -a 3.8 --cubic -r 2,2,2 Cu template.traj
+
+A slab is built with ``ase.build`` in Python (``fcc111``, ``surface``,
+...) and written with ``ase.io.write``. Relax it first when it should start
+from relaxed coordinates.
+
 ``variants`` divides the population into groups with different starting
-structures. Every key of the table from ``metals`` on can be set per
-variant. ``size`` is the number of structures of the variant. Variants
-without ``size`` share what is left:
+structures. Every key of the table from ``target_metal_composition`` on
+can be set per variant. ``size`` is the number of structures of the
+variant. Variants without ``size`` share what is left:
 
 .. code-block:: yaml
 
    population:
+     template: template_slab.traj
      temperatures: [1023]
      replicas_per_temperature: 14
      adsorbate_species: [O, H, OH]
      variants:
-       - {size: 4}                              # oxygen lattice of the template
-       - {size: 5, nonmetals: {O: 20, X: 1}}    # one oxygen site in 21 vacant
-       - {size: 5, nonmetals: {O: 10, X: 1}}
+       - {size: 4}                # oxygen lattice of the template
+       # one oxygen site in 21 vacant, one in 11 vacant
+       - {size: 5, target_nonmetal_composition: {O: 20, X: 1}}
+       - {size: 5, target_nonmetal_composition: {O: 10, X: 1}}
 
 The structures are distributed over the temperatures in turn. For a
 surface run they are sorted by their adsorbate content first, so that
@@ -373,10 +306,10 @@ Alternatively, a mapping that names a function of your own:
 
    * - Key
      - Meaning
-   * - ``factory``
+   * - ``calculator_factory``
      - ``file.py:function`` or ``package.module:function``. The function
        returns one calculator or a list of calculators.
-   * - ``kwargs``
+   * - ``calculator_factory_kwargs``
      - keyword arguments of the function
    * - ``fmax``
      - list with one force threshold per calculator
@@ -495,8 +428,8 @@ names and defaults as in Python. ``pressure`` is given in bar.
      - copy the live database back every this many steps
    * - ``overwrite_scratch_db``
      - ``false``
-     - replace the databases in ``scratch_dir`` by those of ``directory``
-       before starting
+     - replace the databases in ``scratch_dir`` by those of
+       ``calculation_dir`` before starting
    * - ``traj_write_interval``
      - 1
      - write the population trajectory every this many steps
@@ -603,11 +536,12 @@ builds from the other sections. ``fix_indices``,
 ``mutable_metal_indices``, ``mutable_nonmetal_indices`` and
 ``slab_indices`` come from ``regions``; ``metal_element_pool``,
 ``nonmetal_element_pool`` and ``bulk_metal_composition`` from
-``composition``; ``adsorbate_species``, ``other_adsorbate_species``,
-``volume`` and ``temperature_species_internal_map`` from ``adsorbates``;
-``reaction_conditions`` and the element maps from
-``chemical_potentials``. Setting one of them in ``emc`` replaces the
-derived value.
+``composition``; ``adsorbate_species``, ``other_adsorbate_species`` and
+``volume`` from ``adsorbates``, and ``temperature_species_internal_map``
+from ``adsorbates.internal_partition_functions``; ``reaction_conditions``
+and the element maps from ``chemical_potentials.nonmetals``, and
+``temperature_dmu_map`` from ``chemical_potentials.metals``. Setting one
+of them in ``emc`` replaces the derived value.
 
 ``run``
 -------
@@ -642,13 +576,13 @@ Grand canonical only.
    * - Key
      - Default
      - Meaning
-   * - ``species``
+   * - ``adsorbate_species``
      - required
      - fragments that are inserted, removed, displaced and mutated
-   * - ``other_species``
-     - the other fragments of ``internal``
+   * - ``other_adsorbate_species``
+     - the other fragments of ``internal_partition_functions``
      - fragments that are not inserted but may form during MD
-   * - ``internal``
+   * - ``internal_partition_functions``
      -
      - internal partition functions of the fragments (below)
    * - ``gas_height``
@@ -659,29 +593,28 @@ Grand canonical only.
    * - ``volume``
      -
      - the accessible volume in Å\ :sup:`3`, instead of ``gas_height``
-   * - ``sites``
+   * - ``adsorption_sites``
      -
      - arguments of ACAT's ``SlabAdsorptionSites``. The default is
        ``{surface: autoadsorbate, composition_effect: false}``.
 
-``internal`` gives the internal partition function
+``internal_partition_functions`` gives the internal partition function
 :math:`Q_k^\mathrm{int}` of every fragment (:eq:`eq-qint`) in one of three
 ways:
 
 .. code-block:: yaml
 
    adsorbates:
-     internal:
+     internal_partition_functions:
        N: {degeneracy: 4}                          # atom: g0
        NH2: {degeneracy: 2, symmetry_number: 2}    # rigid rotor: g0 and sigma
-       CO: 107.3                                   # a number is used as it is
-
-   adsorbates:
-     internal: internal_partition_functions.pkl    # {T: {fragment: Q_int}}
+       CO: 107.3                                   # a number is used at every temperature
+       NH: {700: 2.71, 800: 2.95}                  # one value per temperature
 
 With ``degeneracy`` and ``symmetry_number`` the rotational part is
 computed at every temperature from the moments of inertia of the ACAT
-fragment. Both default to 1.
+fragment. Both default to 1. A ``{temperature: value}`` mapping must
+cover the temperatures of the simulation and of the analysis.
 
 ``chemical_potentials``
 -----------------------
@@ -695,14 +628,23 @@ Grand canonical only.
    * - Key
      - Meaning
    * - ``metals``
-     - ``{name}_mbar_dmu_estimates.pkl`` of the Gibbs-ensemble run of the
-       bulk. It must contain every temperature of the surface run. Leave
-       it out only when the metal composition of the surface is fixed.
-   * - ``elements``
+     - chemical potential of every metal of the composition in eV: one
+       number for all temperatures, or a mapping ``{temperature: value}``.
+       Leave it out only when the metal composition of the surface is
+       fixed.
+   * - ``nonmetals``
      - one entry per reservoir element, in the order of the columns of
        the reaction conditions
 
-Each element takes:
+Only the differences between the metal chemical potentials enter the
+moves that change the metal composition of the surface, so any metal can
+be the zero. They come from the Gibbs-ensemble simulation of the bulk:
+``catemc analyze`` with the ``dmu`` task prints a ``metals`` block at the
+``target_temperatures`` of that task (:doc:`bulk_geemc`), relative to the
+first metal, to paste here. Every temperature of the simulation and of
+the analysis needs a value.
+
+Each non-metal element takes:
 
 .. list-table::
    :header-rows: 1
@@ -712,7 +654,7 @@ Each element takes:
      - Default
      - Meaning
    * - ``reference``
-     - 0
+     - required
      - reference energy :math:`E^\mathrm{ref}` of the element. The grid
        is relative to it: :math:`\mu = E^\mathrm{ref} + \Delta\mu`
        (:eq:`eq-dmu-element`).
@@ -731,14 +673,21 @@ Each element takes:
 
 .. code-block:: yaml
 
+   composition: Cu0.25Ni0.25Pd0.2Pt0.2Au0.1
    chemical_potentials:
-     metals: ../bulk/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk_mbar_dmu_estimates.pkl
-     elements:
-       O: {reference: -4.3335, range: [-5.0, -3.0], step: 0.1}
+     metals:                 # as printed by the analysis of the quickstart bulk run
+       Cu: 0.0
+       Ni: {600: 0.1344, 700: 0.1327, 800: 0.1325}
+       Pd: {600: -0.0352, 700: -0.0411, 800: -0.0462}
+       Pt: {600: -0.2218, 700: -0.2252, 800: -0.2287}
+       Au: {600: -0.0473, 700: -0.0590, 800: -0.0721}
+     nonmetals:
+       N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}
        H: {reference: -3.253, range: [-1.0, 0.0], step: 0.05}
 
-The reaction conditions of the simulation are all combinations of these
-values with ``population.temperatures``.
+``Cu: 0.0`` holds at every temperature. The values come from the
+:doc:`quickstart` (EMT, a toy result). The reaction conditions of the simulation are all combinations of the
+non-metal values with ``population.temperatures``.
 
 ``analysis``
 ------------
@@ -766,12 +715,6 @@ when it is listed. ``true`` runs it with its defaults.
      - ``true``
      - reuse the cached samples. ``catemc analyze --fresh`` sets it to
        ``false``.
-   * - ``temperatures``
-     -
-     - grand canonical: additional temperatures to reweight to
-   * - ``conditions``
-     -
-     - grand canonical: additional single reaction conditions (below)
 
 .. list-table:: Tasks of the canonical and the Gibbs ensemble
    :header-rows: 1
@@ -789,9 +732,11 @@ when it is listed. ``true`` runs it with its defaults.
        temperature instead of all. ``metal_only`` (``true``),
        ``use_energy_mask`` (``true``).
    * - ``dmu``
-     - ``target_temperatures``: temperatures at which the differences
-       are evaluated. ``simulation_temperatures``, ``wls_correction``
-       (``true``), ``excess_only`` (``false``).
+     - Gibbs ensemble only. ``target_temperatures``: temperatures at
+       which the differences are evaluated. ``simulation_temperatures``,
+       ``wls_correction`` (``true``), ``excess_only`` (``false``). With
+       the defaults it also prints the metal chemical potentials as a
+       ``chemical_potentials.metals`` block for a surface run.
 
 .. list-table:: Tasks of the grand-canonical ensemble
    :header-rows: 1
@@ -802,15 +747,13 @@ when it is listed. ``true`` runs it with its defaults.
    * - ``trajectory``, ``diagnostics``
      - as above
    * - ``expectations``
-     - ``step``: finer spacing of the grid per element, for example
-       ``{N: 0.025, H: 0.025}``. ``range``: other limits per element.
-       ``temperatures``, ``conditions``. ``compute_uncertainty``
-       (``false``), ``procs`` (1).
+     - ``reaction_conditions`` (below), ``compute_uncertainty``
+       (``false``), ``procs`` (1)
    * - ``fes``
-     - ``bin_width`` (0.05), ``variable_keys`` (``[all]``), ``step``,
-       ``range``, ``temperatures``, ``conditions``, ``procs``. The free
-       energies are evaluated at the listed ``conditions``, or at the
-       whole grid when none is listed.
+     - ``bin_width`` (0.05), ``variable_keys`` (``[all]``),
+       ``reaction_conditions``, ``procs``. The free energies are evaluated
+       at the listed reaction conditions, or at the simulated ones when
+       none is listed.
    * - both
      - which atoms are surface atoms: ``z_surf`` (height in Å) or
        ``surf_indices``. Without them AutoAdsorbate detects the surface
@@ -818,12 +761,33 @@ when it is listed. ``true`` runs it with its defaults.
        Lattice vacancies: ``vacancy_species`` or ``vacancy_indices``.
 
 These keys can be written at the top level of ``analysis`` to share them
-between ``expectations`` and ``fes``.
+between ``expectations`` and ``fes``. A key of the task replaces the
+shared one.
 
-A condition is a mapping with one value per reservoir element and the
-temperature ``T``. The values are :math:`\Delta\mu` like the grid.
-``absolute: true`` marks them as absolute chemical potentials, from which
-the reference energies are subtracted:
+.. _analysis-reaction-conditions:
+
+Reaction conditions of the analysis
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The reaction conditions of a grand-canonical analysis always start with
+the simulated ones: the grid of ``chemical_potentials.nonmetals`` at every
+temperature of ``population.temperatures``. MBAR needs these states. The
+entries of ``reaction_conditions`` are added after them. Each entry has one
+key per reservoir element and the temperature ``T``:
+
+* a number is the absolute chemical potential :math:`\mu` in eV, for
+  example ``N: -8.579``;
+* a mapping ``{reference: ..., range: [...], step: ...}`` or
+  ``{reference: ..., values: [...]}`` gives the chemical potentials
+  :math:`\mu = E^\mathrm{ref} + \Delta\mu` as in
+  ``chemical_potentials.nonmetals``. ``reference`` is required, and a
+  ``step`` without ``reference`` and ``range`` is an error;
+* ``T`` is one temperature or a list.
+
+An entry gives all combinations of its values. Numbers and mappings can be
+mixed in one entry, for example a scan of :math:`\mu_\mathrm{N}` at a
+fixed :math:`\mu_\mathrm{H}`. The temperatures need not be simulated ones:
+MBAR reweights the samples to them.
 
 .. code-block:: yaml
 
@@ -831,16 +795,26 @@ the reference energies are subtracted:
      starting_step: 500
      sample_stride: 50
      z_surf: 22.0
-     conditions:
-       - {N: -8.579, H: -3.960, T: 800, absolute: true}
-       - {N: -0.2, H: -0.7, T: 800}
      expectations:
-       step: {N: 0.025, H: 0.025}
-       temperatures: [800]
+       reaction_conditions:
+         # finer grid at the simulated temperatures and at 800 K
+         - N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.025}
+           H: {reference: -3.253, range: [-1.0, 0.0], step: 0.025}
+           T: [573, 673, 773, 873, 800]
+         # scan of mu_N at fixed mu_H
+         - {N: {reference: -8.2425, range: [-1.0, 0.0], step: 0.05}, H: -3.960, T: 800}
+         # single conditions (absolute chemical potentials)
+         - {N: -8.579, H: -3.960, T: 800}
+         - {N: -9.167, H: -3.881, T: 800}
      fes:
        bin_width: 0.05
+       reaction_conditions:
+         - {N: -8.579, H: -3.960, T: 800}
 
-The reaction conditions of a task are saved as
-``{name}_mbar_{task}_conditions.npy``, one row per condition: first the
-grid at the simulated temperatures, then the grid at the additional
-temperatures, then the single conditions.
+The expectations at single conditions are printed. The reaction
+conditions of a task are saved as ``{name}_mbar_{task}_conditions.npy``,
+one row per condition: first the simulated conditions, then the entries
+of ``reaction_conditions`` in their order. The chemical-potential columns
+hold :math:`\Delta\mu` relative to the references of
+``chemical_potentials.nonmetals``, and the last column is the
+temperature.

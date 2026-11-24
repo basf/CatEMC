@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Command-line interface of CatEMC.
 
-One YAML file describes one system (composition, template lattice,
+One YAML file describes one system (composition, template structure,
 population, calculators and sampling settings), and every step of a study
 is one command acting on that file::
 
@@ -68,8 +68,8 @@ def build_parser():
 
     p = sub.add_parser(
         'generate', help='generate the initial population',
-        description='Build the template lattice and the initial population '
-                    '({name}_template.traj and {name}_input_pop.traj).')
+        description='Decorate the template structure (population.template) '
+                    'and write the initial population ({name}_input_pop.traj).')
     _add_config_arguments(p)
     p.add_argument('-f', '--force', action='store_true',
                    help='overwrite an existing initial population')
@@ -111,7 +111,8 @@ def main(argv=None):
                     f'{args.output} already exists. Use --force to overwrite it.')
             with open(args.output, 'w') as handle:
                 handle.write(TEMPLATES[args.ensemble])
-            print(f'Wrote {args.output}. Edit it, then run:\n'
+            print(f'Wrote {args.output}. Provide the template structure named '
+                  'in population.template, edit the file, then run:\n'
                   f'  catemc generate {args.output}\n'
                   f'  catemc run {args.output}\n'
                   f'  catemc analyze {args.output}')

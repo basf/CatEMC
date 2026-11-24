@@ -10,20 +10,16 @@
 # Units: K, eV, angstrom, fs, bar. Paths are relative to this file.
 
 name: Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk
-directory: .
+calculation_dir: .
 ensemble: gibbs
 # X is a vacancy: one eighth of the oxygen sites of the spinel AB2O4 is empty.
 composition: Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5X0.5
 
-# 2x2x2 supercell of the conventional spinel cell, scaled to a = 8.06 A.
-# Co and Al of the cif file mark the metal sites that are decorated.
-template:
-  file: Al2CoO4.cif
-  scale_cell: [8.06, 8.06, 8.06]
-  repeat: [2, 2, 2]
-
 # 4 temperatures x 6 replicas = 24 replicas
 population:
+  # 2x2x2 supercell of the conventional spinel cell of Al2CoO4.cif, scaled to
+  # a = 8.06 A (448 atoms). Its metal and oxygen sites are decorated.
+  template: template_Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5_bulk.traj
   temperatures: [723, 823, 923, 1023]
   replicas_per_temperature: 6
 
@@ -71,8 +67,8 @@ analysis:
   sample_stride: 10
   trajectory: {replicas: [10]}
   sro: {cutoff: 3.5, metal_only: true, use_energy_mask: true}
-  # Chemical-potential differences between the metals. The surface examples
-  # in ../311 read them at their own temperatures.
+  # Chemical potentials of the metals. They are printed as the
+  # chemical_potentials.metals block of the surface examples in ../311.
   dmu:
     target_temperatures: [623, 723, 800, 823, 873, 950, 1023, 1100, 1173]
     wls_correction: true

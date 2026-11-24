@@ -2,8 +2,8 @@ Command line
 ============
 
 The ``catemc`` command runs a complete study from one YAML file. The file
-describes the system: composition, lattice, population, calculators and
-sampling settings. Each command performs one stage on it.
+describes the system: composition, template structure, population,
+calculators and sampling settings. Each command performs one stage on it.
 
 .. raw:: html
 
@@ -40,6 +40,7 @@ sampling settings. Each command performs one stage on it.
 .. code-block:: console
 
    $ catemc init gibbs                 # write a commented config.yaml
+   $ ase build -x fcc -a 3.8 --cubic -r 2,2,2 Cu template.traj   # its template structure
    $ catemc check config.yaml          # show what the file resolves to
    $ catemc generate config.yaml       # build the initial population
    $ catemc run config.yaml            # run, or continue, the simulation
@@ -73,9 +74,15 @@ existing file.
 
 The ``canonical`` and ``gibbs`` files describe a 32-atom CuNiPdPtAu alloy
 with the EMT calculator of ASE and run in about a minute, so they double
-as a test of the installation (:doc:`quickstart`). The
+as a test of the installation (:doc:`quickstart`). Their template is the
+file ``template.traj``, which the ``ase build`` command above writes. The
 ``grand_canonical`` file describes a CuNiPd(111) surface in contact with
-N and H reservoirs and expects a machine-learning potential.
+N and H reservoirs and expects a machine-learning potential and a slab
+file of your own as the template.
+
+``catemc init`` writes only the configuration file. The template
+structure is always a file that you provide, in any format that ASE reads
+(``population.template``).
 
 catemc check
 ^^^^^^^^^^^^
@@ -84,13 +91,13 @@ catemc check
 
    $ catemc check config.yaml
    System                   : CuNiPdPtAu_bulk
-   Directory                : /home/user/quickstart
+   Calculation directory    : /home/user/quickstart
    Ensemble                 : gibbs (GEEMC)
    Metals                   : {'Cu': 0.25, 'Ni': 0.25, 'Pd': 0.2, 'Pt': 0.2, 'Au': 0.1}
    Non-metals               : None
    Temperatures (K)         : [600, 700, 800, 900]
    Population size          : 8
-   Template                 : Cu32 (32 sites; built from the config)
+   Template                 : Cu32 (32 sites; /home/user/quickstart/template.traj)
    fix_indices              : none
    mutable_metal_indices    : all
    mutable_nonmetal_indices : all
@@ -104,8 +111,8 @@ Validates the file and prints what CatEMC derives from it, without loading
 a calculator or starting a simulation. Use it after every edit. It shows
 
 * the two sublattices the composition was split into,
-* the template that will be decorated and how many atoms are fixed, mutable
-  and part of the slab,
+* the template structure that will be decorated and how many atoms are
+  fixed, mutable and part of the slab,
 * the fitness settings converted to ASE units, exactly as the Python
   classes receive them,
 * for a surface run, the accessible volume, the number of reaction
@@ -120,14 +127,14 @@ catemc generate
 
    $ catemc generate config.yaml [-f]
 
-Builds the template lattice and the initial population and writes
-``{name}_template.traj`` and ``{name}_input_pop.traj`` to the calculation
+Decorates the template structure (``population.template``) and writes
+the initial population ``{name}_input_pop.traj`` to the calculation
 directory (:doc:`input_populations`). The command prints the random seed
 and one line per replica. An existing population is kept unless ``-f`` is
 given.
 
-Skip this command when ``population.file`` points to a population you
-built yourself.
+Skip this command when ``population.input_pop`` points to a population
+you built yourself.
 
 catemc run
 ^^^^^^^^^^
@@ -165,7 +172,11 @@ them again, which is needed after the simulation was extended.
    * - Ensemble
      - Tasks
      - Result
-   * - canonical, gibbs
+   * - canonical
+     - ``trajectory``, ``diagnostics``, ``sro``
+     - replica trajectories, sampling diagnostics, Warren-Cowley
+       parameters
+   * - gibbs
      - ``trajectory``, ``diagnostics``, ``sro``, ``dmu``
      - replica trajectories, sampling diagnostics, Warren-Cowley
        parameters, chemical-potential differences of the metals
@@ -220,7 +231,8 @@ Units, paths and names
        folder the command is called from. ``~`` and environment variables
        such as ``$SCRATCH`` are expanded.
    * - Output files
-     - every file starts with ``name`` and is written to ``directory``.
+     - every file starts with ``name`` and is written to
+       ``calculation_dir``.
    * - Unknown keys
      - are an error, with a suggestion for the closest valid key. A typing
        mistake can therefore not silently fall back to a default.
@@ -298,11 +310,12 @@ other entries are passed to the calculator as keyword arguments.
       .. code-block:: yaml
 
          calculators:
-           factory: my_calculators.py:create_calculators
-           kwargs: {model: medium-mpa-0}
+           calculator_factory: my_calculators.py:create_calculators
+           calculator_factory_kwargs: {model: medium-mpa-0}
            fmax: [0.5, 0.05]
 
-      ``factory`` is ``file.py:function`` or ``package.module:function``.
+      ``calculator_factory`` is ``file.py:function`` or
+      ``package.module:function``.
 
 Every worker process creates its calculators once and keeps them for the
 whole run (:doc:`accelerated_workflow`). An argument that starts with
@@ -312,7 +325,8 @@ Converting a Python script
 --------------------------
 
 The examples contain both versions of every run, which makes the
-correspondence easy to see.
+correspondence easy to see. Most keys have the names of the Python
+arguments.
 
 .. list-table::
    :header-rows: 1
@@ -321,34 +335,46 @@ correspondence easy to see.
    * - Python
      - YAML
    * - ``GEEMC(name, calculation_dir=...)``
-     - ``name``, ``directory``, ``ensemble: gibbs``
+     - ``name``, ``calculation_dir``, ``ensemble: gibbs``
    * - ``target_metal_species`` and ``target_metal_composition`` of
        ``generate_population``, ``metal_element_pool`` and
        ``nonmetal_element_pool`` of the EMC class
      - ``composition``
-   * - the template passed to ``generate_population``
-     - ``template``
    * - ``fix_indices``, ``mutable_metal_indices``,
        ``mutable_nonmetal_indices``, ``slab_indices``
-     - ``regions``
-   * - ``pop_size``, the temperature loop, ``assign_mu_windows``
-     - ``population``
+     - ``regions``, with the same names
+   * - the template passed to ``generate_population``, ``pop_size``, the
+       temperature loop, ``assign_mu_windows``
+     - ``population`` (``template``, ``temperatures``,
+       ``replicas_per_temperature``, ...)
+   * - ``target_metal_composition``, ``target_nonmetal_composition`` of
+       a population that differs from ``composition``
+     - ``population``, with the same names
+   * - ``input_pop`` of the EMC class, read from a file
+     - ``population.input_pop``, the file name
    * - ``create_calculators()``
-     - ``calculators``
+     - ``calculators`` (or ``calculator_factory`` and
+       ``calculator_factory_kwargs``)
    * - ``get_fitness_kwargs()``
      - ``fitness`` (``fmax_list`` comes from the ``fmax`` entries)
    * - all other keyword arguments of the EMC class
      - ``emc``, with the same names
    * - ``emc.run(total_steps=...)``
      - ``run``
-   * - ``adsorbate_species``, ``other_adsorbate_species``, ``volume``,
-       ``temperature_species_internal_map``, ``adsorption_sites``
-     - ``adsorbates``
+   * - ``adsorbate_species``, ``other_adsorbate_species``,
+       ``adsorption_sites``, ``volume``
+     - ``adsorbates``, with the same names
+   * - ``temperature_species_internal_map``
+     - ``adsorbates.internal_partition_functions``
+   * - ``temperature_dmu_map``
+     - ``chemical_potentials.metals``
    * - ``reaction_conditions``, ``element_column_map``,
-       ``element_eref_map``, ``element_y2x_map``, ``temperature_dmu_map``
-     - ``chemical_potentials``
+       ``element_eref_map``, ``element_y2x_map``
+     - ``chemical_potentials.nonmetals``
    * - the calls of the analysis class
-     - ``analysis``
+     - ``analysis``, with the arguments of each method
+       (``reaction_conditions`` as described in
+       :ref:`analysis-reaction-conditions`)
 
 :doc:`config_reference` lists every key.
 
