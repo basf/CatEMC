@@ -163,7 +163,7 @@ function. Everything written about the Python arguments on the following
 pages therefore applies to the YAML keys as well.
 
 Calculators
------------
+^^^^^^^^^^^
 
 ``create_calculators`` returns one ASE calculator or a list of calculators.
 A list is applied in sequence, each one relaxing the structure to its own
@@ -235,7 +235,7 @@ where :math:`r_i` and :math:`r_j` are covalent radii and
              return dict(fmax_list=[0.5, 0.05], ...)
 
 Relaxation and MD settings
---------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The fitness function relaxes a candidate and, every ``md_generation``
 steps, runs MD before the relaxation. Bulk simulations use
@@ -293,7 +293,7 @@ In Python the times are given in ASE units (``1 * units.fs``). In the YAML
 file they are plain numbers in fs, and the defaults in the table apply.
 
 Moves and rates
----------------
+^^^^^^^^^^^^^^^
 
 In every step, each replica is assigned one move, chosen with a
 probability proportional to its *rate*. The rates are normalized, so only
@@ -348,9 +348,8 @@ their ratios matter.
      -
      - ✓
 
-Settings shared by the three classes
-------------------------------------
-
+General settings
+^^^^^^^^^^^^^^^^
 .. list-table::
    :header-rows: 1
    :widths: 30 14 56
@@ -406,7 +405,7 @@ Settings shared by the three classes
      - print every move and not only the summary of each step
 
 Run, continue and restart
--------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``run(total_steps=N)`` runs until step :math:`N` is reached. If the
 databases of an earlier run exist, the simulation continues from the last
@@ -459,9 +458,6 @@ The standard output reports each step:
 The *raw score* of a structure is :math:`-U` in the bulk ensembles and
 :math:`-\Phi` (:eq:`eq-phi`) in the grand-canonical ensemble. A structure
 whose evaluation failed receives ``raw_score_cutoff`` and is rejected.
-
-How many steps?
----------------
 
 The published simulations used cycles of one MD run (400 steps of 1 fs)
 and ten EMC steps, that is ``md_generation: 10``:
