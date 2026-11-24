@@ -1,4 +1,4 @@
-Tutorials
+Introduction
 =========
 
 The tutorials follow two catalysts through a complete study, from the first
