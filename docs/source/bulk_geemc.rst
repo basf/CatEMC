@@ -279,10 +279,6 @@ Practical advice
   requests the temperatures of the surface run (``analysis.dmu.
   target_temperatures``). MBAR interpolates between the simulated
   temperatures.
-
-Next step
----------
-
-:doc:`analysis` turns the databases of this run into
-``{name}_mbar_dmu_estimates.pkl``, which :doc:`surface_gcemc` reads as its
-bulk reservoir.
+* :doc:`analysis` turns the databases of this run into
+  ``{name}_mbar_dmu_estimates.pkl``, which :doc:`surface_gcemc` reads as its
+  bulk reservoir.
