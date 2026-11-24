@@ -151,8 +151,8 @@ Constant pressure
    The other moves change as in :eq:`eq-p-intra-npt` to
    :eq:`eq-p-exchange-npt`.
 
-HEA bulk
---------
+Example 1: HEA bulk
+-------------------
 
 The published settings: 48 replicas at twelve temperatures from 573 to
 1400 K, a 512-atom fcc cell at fixed volume, and rates of 0.8 : 0.1 : 0.1
@@ -192,8 +192,8 @@ Widom attempts.
 
          $ python -u geemc_run.py
 
-HEO bulk with oxygen vacancies
-------------------------------
+Example 2: HEO bulk with oxygen vacancies
+-----------------------------------------
 
 The spinel oxide has two sublattices that exchange atoms. Metals are
 swapped between replicas with ``metal_interswap_rate``, and oxygen atoms
@@ -229,8 +229,8 @@ potential first, then MACE-MPA-0.
       .. literalinclude:: ../../examples/Co0.2Ni0.2Mg0.2Zn0.2Mn0.2Al2O3.5/bulk/geemc_run.py
          :language: python
 
-Arguments specific to ``GEEMC``
--------------------------------
+Parameters specific to ``GEEMC``
+--------------------------------
 
 .. list-table::
    :header-rows: 1
