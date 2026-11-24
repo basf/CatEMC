@@ -103,8 +103,8 @@ Zn\ :sub:`13`\ O\ :sub:`224`\ X\ :sub:`32`.
 Bulk populations
 ----------------
 
-HEA bulk
-^^^^^^^^
+Example 1: HEA bulk
+^^^^^^^^^^^^^^^^^^^
 
 The alloy is a random decoration of an fcc lattice with the experimental
 lattice constant: an 8×8×8 cell with 512 atoms and 48 replicas at twelve
@@ -136,8 +136,8 @@ temperatures between 573 and 1400 K.
 its arguments, so ``bulk``, ``fcc111``, ``surface``, ``mx2`` and all other
 builders are available without writing Python.
 
-HEO bulk with oxygen vacancies
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Example 2: HEO bulk with oxygen vacancies
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The spinel template is read from a structure file. Co and Al of the file
 mark the metal sites, which are then decorated with the six metals, and one
@@ -220,8 +220,8 @@ indices, or one of ``z_below``, ``z_above``, ``bottom_layers``,
    regions:
      fixed: {bottom_layers: 2}          # or {z_below: 15.0}
 
-HEA(111) for ammonia decomposition
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Example 1: HEA(111) for ammonia decomposition
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The slab is a 6×6 fcc(111) cell with six layers, of which the two bottom
 layers are frozen. The population has 56 replicas at four temperatures. Its
@@ -323,8 +323,8 @@ faster.
                                        element_column_map={'N': 0, 'H': 1},
                                        round_decimals=2)
 
-HEO(311) for H\ :sub:`2` reduction
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Example 2: HEO(311) for H\ :sub:`2` reduction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The oxide slab is read from a relaxed structure file. Atoms below
 :math:`z = 18.8` Å are frozen. Above that height the metals can mutate and
@@ -514,7 +514,7 @@ On the command line the same options are keys of the ``population``
 section, either for the whole population or for one entry of
 ``population.variants``.
 
-Check the result
+Practical advice
 ----------------
 
 Always look at the population before a long run:
