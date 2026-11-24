@@ -380,8 +380,8 @@ which is described by the progress
 between the initial mixture (:math:`\xi = 0`) and equilibrium
 (:math:`\xi = 1`).
 
-Elements
-^^^^^^^^
+Elemental chemical potentials
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The simulation needs chemical potentials of *elements*. They are obtained
 by assuming which gas pins each element. The grid then uses relative
@@ -482,8 +482,8 @@ least-squares sense, :math:`\boldsymbol\mu^\mathrm{LS} = \arg\min_{\boldsymbol\m
    >>> get_ls_elemental_mu({'NH3': -20.459, 'H2': -7.920})
    {'H': -3.96, 'N': -8.579}
 
-HEA(111) under ammonia-decomposition conditions
------------------------------------------------
+Example 1: HEA(111) under ammonia-decomposition conditions
+----------------------------------------------------------
 
 The slab, the population and the μ-windows come from
 :doc:`input_populations`. The simulation adds the adsorbates, the
@@ -539,8 +539,8 @@ Some points about this input:
   (573, 673, 773 and 873 K here). The bulk example requests them in its
   ``analysis.dmu.target_temperatures``.
 
-HEO(311) under H\ :sub:`2`-reduction conditions
-------------------------------------------------
+Example 2: HEO(311) under H\ :sub:`2`-reduction conditions
+----------------------------------------------------------
 
 On the oxide, lattice oxygen takes part in the exchange with the gas
 phase: a surface oxygen atom can turn into a vacancy and back. The
@@ -588,8 +588,8 @@ Some points about this input:
 * ``O`` as an adsorbate (degeneracy 3) and lattice oxygen are distinct:
   the former is a mobile fragment, the latter a lattice site.
 
-Arguments specific to ``GCEMC``
--------------------------------
+Parameters specific to ``GCEMC``
+--------------------------------
 
 .. list-table::
    :header-rows: 1
