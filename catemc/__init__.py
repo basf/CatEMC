@@ -8,5 +8,5 @@ __email__ = 'hanshuangshiren@gmail.com, sandip.de@basf.com'
 __license__ = 'GPLv3 License'
 __maintainer__ = 'Shuang Han, Sandip De'
 __url__ = 'https://github.com/basf/catemc'
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
