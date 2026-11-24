@@ -432,8 +432,8 @@ height counts as a surface atom. Without it the surface atoms are detected
 with AutoAdsorbate, which is the choice for rough or reconstructed
 surfaces such as the HEO(311) example.
 
-HEO(311)
-^^^^^^^^
+Example: HEO(311)
+^^^^^^^^^^^^^^^^^
 
 .. tab-set::
    :sync-group: interface
